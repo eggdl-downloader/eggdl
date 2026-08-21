@@ -12,6 +12,11 @@ import shutil
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 
+# Ensure backend directory is in sys.path
+_BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+if _BACKEND_DIR not in sys.path:
+    sys.path.insert(0, _BACKEND_DIR)
+
 # Fix Windows console UTF-8 output
 if sys.platform == "win32":
     try:
