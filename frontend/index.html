@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EggDL - High Performance Universal Downloader</title>
+  <link rel="icon" type="image/png" href="/static/images/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <!-- Firebase SDK (v10 compat) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <!-- Google Identity Services (OAuth 2.0) -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="/static/css/style.css?v=30.0">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Mobile Sidebar Backdrop Overlay -->
+    <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="app-sidebar">
+      <div class="brand">
+        <img src="/static/images/egg-icon.png" class="brand-logo-img" alt="EggDL">
+        <div class="brand-text-styled">
+          <span class="brand-egg">Egg</span><span class="brand-dl">DL</span>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <div class="nav-section-title">CATEGORIES</div>
+        <button class="nav-item active" data-category="all">
+          <i data-lucide="layout-grid"></i>
+          <span class="nav-text">All Downloads</span>
+          <span class="nav-count" id="count-all">0</span>
+        </button>
+        <button class="nav-item" data-category="video">
+          <i data-lucide="video"></i>
+          <span class="nav-text">Videos</span>
+          <span class="nav-count" id="count-video">0</span>
+        </button>
+        <button class="nav-item" data-category="audio">
+          <i data-lucide="music"></i>
+          <span class="nav-text">Audio</span>
+          <span class="nav-count" id="count-audio">0</span>
+        </button>
+        <button class="nav-item" data-category="document">
+          <i data-lucide="file-text"></i>
+          <span class="nav-text">Documents</span>
+          <span class="nav-count" id="count-document">0</span>
+        </button>
+        <button class="nav-item" data-category="compressed">
+          <i data-lucide="archive"></i>
+          <span class="nav-text">Archives</span>
+          <span class="nav-count" id="count-compressed">0</span>
+        </button>
+        <button class="nav-item" data-category="program">
+          <i data-lucide="terminal"></i>
+          <span class="nav-text">Applications</span>
+          <span class="nav-count" id="count-program">0</span>
+        </button>
+
+        <div class="nav-section-title" style="margin-top: 24px;">TOOLS</div>
+        <button class="nav-item" id="tab-sniffer-btn">
+          <i data-lucide="compass"></i>
+          <span class="nav-text">Media Sniffer</span>
+        </button>
+        <button class="nav-item" id="open-settings-btn">
+          <i data-lucide="settings"></i>
+          <span class="nav-text">Settings</span>
+        </button>
+      </nav>
+
+      <!-- System Storage Widget in Sidebar -->
+      <div class="sidebar-storage">
+        <div class="storage-header">
+          <span><i data-lucide="hard-drive" class="small-icon"></i> Local Storage</span>
+          <span id="disk-free-text">...</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="disk-progress" style="width: 0%;"></div>
+        </div>
+        <div class="storage-path" id="download-dir-hint" title="Default download directory">
+          C:\Users\...\Downloads\EggDL
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Top Bar -->
+      <header class="topbar">
+        <div class="topbar-search-status">
+          <button class="btn-icon mobile-menu-toggle" id="mobile-menu-btn" title="Toggle Navigation">
+            <i data-lucide="menu"></i>
+          </button>
+          <div class="status-indicator online">
+            <span class="dot"></span>
+            <span id="engine-status-text">EggDL Engine Ready</span>
+          </div>
+          <div class="speed-badge" id="global-speed-badge">
+            <i data-lucide="activity" class="pulse-icon"></i>
+            <span id="global-speed-text">0.0 KB/s</span>
+          </div>
+        </div>
+
+        <div class="topbar-actions">
+          <button class="btn btn-secondary btn-sm" id="open-folder-btn" title="Open Download Folder">
+            <i data-lucide="folder-open"></i>
+            <span>Open Folder</span>
+          </button>
+          <button class="btn btn-secondary btn-sm" id="clear-all-btn" title="Clear All Downloads">
+            <i data-lucide="trash-2"></i>
+            <span>Clear All</span>
+          </button>
+          <div id="user-header-area">
+            <button class="btn btn-primary btn-sm btn-glow" id="header-auth-btn">
+              <i data-lucide="user"></i>
+              <span>Sign In / Pro</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <!-- Quick Dashboard Stats Bar -->
+      <section class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon-wrapper speed">
+            <i data-lucide="zap"></i>
+          </div>
+          <div class="stat-card-info">
+            <div class="stat-card-label">Download Speed</div>
+            <div class="stat-card-val" id="stat-speed">0.0 KB/s</div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon-wrapper active">
+            <i data-lucide="download-cloud"></i>
+          </div>
+          <div class="stat-card-info">
+            <div class="stat-card-label">Active Downloads</div>
+            <div class="stat-card-val" id="stat-active-count">0</div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon-wrapper completed">
+            <i data-lucide="check-circle-2"></i>
+          </div>
+          <div class="stat-card-info">
+            <div class="stat-card-label">Completed</div>
+            <div class="stat-card-val" id="stat-completed-count">0</div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon-wrapper storage">
+            <i data-lucide="hard-drive"></i>
+          </div>
+          <div class="stat-card-info">
+            <div class="stat-card-label">Free Disk Space</div>
+            <div class="stat-card-val" id="stat-disk-free">...</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- URL Input Hero Box -->
+      <section class="url-hero-box">
+        <div class="url-input-wrapper">
+          <div class="input-icon">
+            <i data-lucide="link-2"></i>
+          </div>
+          <input type="text" id="url-input" name="eggdl_download_url_field" placeholder="Paste any video link (YouTube, Instagram, TikTok...) or direct file URL..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+          <button class="btn btn-secondary btn-icon-only" id="clear-input-btn" title="Clear input" style="display: none;">
+            <i data-lucide="x"></i>
+          </button>
+          <button class="btn btn-secondary btn-icon-only" id="paste-clipboard-btn" title="Paste from Clipboard">
+            <i data-lucide="clipboard"></i>
+          </button>
+          <button class="btn btn-primary btn-glow" id="inspect-btn">
+            <i data-lucide="arrow-down-circle"></i>
+            <span>Download</span>
+          </button>
+        </div>
+        <div class="quick-tags">
+          <span class="tag"><i data-lucide="play-circle"></i> 4K / 1080p Ultra HD</span>
+          <span class="tag"><i data-lucide="layers"></i> Multi-Thread Turbo</span>
+          <span class="tag"><i data-lucide="music"></i> High-Bitrate Audio</span>
+          <span class="tag"><i data-lucide="shield-check"></i> Safe Download</span>
+        </div>
+      </section>
+
+      <!-- Active Downloads Section -->
+      <section class="active-downloads-section" id="active-section" style="display: none;">
+        <div class="section-header">
+          <h2 id="active-section-title">
+            <span id="active-header-icon-slot" style="display: inline-flex; align-items: center;"></span>
+            <span>Active Downloads</span> (<span id="active-count">0</span>)
+          </h2>
+        </div>
+        <div class="active-cards-grid" id="active-tasks-container">
+          <!-- Active tasks dynamically injected here -->
+        </div>
+      </section>
+
+      <!-- Downloads History Table Section -->
+      <section class="history-section" id="history-section">
+        <div class="section-header">
+          <h2 id="section-title">All Downloads</h2>
+          <div class="filter-controls">
+            <form class="search-box" role="search" onsubmit="return false;" autocomplete="off">
+              <i data-lucide="search"></i>
+              <input type="search" id="search-history" name="eggdl_filter_search" placeholder="Search downloads..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly');" onblur="if(!this.value) this.setAttribute('readonly', 'readonly');">
+            </form>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table class="downloads-table">
+            <thead>
+              <tr>
+                <th style="width: 48px;">Type</th>
+                <th>File / Name</th>
+                <th style="width: 100px;">Size</th>
+                <th style="width: 140px;">Progress</th>
+                <th style="width: 120px;">Status</th>
+                <th style="width: 130px;">Date</th>
+                <th style="width: 170px; text-align: right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="downloads-tbody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+
+          <!-- Empty State -->
+          <div class="empty-state" id="empty-state" style="display: none;">
+            <div class="empty-icon">
+              <i data-lucide="inbox" style="width: 48px; height: 48px; color: var(--text-dim);"></i>
+            </div>
+            <h3 style="margin-top: 14px;">No Downloads Yet</h3>
+            <p>Paste a link above or use the browser extension to start downloading files.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Web Media Sniffer Section (Hidden by default) -->
+      <section class="sniffer-section" id="sniffer-section" style="display: none;">
+        <div class="section-header">
+          <h2><i data-lucide="compass"></i> Web Media Sniffer</h2>
+          <button class="btn btn-secondary btn-sm" id="close-sniffer-btn">
+            <i data-lucide="arrow-left"></i> Back to Downloads
+          </button>
+        </div>
+        <div class="sniffer-input-box">
+          <input type="text" id="sniffer-url-input" name="eggdl_sniffer_url_field" placeholder="Enter any webpage URL to discover downloadable video and media files..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+          <button class="btn btn-primary" id="sniff-btn">
+            <i data-lucide="scan"></i> Scan Page
+          </button>
+        </div>
+
+        <div class="sniffer-results-header" id="sniffer-results-header" style="display: none;">
+          <div class="results-meta">
+            Found <span id="sniffer-count">0</span> media items on <b id="sniffer-page-title">Page</b>
+          </div>
+          <div class="sniffer-batch-actions">
+            <button class="btn btn-secondary btn-sm" id="sniffer-select-all">Select All</button>
+            <button class="btn btn-primary btn-sm" id="sniffer-download-selected">
+              <i data-lucide="download"></i> Download Selected (<span id="sniffer-selected-count">0</span>)
+            </button>
+          </div>
+        </div>
+
+        <div class="sniffer-grid" id="sniffer-grid">
+          <!-- Sniffer media items -->
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Inspect Modal (Format & Options Picker) -->
+  <div class="modal-backdrop" id="inspect-modal" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i data-lucide="download-cloud"></i>
+          <span id="modal-header-title">Choose Download Quality</span>
+        </div>
+        <button class="modal-close" id="close-modal-btn">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+
+      <div class="modal-body" id="modal-body-content">
+        <!-- Injected dynamically -->
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-cancel-btn">Cancel</button>
+        <button class="btn btn-primary btn-glow" id="modal-start-btn">
+          <i data-lucide="arrow-down-circle"></i>
+          <span>Start Download</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal-backdrop" id="settings-modal" style="display: none;">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i data-lucide="settings"></i>
+          <span>EggDL Settings</span>
+        </div>
+        <button class="modal-close" id="close-settings-btn">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="setting-dl-dir">Download Directory</label>
+          <input type="text" id="setting-dl-dir" class="form-control" placeholder="C:\Users\...\Downloads\EggDL">
+          <small class="form-hint">Files will be saved in this folder.</small>
+        </div>
+
+        <div class="form-group">
+          <label for="setting-segments">Parallel Connections (Multi-thread Acceleration)</label>
+          <select id="setting-segments" class="form-control">
+            <option value="1">1 (Single connection)</option>
+            <option value="4">4 Connections</option>
+            <option value="8" selected>8 Connections (Recommended)</option>
+            <option value="16">16 Connections (Maximum Speed)</option>
+            <option value="32">32 Connections (Turbo)</option>
+          </select>
+          <small class="form-hint">Multi-segmented downloading significantly speeds up file transfers.</small>
+        </div>
+
+        <div class="form-group">
+          <label for="setting-max-active">Max Concurrent Downloads</label>
+          <select id="setting-max-active" class="form-control">
+            <option value="1">1 download at a time</option>
+            <option value="3" selected>3 downloads</option>
+            <option value="5">5 downloads</option>
+            <option value="10">10 downloads</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancel-settings-btn">Cancel</button>
+        <button class="btn btn-primary" id="save-settings-btn">
+          <i data-lucide="check"></i> Save Settings
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Built-in In-App Media Player Modal -->
+  <div class="modal-backdrop" id="player-modal" style="display: none;">
+    <div class="modal-card modal-lg">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i data-lucide="play-circle"></i>
+          <span id="player-title">Media Player</span>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button class="btn btn-secondary btn-sm" id="player-external-btn" title="Open in System Player">
+            <i data-lucide="external-link"></i>
+            <span>System Player</span>
+          </button>
+          <button class="modal-close" id="close-player-btn" onclick="UI.closePlayerModal()">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="modal-body" style="padding: 0; background: #000; display: flex; align-items: center; justify-content: center; min-height: 380px;">
+        <video id="player-video-element" controls autoplay style="width: 100%; max-height: 70vh; outline: none;"></video>
+      </div>
+    </div>
+  </div>
+
+  <!-- Authentication Modal (Sign In / Register / Google) -->
+  <div class="modal-backdrop" id="auth-modal" style="display: none;">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i data-lucide="shield-check"></i>
+          <span id="auth-modal-title">Sign In to EggDL</span>
+        </div>
+        <button class="modal-close" id="close-auth-modal-btn">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Google Sign-In Quick Action -->
+        <div class="oauth-section">
+          <button class="btn btn-google" id="google-login-btn" style="width: 100%; justify-content: center;">
+            <svg class="google-icon" viewBox="0 0 24 24" width="18" height="18">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+            </svg>
+            <span>Continue with Google</span>
+          </button>
+        </div>
+
+        <div class="auth-divider">
+          <span>OR WITH EMAIL</span>
+        </div>
+
+        <!-- Auth Tabs: Sign In / Create Account -->
+        <div class="format-tabs auth-tabs">
+          <button class="format-tab-btn active" id="tab-login-btn">Sign In</button>
+          <button class="format-tab-btn" id="tab-register-btn">Create Account</button>
+        </div>
+
+        <div id="auth-error-msg" class="auth-error-banner" style="display: none;"></div>
+
+        <!-- Auth Form Fields -->
+        <form id="auth-credentials-form" autocomplete="on" onsubmit="event.preventDefault(); App.handleAuthSubmit();">
+          <!-- Name Field (Only visible on register) -->
+          <div class="auth-input-group" id="auth-name-group" style="display: none;">
+            <label class="auth-label" for="auth-name-input">Full Name</label>
+            <div class="auth-input-wrapper">
+              <i data-lucide="user" class="auth-input-icon"></i>
+              <input type="text" id="auth-name-input" name="name" class="auth-input" placeholder="Your full name" autocomplete="name">
+            </div>
+          </div>
+
+          <div class="auth-input-group">
+            <label class="auth-label" for="auth-email-input">Email Address</label>
+            <div class="auth-input-wrapper">
+              <i data-lucide="mail" class="auth-input-icon"></i>
+              <input type="email" id="auth-email-input" name="username" class="auth-input" placeholder="name@example.com" autocomplete="username">
+            </div>
+          </div>
+
+          <div class="auth-input-group">
+            <label class="auth-label" for="auth-password-input">Password</label>
+            <div class="auth-input-wrapper">
+              <i data-lucide="lock" class="auth-input-icon"></i>
+              <input type="password" id="auth-password-input" name="password" class="auth-input" placeholder="••••••••" autocomplete="current-password">
+              <button type="button" class="auth-toggle-pwd" onclick="UI.toggleAuthPassword(this)" title="Toggle visibility">
+                <i data-lucide="eye" style="width: 15px; height: 15px;"></i>
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancel-auth-btn">Cancel</button>
+        <button class="btn btn-primary btn-glow" id="submit-auth-btn">
+          <i data-lucide="log-in"></i>
+          <span id="submit-auth-text">Sign In</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Account & License Activation Modal -->
+  <div class="modal-backdrop" id="account-modal" style="display: none;">
+    <div class="modal-card modal-xl">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i data-lucide="crown"></i>
+          <span>Account & Subscriptions</span>
+        </div>
+        <button class="modal-close" id="close-account-modal-btn">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <!-- User Profile Card -->
+        <div class="user-summary-card">
+          <div class="user-summary-avatar" id="acc-avatar-display">U</div>
+          <div class="user-summary-info">
+            <h3 id="acc-name-display">User Name</h3>
+            <p id="acc-email-display">user@example.com</p>
+          </div>
+          <div class="user-summary-badge">
+            <span class="plan-pill" id="acc-plan-pill">Free Plan</span>
+          </div>
+        </div>
+
+        <!-- Product Key Activation Box -->
+        <div class="license-activation-card">
+          <div class="activation-header">
+            <h4><i data-lucide="key"></i> Activate Product Key</h4>
+            <p>Enter your 1-Month, 3-Month, 6-Month, or Lifetime Product Key below to upgrade.</p>
+          </div>
+          <div class="activation-input-row">
+            <input type="text" id="license-key-input" class="form-control font-mono" placeholder="EGGDL-LIFE-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false">
+            <button class="btn btn-primary btn-glow" id="activate-license-btn">
+              <i data-lucide="check-circle-2"></i>
+              <span>Activate Key</span>
+            </button>
+          </div>
+          <div id="license-feedback-msg" class="license-feedback" style="display: none;"></div>
+          <div class="demo-keys-hint">
+            <span>💡 <b>Example Key Format:</b> <code>EGGDL-PRO-XXXX-SAMPLE-KEY0</code></span>
+          </div>
+        </div>
+
+        <!-- Subscription Plans Grid -->
+        <div class="plans-section">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h4 class="plans-title">Choose Your Subscription Plan</h4>
+            <span style="font-size: 0.74rem; color: #10B981; font-weight: 600;"><i data-lucide="zap"></i> Instant Auto-Activation via UPI / Card</span>
+          </div>
+          <div class="plans-grid">
+            <!-- 1 Month: Starter -->
+            <div class="plan-card" data-plan="1month">
+              <div class="plan-card-header">
+                <div class="plan-name">Starter</div>
+                <div class="plan-badge">30 Days</div>
+              </div>
+              <div class="plan-price-main">
+                <span class="currency">₹</span><span class="amount">99</span>
+                <span class="period">/ 30 Days</span>
+              </div>
+              <div class="plan-effective-rate">Effective: ₹99/mo</div>
+              <ul class="plan-features">
+                <li><i data-lucide="check"></i> 16 Turbo Threads</li>
+                <li><i data-lucide="check"></i> Up to 4K Ultra HD Support</li>
+                <li><i data-lucide="check"></i> 2 Simultaneous Downloads</li>
+                <li><i data-lucide="check"></i> Standard Download Engine</li>
+              </ul>
+              <button class="btn btn-primary btn-sm btn-plan-buy" data-plan="1month">
+                <i data-lucide="credit-card"></i> Pay ₹99
+              </button>
+            </div>
+
+            <!-- 3 Months: Pro -->
+            <div class="plan-card" data-plan="3month">
+              <div class="plan-card-header">
+                <div class="plan-name">Pro</div>
+                <div class="plan-badge">90 Days</div>
+              </div>
+              <div class="plan-price-main">
+                <span class="currency">₹</span><span class="amount">249</span>
+                <span class="period">/ 90 Days</span>
+              </div>
+              <div class="plan-effective-rate">Effective: ₹83/mo • Save 16%</div>
+              <ul class="plan-features">
+                <li><i data-lucide="check"></i> All 1 Month Features +</li>
+                <li><i data-lucide="check"></i> 24 Turbo Threads</li>
+                <li><i data-lucide="check"></i> Full 8K Ultra HD Support</li>
+                <li><i data-lucide="check"></i> 5 Simultaneous Downloads</li>
+                <li><i data-lucide="check"></i> Priority Acceleration Engine</li>
+              </ul>
+              <button class="btn btn-primary btn-sm btn-plan-buy" data-plan="3month">
+                <i data-lucide="credit-card"></i> Pay ₹249
+              </button>
+            </div>
+
+            <!-- 6 Months: Elite -->
+            <div class="plan-card" data-plan="6month">
+              <div class="plan-card-header">
+                <div class="plan-name">Elite</div>
+                <div class="plan-badge">180 Days</div>
+              </div>
+              <div class="plan-price-main">
+                <span class="currency">₹</span><span class="amount">449</span>
+                <span class="period">/ 180 Days</span>
+              </div>
+              <div class="plan-effective-rate">Effective: ₹74.83/mo • Save 24%</div>
+              <ul class="plan-features">
+                <li><i data-lucide="check"></i> All 3 Months Features +</li>
+                <li><i data-lucide="check"></i> 32 Turbo Threads</li>
+                <li><i data-lucide="check"></i> 10 Simultaneous Downloads</li>
+                <li><i data-lucide="check"></i> Smart Media Sniffer & Link Grabber</li>
+                <li><i data-lucide="check"></i> Auto-Resume Broken Downloads</li>
+              </ul>
+              <button class="btn btn-primary btn-sm btn-plan-buy" data-plan="6month">
+                <i data-lucide="credit-card"></i> Pay ₹449
+              </button>
+            </div>
+
+            <!-- 1 Year: Ultra Elite -->
+            <div class="plan-card" data-plan="1year">
+              <div class="plan-featured-tag" style="background: #3B82F6;">POPULAR</div>
+              <div class="plan-card-header">
+                <div class="plan-name">Ultra Elite</div>
+                <div class="plan-badge">365 Days</div>
+              </div>
+              <div class="plan-price-main">
+                <span class="currency">₹</span><span class="amount">699</span>
+                <span class="period">/ 365 Days</span>
+              </div>
+              <div class="plan-effective-rate">Effective: ₹58.25/mo • Save 41%</div>
+              <ul class="plan-features">
+                <li><i data-lucide="check"></i> All 6 Months Features +</li>
+                <li><i data-lucide="check"></i> 48 Max Turbo Threads</li>
+                <li><i data-lucide="check"></i> 20 Simultaneous Downloads</li>
+                <li><i data-lucide="check"></i> VIP Dedicated Pipeline Speeds</li>
+                <li><i data-lucide="check"></i> Automatic Subtitle & Audio Track Extractor</li>
+              </ul>
+              <button class="btn btn-primary btn-sm btn-plan-buy" data-plan="1year">
+                <i data-lucide="credit-card"></i> Pay ₹699
+              </button>
+            </div>
+
+            <!-- Lifetime: Ultimate Pass -->
+            <div class="plan-card featured" data-plan="lifetime">
+              <div class="plan-featured-tag">BEST VALUE</div>
+              <div class="plan-card-header">
+                <div class="plan-name">Ultimate Pass</div>
+                <div class="plan-badge lifetime">Permanent</div>
+              </div>
+              <div class="plan-price-main">
+                <span class="currency">₹</span><span class="amount">1,499</span>
+                <span class="period">One-time</span>
+              </div>
+              <div class="plan-effective-rate">Pay Once, Own Forever</div>
+              <ul class="plan-features">
+                <li><i data-lucide="check"></i> Unlimited Everything</li>
+                <li><i data-lucide="check"></i> Infinite Concurrent Downloads</li>
+                <li><i data-lucide="check"></i> 8K / 4K / HDR Original Quality</li>
+                <li><i data-lucide="check"></i> Direct Priority Bandwidth Route</li>
+                <li><i data-lucide="check"></i> All Future Updates & VIP Features Included</li>
+              </ul>
+              <button class="btn btn-primary btn-sm btn-glow btn-plan-buy" data-plan="lifetime">
+                <i data-lucide="crown"></i> Pay ₹1,499
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="justify-content: space-between;">
+        <button class="btn btn-danger btn-sm" id="logout-btn">
+          <i data-lucide="log-out"></i>
+          <span>Log Out</span>
+        </button>
+        <button class="btn btn-secondary" id="close-account-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Payment Checkout Modal (UPI & Cards) -->
+  <div class="modal-backdrop" id="payment-modal" style="display: none;">
+    <div class="modal-card modal-md">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i data-lucide="shield-check" style="color: #10B981;"></i>
+          <span>Secure Checkout</span>
+        </div>
+        <button class="modal-close" id="close-payment-modal-btn">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Order Summary Banner -->
+        <div class="checkout-summary-box">
+          <div class="checkout-plan-info">
+            <span class="checkout-label">SELECTED PLAN</span>
+            <h3 id="checkout-plan-name">Lifetime Pro</h3>
+            <p id="checkout-plan-desc">Permanent VIP access • All future updates</p>
+          </div>
+          <div class="checkout-price-box">
+            <span class="checkout-amount" id="checkout-price-display">₹1,999</span>
+            <span class="checkout-tax">Inclusive of all taxes</span>
+          </div>
+        </div>
+
+        <!-- Payment Method Tabs -->
+        <div class="format-tabs payment-tabs">
+          <button class="format-tab-btn active" id="tab-pay-upi">
+            <i data-lucide="qr-code"></i> UPI / QR / Apps
+          </button>
+          <button class="format-tab-btn" id="tab-pay-card">
+            <i data-lucide="credit-card"></i> Debit / Credit Card
+          </button>
+        </div>
+
+        <!-- UPI Checkout View -->
+        <div id="payment-upi-view" class="payment-method-view">
+          <div class="upi-container">
+            <div class="upi-qr-wrapper">
+              <div class="upi-qr-box" id="upi-qr-box">
+                <!-- Dynamic QR code simulation with SVG -->
+                <svg viewBox="0 0 160 160" width="140" height="140" class="upi-qr-svg">
+                  <rect width="160" height="160" fill="#ffffff" rx="8"/>
+                  <!-- QR Finder patterns -->
+                  <rect x="15" y="15" width="40" height="40" fill="#0F172A" rx="4"/>
+                  <rect x="23" y="23" width="24" height="24" fill="#ffffff" rx="2"/>
+                  <rect x="29" y="29" width="12" height="12" fill="#0F172A"/>
+
+                  <rect x="105" y="15" width="40" height="40" fill="#0F172A" rx="4"/>
+                  <rect x="113" y="23" width="24" height="24" fill="#ffffff" rx="2"/>
+                  <rect x="119" y="29" width="12" height="12" fill="#0F172A"/>
+
+                  <rect x="15" y="105" width="40" height="40" fill="#0F172A" rx="4"/>
+                  <rect x="23" y="113" width="24" height="24" fill="#ffffff" rx="2"/>
+                  <rect x="29" y="119" width="12" height="12" fill="#0F172A"/>
+
+                  <!-- Data Dots -->
+                  <rect x="65" y="20" width="8" height="8" fill="#0F172A"/>
+                  <rect x="80" y="20" width="15" height="8" fill="#0F172A"/>
+                  <rect x="65" y="35" width="12" height="12" fill="#0F172A"/>
+                  <rect x="85" y="35" width="8" height="15" fill="#0F172A"/>
+                  <rect x="65" y="55" width="30" height="8" fill="#0F172A"/>
+                  
+                  <rect x="20" y="65" width="15" height="8" fill="#0F172A"/>
+                  <rect x="40" y="65" width="18" height="8" fill="#0F172A"/>
+                  <rect x="20" y="80" width="8" height="18" fill="#0F172A"/>
+                  <rect x="35" y="80" width="20" height="8" fill="#0F172A"/>
+                  <rect x="35" y="92" width="10" height="8" fill="#0F172A"/>
+
+                  <rect x="65" y="70" width="30" height="30" fill="#3B82F6" rx="4"/>
+                  <text x="80" y="90" fill="#ffffff" font-size="14" font-weight="bold" text-anchor="middle">UPI</text>
+
+                  <rect x="105" y="65" width="18" height="8" fill="#0F172A"/>
+                  <rect x="130" y="65" width="15" height="12" fill="#0F172A"/>
+                  <rect x="110" y="80" width="12" height="12" fill="#0F172A"/>
+                  <rect x="125" y="80" width="20" height="8" fill="#0F172A"/>
+
+                  <rect x="65" y="110" width="12" height="12" fill="#0F172A"/>
+                  <rect x="82" y="110" width="18" height="8" fill="#0F172A"/>
+                  <rect x="65" y="128" width="24" height="15" fill="#0F172A"/>
+                  <rect x="95" y="125" width="8" height="20" fill="#0F172A"/>
+                  <rect x="110" y="110" width="35" height="8" fill="#0F172A"/>
+                  <rect x="110" y="125" width="18" height="18" fill="#0F172A"/>
+                  <rect x="132" y="125" width="12" height="18" fill="#0F172A"/>
+                </svg>
+              </div>
+              <div class="upi-qr-meta">
+                <span class="qr-scan-text">Scan with any UPI App</span>
+                <div class="upi-apps-icons">
+                  <span class="upi-app-badge">GPay</span>
+                  <span class="upi-app-badge">PhonePe</span>
+                  <span class="upi-app-badge">Paytm</span>
+                  <span class="upi-app-badge">BHIM</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="upi-id-box">
+              <label for="pay-upi-id">Or Enter UPI ID</label>
+              <div class="input-with-action">
+                <input type="text" id="pay-upi-id" class="form-control font-mono" placeholder="username@okhdfcbank" value="user@okhdfcbank">
+                <button class="btn btn-secondary btn-sm" id="verify-upi-btn">Verify</button>
+              </div>
+              <small class="form-hint" style="color: var(--text-dim);">A payment request will be sent to your UPI app.</small>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card Checkout View -->
+        <div id="payment-card-view" class="payment-method-view" style="display: none;">
+          <div class="form-group">
+            <label for="pay-card-number">Card Number</label>
+            <div class="card-input-wrapper">
+              <input type="text" id="pay-card-number" class="form-control font-mono" placeholder="4532 •••• •••• 8892" maxlength="19" value="4532 8921 0042 8892">
+              <div class="card-brands">
+                <span class="card-brand-pill">VISA</span>
+                <span class="card-brand-pill">Mastercard</span>
+                <span class="card-brand-pill">RuPay</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div class="form-group">
+              <label for="pay-card-expiry">Expiry (MM/YY)</label>
+              <input type="text" id="pay-card-expiry" class="form-control font-mono" placeholder="MM/YY" maxlength="5" value="08/29">
+            </div>
+            <div class="form-group">
+              <label for="pay-card-cvv">CVV</label>
+              <input type="text" id="pay-card-cvv" class="form-control font-mono" placeholder="•••" maxlength="4" value="789" inputmode="numeric" autocomplete="off" style="-webkit-text-security: disc;">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="pay-card-name">Cardholder Name</label>
+            <input type="text" id="pay-card-name" class="form-control" placeholder="Name as on card" value="EggDL Pro Member">
+          </div>
+        </div>
+
+        <div id="payment-error-msg" class="auth-error-banner" style="display: none; margin-top: 12px;"></div>
+      </div>
+
+      <div class="modal-footer" style="justify-content: space-between;">
+        <button class="btn btn-secondary" id="cancel-payment-btn">Cancel</button>
+        <button class="btn btn-primary btn-glow btn-lg" id="submit-payment-btn">
+          <i data-lucide="lock"></i>
+          <span id="submit-payment-btn-text">Pay & Auto-Activate</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Payment Success & Auto-Activated Masked Key Modal -->
+  <div class="modal-backdrop" id="payment-success-modal" style="display: none;">
+    <div class="modal-card modal-sm" style="text-align: center;">
+      <div class="modal-body" style="padding: 28px 20px;">
+        <div class="success-icon-animated">
+          <svg viewBox="0 0 52 52" width="56" height="56">
+            <circle class="checkmark-circle" cx="26" cy="26" r="24" fill="none" stroke="#10B981" stroke-width="3"/>
+            <path class="checkmark-check" fill="none" stroke="#10B981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M14 27l8 8 16-16"/>
+          </svg>
+        </div>
+
+        <h2 style="font-size: 1.25rem; font-weight: 700; color: var(--text-main); margin-top: 14px;">Payment Successful!</h2>
+        <p style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">
+          Your plan has been automatically activated on your account.
+        </p>
+
+        <!-- Activated Plan Badge -->
+        <div class="success-plan-banner" style="margin: 16px 0;">
+          <div class="success-plan-name" id="success-plan-title">Lifetime Pro</div>
+          <div class="success-plan-status" id="success-plan-expiry">Valid: Permanent Lifetime</div>
+        </div>
+
+        <!-- Masked Product Key Box -->
+        <div class="masked-key-card">
+          <div class="masked-key-header">
+            <i data-lucide="shield-check"></i>
+            <span>AUTO-BOUND PRODUCT KEY</span>
+          </div>
+          <div class="masked-key-value font-mono" id="success-masked-key">
+            EGGDL-LIFE-EE**-****-**21
+          </div>
+          <div class="masked-key-note">
+            <i data-lucide="lock"></i> Bound securely to your account. Protected against unauthorized sharing.
+          </div>
+        </div>
+
+        <div style="font-size: 0.72rem; color: var(--text-dim); margin-top: 10px;">
+          Transaction ID: <span class="font-mono" id="success-txn-id">TXN_123456</span>
+        </div>
+
+        <button class="btn btn-primary btn-glow" style="width: 100%; margin-top: 18px;" id="success-done-btn">
+          <i data-lucide="zap"></i> Start Downloading with Pro
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Native Confirmation Modal (Zero ugly 127.0.0.1 browser alert dialogs) -->
+  <div class="modal-backdrop" id="confirm-modal" style="display: none; z-index: 10000;">
+    <div class="modal-card modal-sm" style="max-width: 420px; text-align: center; padding: 26px 24px;">
+      <div id="confirm-modal-icon" style="width: 52px; height: 52px; border-radius: 50%; background: rgba(239, 68, 68, 0.12); color: #EF4444; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto; font-size: 1.4rem;">
+        <i data-lucide="alert-triangle"></i>
+      </div>
+      <h3 id="confirm-modal-title" style="font-size: 1.15rem; font-weight: 700; color: var(--text-main); margin-bottom: 8px;">Confirm Action</h3>
+      <p id="confirm-modal-desc" style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 22px;">Are you sure you want to proceed?</p>
+      <div style="display: flex; gap: 12px; justify-content: center;">
+        <button class="btn btn-secondary" style="flex: 1; padding: 10px 16px;" id="confirm-modal-cancel-btn">Cancel</button>
+        <button class="btn btn-danger btn-glow" style="flex: 1; padding: 10px 16px;" id="confirm-modal-ok-btn">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Scripts -->
+  <script src="/static/js/api.js?v=30.0"></script>
+  <script src="/static/js/ui.js?v=30.0"></script>
+  <script src="/static/js/app.js?v=30.0"></script>
+</body>
+</html>

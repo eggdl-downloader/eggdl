@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>EggDL Media Downloader</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <header class="popup-header">
+      <div class="brand">
+        <img class="logo-img" src="../icons/icon32.png" alt="EggDL" style="width: 24px; height: 24px; object-fit: contain;">
+        <div class="brand-text-styled">
+          <span class="brand-egg">Egg</span><span class="brand-dl">DL</span>
+        </div>
+      </div>
+      <a href="http://localhost:8000" target="_blank" class="open-dashboard-btn" title="Open Full Dashboard">
+        ↗ Open App
+      </a>
+    </header>
+
+    <div class="overlay-control-row">
+      <div class="overlay-info">
+        <span class="overlay-title">Video Download Overlay</span>
+        <span class="overlay-desc">Floating button on video players</span>
+      </div>
+      <label class="toggle-switch" title="Toggle video download button overlay">
+        <input type="checkbox" id="overlay-toggle" checked>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <div class="popup-content">
+      <div class="page-meta">
+        <span id="page-title">Detecting media eggs...</span>
+        <span class="badge" id="stream-count-badge">0 Eggs</span>
+      </div>
+
+      <div class="stream-list" id="stream-list">
+        <!-- Media stream items dynamically injected here -->
+      </div>
+
+      <div class="empty-state" id="empty-state" style="display: none;">
+        <div class="empty-icon">🪺</div>
+        <p>No media eggs detected on this page yet.</p>
+        <small>Play a video or audio on the page to capture the egg.</small>
+      </div>
+    </div>
+
+    <footer class="popup-footer">
+      <button class="btn btn-secondary" id="sniff-full-btn">🔍 Deep Sniff Eggs</button>
+      <button class="btn btn-primary" id="download-all-btn">🥚 Download Best Egg</button>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
