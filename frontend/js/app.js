@@ -1044,14 +1044,17 @@ const App = {
         projectId: "eggdl-downloader-f5783",
         storageBucket: "eggdl-downloader-f5783.firebasestorage.app",
         messagingSenderId: "839840380946",
-        appId: "1:839840380946:web:56f324e7b8e591702600cb",
-        measurementId: "G-FX4F8R0N6F"
+        appId: "1:839840380946:web:fd63d31bf338ee682600cb",
+        measurementId: "G-BRKMQBR2L1"
       };
 
       if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
       }
       this.firebaseAuth = firebase.auth();
+      try {
+        if (firebase.analytics) firebase.analytics();
+      } catch (_) {}
     } catch (err) {
       console.warn('Firebase init note:', err);
     }
