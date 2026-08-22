@@ -308,7 +308,7 @@ const API = {
   },
 
   async checkVersion() {
-    let currentVer = '2.1.2';
+    let currentVer = '2.1.3';
     let localData = null;
 
     // 1. Try local server
@@ -316,7 +316,7 @@ const API = {
       const res = await fetch(`${this.baseUrl}/api/system/version`, { headers: this.getHeaders() });
       if (res.ok) {
         localData = await res.json();
-        currentVer = localData.current_version || '2.1.2';
+        currentVer = localData.current_version || '2.1.3';
         if (localData.update_available) {
           return localData;
         }

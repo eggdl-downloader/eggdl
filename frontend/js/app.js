@@ -1028,7 +1028,7 @@ const App = {
           desktop_name: machine.desktop_name,
           user_name: machine.user_name,
           os_info: machine.os_info,
-          app_version: '2.1.2',
+          app_version: '2.1.3',
           total_downloads: this.downloads?.length || 0,
           data_downloaded_mb: 0
         });
@@ -1138,7 +1138,7 @@ const App = {
 
     try {
       const info = await API.checkVersion();
-      const curVer = info?.current_version || '2.1.2';
+      const curVer = info?.current_version || '2.1.3';
       const latVer = info?.latest_version || curVer;
 
       if (versionBadge) versionBadge.innerText = `v${curVer}`;
