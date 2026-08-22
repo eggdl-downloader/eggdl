@@ -1039,13 +1039,13 @@ const App = {
     if (typeof firebase === 'undefined') return;
     try {
       const firebaseConfig = {
-        apiKey: "AIzaSyATuqCfXB9gs9B8I4KAJHl6k6n6JdCGEkI",
-        authDomain: "eggdl-downloader-f5783.firebaseapp.com",
-        projectId: "eggdl-downloader-f5783",
-        storageBucket: "eggdl-downloader-f5783.firebasestorage.app",
-        messagingSenderId: "839840380946",
-        appId: "1:839840380946:web:fd63d31bf338ee682600cb",
-        measurementId: "G-BRKMQBR2L1"
+        apiKey: "AIzaSyBtHfNuT0if_8LC5a6I7VpJIWoKLuD54Eo",
+        authDomain: "eggdl-2a037.firebaseapp.com",
+        projectId: "eggdl-2a037",
+        storageBucket: "eggdl-2a037.firebasestorage.app",
+        messagingSenderId: "639135809960",
+        appId: "1:639135809960:web:d5ff28f597aff624179d9d",
+        measurementId: "G-11Y278YRCD"
       };
 
       if (!firebase.apps.length) {
