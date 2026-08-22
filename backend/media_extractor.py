@@ -836,6 +836,15 @@ class StreamDownloadTask:
                         ydl_opts["format"] = "bestvideo+bestaudio/best"
                         with yt_dlp.YoutubeDL(ydl_opts) as fallback_ydl:
                             info = fallback_ydl.extract_info(self.url, download=True)
+                    elif ("unavailable" in err_msg.lower() or "not found" in err_msg.lower()) and (self.custom_title or self.title):
+                        # Try searching by title on YouTube if link casing was altered
+                        search_query = self.custom_title or self.title
+                        with yt_dlp.YoutubeDL(ydl_opts) as fallback_ydl:
+                            search_res = fallback_ydl.extract_info(f"ytsearch1:{search_query}", download=True)
+                            if search_res and search_res.get("entries"):
+                                info = search_res["entries"][0]
+                            else:
+                                info = search_res
                     else:
                         raise dl_err
                 if info:
