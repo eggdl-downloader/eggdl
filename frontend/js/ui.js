@@ -633,9 +633,6 @@ const UI = {
     lucide.createIcons();
   },
 
-    lucide.createIcons();
-  },
-
   openAuthModal(mode = 'login') {
     const modal = document.getElementById('auth-modal');
     const title = document.getElementById('auth-modal-title');
