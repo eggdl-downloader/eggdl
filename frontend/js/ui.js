@@ -594,23 +594,32 @@ const UI = {
       });
     } else {
       let badgeText = `⏳ 7-Day Trial (${trialDaysLeft}d Left)`;
-      let btnClass = 'btn btn-primary btn-sm btn-glow';
+      let badgeClass = 'user-plan-badge trial';
       if (isPro) {
         badgeText = `👑 Pro Active`;
+        badgeClass = 'user-plan-badge pro';
       } else if (trialExpired) {
-        badgeText = `⚠️ Trial Ended • Enter Key / Buy`;
-        btnClass = 'btn btn-danger btn-sm btn-glow';
+        badgeText = `⚠️ Trial Expired`;
+        badgeClass = 'user-plan-badge expired';
       }
 
       container.innerHTML = `
-        <button class="${btnClass}" id="header-auth-btn">
-          <i data-lucide="crown"></i>
-          <span>${badgeText}</span>
-        </button>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button class="user-pill-btn" id="header-trial-badge" title="Click to view Account & Subscriptions">
+            <span class="${badgeClass}">${badgeText}</span>
+          </button>
+          <button class="btn btn-primary btn-sm btn-glow" id="header-auth-btn">
+            <i data-lucide="log-in"></i>
+            <span>Sign In</span>
+          </button>
+        </div>
       `;
 
-      document.getElementById('header-auth-btn')?.addEventListener('click', () => {
+      document.getElementById('header-trial-badge')?.addEventListener('click', () => {
         UI.openAccountModal(authData);
+      });
+      document.getElementById('header-auth-btn')?.addEventListener('click', () => {
+        UI.openAuthModal('login');
       });
     }
 
@@ -699,7 +708,8 @@ const UI = {
 
   openAccountModal(authData) {
     const modal = document.getElementById('account-modal');
-    const user = (authData && authData.user) || { name: 'Guest User', email: '', plan_type: 'free' };
+    const isAuth = authData && authData.authenticated;
+    const user = (authData && authData.user) || { name: '', email: '', plan_type: 'free' };
     const plan = (authData && authData.plan) || { badge: 'Free', name: 'Free Plan' };
     const isPro = authData && authData.is_pro;
     const daysLeft = authData && authData.days_remaining;
@@ -712,9 +722,26 @@ const UI = {
     const keyInput = document.getElementById('license-key-input');
     const feedbackMsg = document.getElementById('license-feedback-msg');
 
-    if (avatarEl) avatarEl.innerText = initial;
-    if (nameEl) nameEl.innerText = user.name || 'EggDL Member';
-    if (emailEl) emailEl.innerText = user.email || 'Local User Account';
+    const loggedInView = document.getElementById('acc-user-logged-in-view');
+    const guestView = document.getElementById('acc-user-guest-view');
+    const logoutBtn = document.getElementById('logout-btn');
+    const signinBtn = document.getElementById('acc-footer-signin-btn');
+
+    if (isAuth) {
+      if (loggedInView) loggedInView.style.display = 'flex';
+      if (guestView) guestView.style.display = 'none';
+      if (logoutBtn) logoutBtn.style.display = 'inline-flex';
+      if (signinBtn) signinBtn.style.display = 'none';
+      if (avatarEl) avatarEl.innerText = initial;
+      if (nameEl) nameEl.innerText = user.name || user.email.split('@')[0];
+      if (emailEl) emailEl.innerText = user.email || '';
+    } else {
+      if (loggedInView) loggedInView.style.display = 'none';
+      if (guestView) guestView.style.display = 'flex';
+      if (logoutBtn) logoutBtn.style.display = 'none';
+      if (signinBtn) signinBtn.style.display = 'inline-flex';
+    }
+
     if (keyInput) keyInput.value = '';
     if (feedbackMsg) feedbackMsg.style.display = 'none';
 

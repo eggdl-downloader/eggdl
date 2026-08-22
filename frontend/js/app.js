@@ -882,6 +882,19 @@ const App = {
     // Google Sign-In button
     document.getElementById('google-login-btn')?.addEventListener('click', () => this.handleGoogleLogin());
 
+    // Account Modal Header & Footer Sign-In Buttons
+    document.getElementById('acc-quick-signin-btn')?.addEventListener('click', () => {
+      UI.closeAccountModal();
+      UI.openAuthModal('login');
+    });
+    document.getElementById('acc-quick-google-btn')?.addEventListener('click', () => {
+      this.handleGoogleLogin();
+    });
+    document.getElementById('acc-footer-signin-btn')?.addEventListener('click', () => {
+      UI.closeAccountModal();
+      UI.openAuthModal('login');
+    });
+
     // Account Modal Controls
     document.getElementById('close-account-modal-btn')?.addEventListener('click', () => UI.closeAccountModal());
     document.getElementById('close-account-btn')?.addEventListener('click', () => UI.closeAccountModal());
@@ -903,12 +916,14 @@ const App = {
       });
     });
 
-    // Buy / Upgrade Plan button click
+    // Buy / Upgrade Plan button click (closes account modal and shows signin if not auth)
     document.querySelectorAll('.btn-plan-buy').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const plan = btn.dataset.plan;
         if (!this.authData || !this.authData.authenticated) {
+          this.pendingCheckoutPlan = plan;
+          UI.closeAccountModal();
           UI.openAuthModal('login');
           UI.showToast('Please sign in or create an account first to proceed to checkout.', 'info');
           return;
@@ -1042,6 +1057,26 @@ const App = {
     }
   },
 
+  async onAuthSuccess(displayName) {
+    UI.showToast(`✨ Welcome to EggDL, ${displayName}!`, 'success');
+    await this.initAuth();
+    UI.closeAuthModal();
+    if (this.pendingCheckoutPlan) {
+      const p = this.pendingCheckoutPlan;
+      this.pendingCheckoutPlan = null;
+      UI.openPaymentModal(p);
+    } else if (this.pendingProductKey) {
+      const k = this.pendingProductKey;
+      this.pendingProductKey = null;
+      UI.openAccountModal(this.authData);
+      const input = document.getElementById('license-key-input');
+      if (input) input.value = k;
+      this.handleActivateLicense();
+    } else {
+      UI.openAccountModal(this.authData);
+    }
+  },
+
   async handleAuthSubmit() {
     const email = document.getElementById('auth-email-input')?.value.trim();
     const password = document.getElementById('auth-password-input')?.value;
@@ -1085,9 +1120,7 @@ const App = {
         });
 
         const displayName = res.user.name || res.user.email.split('@')[0];
-        UI.showToast(this.authMode === 'register' ? `🎉 Welcome to EggDL, ${displayName}!` : `✨ Welcome back, ${displayName}!`, 'success');
-        await this.initAuth();
-        UI.closeAuthModal();
+        await this.onAuthSuccess(displayName);
         return;
       }
 
@@ -1100,9 +1133,7 @@ const App = {
       }
 
       const displayName = res?.user?.name || email.split('@')[0];
-      UI.showToast(this.authMode === 'register' ? `🎉 Welcome to EggDL, ${displayName}!` : `✨ Welcome back, ${displayName}!`, 'success');
-      await this.initAuth();
-      UI.closeAuthModal();
+      await this.onAuthSuccess(displayName);
     } catch (e) {
       if (errBanner) {
         let msg = e.message || 'Authentication error';
@@ -1172,9 +1203,7 @@ const App = {
       const res = await API.googleAuth(payloadData);
       if (res.success) {
         const displayName = res.user.name || res.user.email.split('@')[0];
-        UI.showToast(`✨ Welcome to EggDL, ${displayName}!`, 'success');
-        await this.initAuth();
-        UI.closeAuthModal();
+        await this.onAuthSuccess(displayName);
       }
     } catch (e) {
       UI.showToast(e.message || 'Authentication failed', 'error');
@@ -1184,7 +1213,7 @@ const App = {
   async handleGoogleLogin() {
     if (this.firebaseAuth) {
       try {
-        UI.showToast('Opening Sign-In...', 'info');
+        UI.showToast('Opening Google Sign-In...', 'info');
         const provider = new firebase.auth.GoogleAuthProvider();
         provider.setCustomParameters({ prompt: 'select_account' });
         const result = await this.firebaseAuth.signInWithPopup(provider);
@@ -1201,47 +1230,45 @@ const App = {
         });
 
         const displayName = res.user.name || res.user.email.split('@')[0];
-        UI.showToast(`✨ Welcome to EggDL, ${displayName}!`, 'success');
-        await this.initAuth();
-        UI.closeAuthModal();
+        await this.onAuthSuccess(displayName);
         return;
       } catch (fbErr) {
-        console.warn('Google Auth error:', fbErr);
+        console.warn('Google Auth popup note, using fallback:', fbErr);
         if (fbErr.code === 'auth/popup-closed-by-user' || fbErr.code === 'auth/cancelled-popup-request') {
           return;
         }
-        UI.showToast(fbErr.message || 'Sign-In failed', 'error');
-        return;
       }
     }
 
     if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
-      google.accounts.id.prompt((notification) => {
-        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-          this.triggerGooglePromptFallback();
-        }
-      });
-    } else {
-      this.triggerGooglePromptFallback();
+      try {
+        google.accounts.id.prompt((notification) => {
+          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+            this.triggerGooglePromptFallback();
+          }
+        });
+        return;
+      } catch (_) {}
     }
+
+    this.triggerGooglePromptFallback();
   },
 
   async triggerGooglePromptFallback() {
     try {
-      const promptEmail = prompt('Enter your email to sign in:', 'user@gmail.com');
-      if (!promptEmail) return;
+      const promptEmail = prompt('Enter your Google Account email to sign in:', 'user@gmail.com');
+      if (!promptEmail || !promptEmail.trim()) return;
 
+      const cleanEmail = promptEmail.trim().toLowerCase();
       const res = await API.googleAuth({
-        email: promptEmail,
-        name: promptEmail.split('@')[0],
+        email: cleanEmail,
+        name: cleanEmail.split('@')[0],
         avatar: '',
-        google_id: `g_${btoa(promptEmail).slice(0, 12)}`
+        google_id: `g_${btoa(cleanEmail).slice(0, 12)}`
       });
 
-      const displayName = res.user.name || res.user.email.split('@')[0];
-      UI.showToast(`✨ Welcome to EggDL, ${displayName}!`, 'success');
-      await this.initAuth();
-      UI.closeAuthModal();
+      const displayName = res.user.name || cleanEmail.split('@')[0];
+      await this.onAuthSuccess(displayName);
     } catch (e) {
       UI.showToast(e.message || 'Sign in failed', 'error');
     }
@@ -1254,6 +1281,7 @@ const App = {
     const btn = document.getElementById('activate-license-btn');
 
     if (!this.authData || !this.authData.authenticated) {
+      if (key) this.pendingProductKey = key;
       UI.closeAccountModal();
       UI.openAuthModal('login');
       UI.showToast('Please sign in or create an account first to bind your product key.', 'info');
