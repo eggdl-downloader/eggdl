@@ -1127,7 +1127,7 @@ const App = {
     const versionBadge = document.getElementById('settings-app-version');
     const checkBtn = document.getElementById('btn-check-updates');
 
-    if (versionBadge) versionBadge.innerText = 'v2.1.2';
+    if (versionBadge) versionBadge.innerText = 'v2.1.3';
 
     try {
       if (manual) {
@@ -1139,8 +1139,8 @@ const App = {
       }
       
       const info = await API.checkVersion();
-      const curVer = info?.current_version || '2.1.2';
-      const latVer = info?.latest_version || '2.1.2';
+      const curVer = info?.current_version || '2.1.3';
+      const latVer = info?.latest_version || '2.1.3';
 
       if (info && info.update_available) {
         if (statusHint) {

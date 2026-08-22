@@ -75,7 +75,7 @@ except ImportError:
 
 app = FastAPI(title="EggDL API", version="2.0.0")
 
-APP_CURRENT_VERSION = "2.1.2"
+APP_CURRENT_VERSION = "2.1.3"
 CLOUD_API_URL = os.environ.get("CLOUD_API_URL", "https://eggdl.onrender.com")
 
 app.add_middleware(
@@ -1422,7 +1422,7 @@ async def system_stats():
         "download_dir": dl_dir
     }
 
-APP_CURRENT_VERSION = "2.1.2"
+APP_CURRENT_VERSION = "2.1.3"
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "eggdl_admin_2026")
 CLOUD_API_URL = os.environ.get("CLOUD_API_URL", "https://eggdl.onrender.com")
 

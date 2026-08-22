@@ -31,3 +31,7 @@ test_error.txt
 Thumbs.db
 .vscode/
 .idea/
+
+downloads_test/
+*.bin
+*.mp4

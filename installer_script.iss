@@ -1,5 +1,5 @@
-﻿#define MyAppName "EggDL"
-#define MyAppVersion "2.0.0"
+#define MyAppName "EggDL"
+#define MyAppVersion "2.1.3"
 #define MyAppPublisher "EggDL Technologies"
 #define MyAppURL "https://eggdl.com"
 #define MyAppExeName "EggDL.exe"
