@@ -1236,44 +1236,24 @@ const App = {
         await this.onAuthSuccess(displayName);
         return;
       } catch (fbErr) {
-        console.warn('Google Auth popup note, using fallback:', fbErr);
+        console.warn('Google Auth popup note:', fbErr);
         if (fbErr.code === 'auth/popup-closed-by-user' || fbErr.code === 'auth/cancelled-popup-request') {
           return;
         }
+        if (fbErr.code === 'auth/operation-not-allowed' || fbErr.message?.includes('invalid')) {
+          UI.showToast('Google Sign-In needs to be enabled in Firebase Console (Authentication > Sign-in method > Google).', 'warning');
+          return;
+        }
+        UI.showToast(fbErr.message || 'Google sign-in error', 'error');
+        return;
       }
     }
 
     if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
       try {
-        google.accounts.id.prompt((notification) => {
-          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-            this.triggerGooglePromptFallback();
-          }
-        });
+        google.accounts.id.prompt();
         return;
       } catch (_) {}
-    }
-
-    this.triggerGooglePromptFallback();
-  },
-
-  async triggerGooglePromptFallback() {
-    try {
-      const promptEmail = prompt('Enter your Google Account email to sign in:', 'user@gmail.com');
-      if (!promptEmail || !promptEmail.trim()) return;
-
-      const cleanEmail = promptEmail.trim().toLowerCase();
-      const res = await API.googleAuth({
-        email: cleanEmail,
-        name: cleanEmail.split('@')[0],
-        avatar: '',
-        google_id: `g_${btoa(cleanEmail).slice(0, 12)}`
-      });
-
-      const displayName = res.user.name || cleanEmail.split('@')[0];
-      await this.onAuthSuccess(displayName);
-    } catch (e) {
-      UI.showToast(e.message || 'Sign in failed', 'error');
     }
   },
 
