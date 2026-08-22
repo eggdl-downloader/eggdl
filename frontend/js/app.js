@@ -406,6 +406,13 @@ const App = {
   },
 
   bindEvents() {
+    // Reload shortcut (F5 / Ctrl+R) for Desktop App window
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'F5' || (e.ctrlKey && (e.key === 'r' || e.key === 'R'))) {
+        window.location.reload();
+      }
+    });
+
     // URL input and inspect
     const inspectBtn = document.getElementById('inspect-btn');
     const urlInput = document.getElementById('url-input');
