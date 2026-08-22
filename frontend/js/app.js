@@ -1217,7 +1217,7 @@ const App = {
 
     if (verBadge) verBadge.innerText = `v${info.latest_version || '2.1.3'} Available`;
     if (notesBox) {
-      const rawNotes = info.release_notes || '⚡ True Pause & Resume support\n🎬 Premiere GPU Ready H.264 Encoder\n🚀 4K/8K stream download optimizations';
+      const rawNotes = info.release_notes || '⚡ True Pause & Resume support\n🚀 Hardware GPU H.264 / AAC Engine\n🎬 4K/8K stream download optimizations';
       notesBox.innerHTML = rawNotes.split('\n').map(l => `<div style="margin-bottom: 4px;">${l}</div>`).join('');
     }
     
