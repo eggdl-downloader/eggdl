@@ -275,6 +275,26 @@ class MediaExtractor:
         ]
 _INSPECT_CACHE = {}
 
+def get_cookie_file() -> Optional[str]:
+    cookie_env = os.environ.get("YOUTUBE_COOKIES")
+    if cookie_env:
+        cookie_path = os.path.join(os.path.dirname(__file__), "_runtime_cookies.txt")
+        try:
+            with open(cookie_path, "w", encoding="utf-8") as f:
+                f.write(cookie_env)
+            return cookie_path
+        except Exception:
+            pass
+
+    for candidate in [
+        os.path.join(os.path.dirname(__file__), "cookies.txt"),
+        os.path.join(os.path.dirname(__file__), "..", "cookies.txt"),
+        os.environ.get("YOUTUBE_COOKIES_FILE", "")
+    ]:
+        if candidate and os.path.exists(candidate):
+            return candidate
+    return None
+
 class MediaExtractor:
     @staticmethod
     def is_supported_url(url: str) -> bool:
@@ -304,6 +324,8 @@ class MediaExtractor:
             raise Exception("yt-dlp is not installed")
 
         ffmpeg_dir = get_ffmpeg_location()
+        cookie_path = get_cookie_file()
+
         ydl_opts = {
             "quiet": True,
             "no_warnings": True,
@@ -320,22 +342,34 @@ class MediaExtractor:
         }
         if ffmpeg_dir:
             ydl_opts["ffmpeg_location"] = ffmpeg_dir
+        if cookie_path:
+            ydl_opts["cookiefile"] = cookie_path
 
         info = None
+        last_error = None
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
-        except Exception:
+        except Exception as e1:
+            last_error = e1
             try:
-                with yt_dlp.YoutubeDL({"quiet": True, "skip_download": True, "noplaylist": True}) as ydl:
+                fallback_opts = {"quiet": True, "skip_download": True, "noplaylist": True}
+                if cookie_path:
+                    fallback_opts["cookiefile"] = cookie_path
+                with yt_dlp.YoutubeDL(fallback_opts) as ydl:
                     info = ydl.extract_info(url, download=False)
-            except Exception:
-                pass
+            except Exception as e2:
+                last_error = e2
 
         if not info:
-            res = _fallback_scrape_video_page(url)
-            _INSPECT_CACHE[url] = {"data": res, "time": now}
-            return res
+            try:
+                res = _fallback_scrape_video_page(url)
+                _INSPECT_CACHE[url] = {"data": res, "time": now}
+                return res
+            except Exception:
+                if last_error and "Sign in to confirm you" in str(last_error):
+                    raise Exception("YouTube requires verification on cloud servers. Please add YouTube cookies or run EggDL on your PC.")
+                raise Exception(f"Video extraction failed: {str(last_error) if last_error else 'Unknown error'}")
 
         title = info.get("title", "Untitled Video")
         thumbnail = info.get("thumbnail") or (info.get("thumbnails", [{}])[-1].get("url") if info.get("thumbnails") else "")
@@ -664,6 +698,7 @@ class StreamDownloadTask:
             pass
 
         ffmpeg_dir = get_ffmpeg_location()
+        cookie_path = get_cookie_file()
 
         ydl_opts = {
             "outtmpl": outtmpl,
@@ -690,6 +725,8 @@ class StreamDownloadTask:
 
         if ffmpeg_dir:
             ydl_opts["ffmpeg_location"] = ffmpeg_dir
+        if cookie_path:
+            ydl_opts["cookiefile"] = cookie_path
 
         if self.is_audio_only:
             ydl_opts["format"] = "bestaudio/best"
