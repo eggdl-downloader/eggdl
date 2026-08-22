@@ -345,6 +345,14 @@ const API = {
       console.warn('Cloud update check error:', err);
     }
 
+    return localData || {
+      success: true,
+      current_version: currentVer,
+      latest_version: currentVer,
+      update_available: false
+    };
+  },
+
   async getClipboard() {
     try {
       const res = await fetch(`${this.baseUrl}/api/system/clipboard`, { headers: this.getHeaders() });
