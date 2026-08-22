@@ -325,9 +325,7 @@ const API = {
 
     // 2. Direct cloud query to ensure no outdated cache
     try {
-      const cloudRes = await fetch('https://eggdl.onrender.com/api/system/version', {
-        headers: { 'User-Agent': 'EggDL-Client' }
-      });
+      const cloudRes = await fetch('https://eggdl.onrender.com/api/system/version');
       if (cloudRes.ok) {
         const cloudData = await cloudRes.json();
         const latestVer = cloudData.latest_version || cloudData.latest_release?.version || '2.1.3';

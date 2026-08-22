@@ -1,3 +1,10 @@
+// Safe global lucide icon runner
+if (typeof window !== 'undefined') {
+  if (typeof window.lucide === 'undefined') {
+    window.lucide = { createIcons: () => {} };
+  }
+}
+
 const UI = {
   formatBytes(bytes) {
     if (!bytes || bytes <= 0) return '0 B';
