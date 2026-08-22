@@ -21,7 +21,7 @@ def get_user_data_dir() -> str:
     return data_dir
 
 DATA_DIR = get_user_data_dir()
-DEFAULT_DOWNLOAD_DIR = str(Path.home() / "Downloads" / "EggDL")
+DEFAULT_DOWNLOAD_DIR = str(Path.home() / "Downloads" / "Eggdl Downloads")
 DB_PATH = os.path.join(DATA_DIR, "eggdl.db")
 
 def init_db():
@@ -78,6 +78,7 @@ def init_db():
         plan_type TEXT DEFAULT 'free',
         plan_expires_at TIMESTAMP,
         license_key TEXT,
+        is_blocked INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """)
@@ -108,6 +109,31 @@ def init_db():
     )
     """)
 
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS devices (
+        device_id TEXT PRIMARY KEY,
+        user_email TEXT,
+        machine_name TEXT,
+        os_info TEXT,
+        app_version TEXT,
+        is_blocked INTEGER DEFAULT 0,
+        block_reason TEXT,
+        last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS app_releases (
+        version TEXT PRIMARY KEY,
+        release_notes TEXT,
+        download_url TEXT,
+        mandatory INTEGER DEFAULT 0,
+        is_active INTEGER DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
     # Set default settings if not exists
     default_settings = {
         "download_dir": DEFAULT_DOWNLOAD_DIR,
@@ -120,6 +146,12 @@ def init_db():
 
     for key, val in default_settings.items():
         cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (key, val))
+
+    # Initialize default app release if not present
+    cursor.execute("""
+    INSERT OR IGNORE INTO app_releases (version, release_notes, download_url, mandatory, is_active)
+    VALUES ('2.0.0', 'Initial Production Release with Multi-Client Engine and PWA', 'https://eggdl.onrender.com/download/setup', 0, 1)
+    """)
 
     conn.commit()
     conn.close()
@@ -146,7 +178,7 @@ def get_settings() -> Dict[str, Any]:
             settings[row["key"]] = val
 
     # Dynamic adaptation for the current PC/user
-    current_default = str(Path.home() / "Downloads" / "EggDL")
+    current_default = str(Path.home() / "Downloads" / "Eggdl Downloads")
     stored_dl = settings.get("download_dir")
     if not stored_dl or not os.path.exists(os.path.dirname(stored_dl)):
         settings["download_dir"] = current_default
@@ -464,5 +496,114 @@ def get_user_payments(user_id: str) -> List[Dict[str, Any]]:
     rows = cursor.fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+# --- Device Tracking, Remote Kill-Switch & Anti-Piracy ---
+import platform
+import hashlib
+import uuid
+
+def get_device_id() -> str:
+    components = [
+        platform.node(),
+        platform.machine(),
+        str(uuid.getnode()),
+    ]
+    raw = ":".join(components)
+    return "EGG-" + hashlib.sha256(raw.encode()).hexdigest()[:16].upper()
+
+def register_device(device_id: str, user_email: Optional[str] = None, app_version: str = "2.0.0") -> Dict[str, Any]:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    machine_name = platform.node()
+    os_info = f"{platform.system()} {platform.release()}"
+    now = datetime.now().isoformat()
+    
+    cursor.execute("SELECT is_blocked, block_reason FROM devices WHERE device_id = ?", (device_id,))
+    row = cursor.fetchone()
+    is_blocked = 0
+    block_reason = None
+    if row:
+        is_blocked = row["is_blocked"]
+        block_reason = row["block_reason"]
+        cursor.execute("""
+        UPDATE devices SET
+            user_email = COALESCE(?, user_email),
+            machine_name = ?,
+            os_info = ?,
+            app_version = ?,
+            last_seen = ?
+        WHERE device_id = ?
+        """, (user_email, machine_name, os_info, app_version, now, device_id))
+    else:
+        cursor.execute("""
+        INSERT INTO devices (device_id, user_email, machine_name, os_info, app_version, is_blocked, last_seen, created_at)
+        VALUES (?, ?, ?, ?, ?, 0, ?, ?)
+        """, (device_id, user_email, machine_name, os_info, app_version, now, now))
+    conn.commit()
+    conn.close()
+    return {
+        "device_id": device_id,
+        "is_blocked": bool(is_blocked),
+        "block_reason": block_reason
+    }
+
+def is_device_blocked(device_id: str) -> Dict[str, Any]:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT is_blocked, block_reason FROM devices WHERE device_id = ?", (device_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return {"blocked": bool(row["is_blocked"]), "reason": row["block_reason"] or "Suspended by administrator"}
+    return {"blocked": False, "reason": ""}
+
+def set_device_blocked(device_id: str, blocked: bool = True, reason: str = "License violation or cracked version detected"):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+    UPDATE devices SET is_blocked = ?, block_reason = ? WHERE device_id = ?
+    """, (1 if blocked else 0, reason if blocked else None, device_id))
+    if cursor.rowcount == 0:
+        cursor.execute("""
+        INSERT INTO devices (device_id, is_blocked, block_reason, last_seen, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        """, (device_id, 1 if blocked else 0, reason if blocked else None, datetime.now().isoformat(), datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
+
+def get_all_devices() -> List[Dict[str, Any]]:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM devices ORDER BY last_seen DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+# --- App Version & Update Management ---
+def get_latest_app_release() -> Dict[str, Any]:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM app_releases WHERE is_active = 1 ORDER BY created_at DESC LIMIT 1")
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return dict(row)
+    return {
+        "version": "2.0.0",
+        "release_notes": "Official Release",
+        "download_url": "https://eggdl.onrender.com/download/setup",
+        "mandatory": 0
+    }
+
+def set_app_release(version: str, release_notes: str, download_url: str, mandatory: bool = False):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE app_releases SET is_active = 0")
+    cursor.execute("""
+    INSERT OR REPLACE INTO app_releases (version, release_notes, download_url, mandatory, is_active, created_at)
+    VALUES (?, ?, ?, ?, 1, ?)
+    """, (version, release_notes, download_url, 1 if mandatory else 0, datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
 
 init_db()

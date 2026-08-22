@@ -38,7 +38,9 @@ try:
         delete_download_task, clear_completed_downloads, clear_all_downloads,
         create_user, get_user_by_email, get_user_by_id, get_user_by_google_id,
         update_user_plan, create_license_key, get_license_key, activate_license_key,
-        create_payment_record, get_user_payments, get_daily_downloads_count
+        create_payment_record, get_user_payments, get_daily_downloads_count,
+        get_device_id, register_device, is_device_blocked, set_device_blocked,
+        get_all_devices, get_latest_app_release, set_app_release
     )
     from auth import (
         hash_password, verify_password, create_access_token, verify_access_token,
@@ -54,7 +56,9 @@ except ImportError:
         delete_download_task, clear_completed_downloads, clear_all_downloads,
         create_user, get_user_by_email, get_user_by_id, get_user_by_google_id,
         update_user_plan, create_license_key, get_license_key, activate_license_key,
-        create_payment_record, get_user_payments, get_daily_downloads_count
+        create_payment_record, get_user_payments, get_daily_downloads_count,
+        get_device_id, register_device, is_device_blocked, set_device_blocked,
+        get_all_devices, get_latest_app_release, set_app_release
     )
     from backend.auth import (
         hash_password, verify_password, create_access_token, verify_access_token,
@@ -614,7 +618,7 @@ async def inspect_url(req: InspectRequest):
 
     # 2. Try inspecting as direct file
     settings = get_settings()
-    target_dir = settings.get("download_dir", str(Path.home() / "Downloads" / "EggDL"))
+    target_dir = settings.get("download_dir", str(Path.home() / "Downloads" / "Eggdl Downloads"))
     temp_task = DownloadTask(task_id="inspect", url=url, target_dir=target_dir)
     
     try:
@@ -1065,7 +1069,7 @@ async def stream_media(task_id: str):
 
     file_path = task.get("file_path")
     settings = get_settings()
-    dl_dir = settings.get("download_dir", str(Path.home() / "Downloads" / "EggDL"))
+    dl_dir = settings.get("download_dir", str(Path.home() / "Downloads" / "Eggdl Downloads"))
 
     if not file_path or not os.path.exists(file_path):
         if task.get("title") and os.path.exists(dl_dir):
@@ -1091,7 +1095,7 @@ async def stream_media(task_id: str):
 @app.post("/api/system/open-file")
 async def open_file(req: FileActionRequest):
     settings = get_settings()
-    dl_dir = settings.get("download_dir", str(Path.home() / "Downloads" / "EggDL"))
+    dl_dir = settings.get("download_dir", str(Path.home() / "Downloads" / "Eggdl Downloads"))
 
     file_path = req.file_path
     if not file_path and req.task_id:
@@ -1227,6 +1231,149 @@ async def system_stats():
         "disk": disk_info,
         "active_downloads": len(active_tasks),
         "download_dir": dl_dir
+    }
+
+# --- Versioning & In-App Auto-Update ---
+APP_CURRENT_VERSION = "2.0.0"
+ADMIN_KEY = os.environ.get("ADMIN_KEY", "eggdl_admin_2026")
+CLOUD_API_URL = os.environ.get("CLOUD_API_URL", "https://eggdl.onrender.com")
+
+class BlockDeviceRequest(BaseModel):
+    device_id: str
+    blocked: bool = True
+    reason: Optional[str] = "License violation or cracked version detected"
+    admin_key: str
+
+class PushReleaseRequest(BaseModel):
+    version: str
+    release_notes: str
+    download_url: str
+    mandatory: bool = False
+    admin_key: str
+
+class DeviceCheckRequest(BaseModel):
+    device_id: Optional[str] = None
+    app_version: Optional[str] = "2.0.0"
+    user_email: Optional[str] = None
+
+def is_newer_version(remote_ver: str, local_ver: str) -> bool:
+    try:
+        r_parts = [int(p) for p in remote_ver.replace("v", "").split(".") if p.isdigit()]
+        l_parts = [int(p) for p in local_ver.replace("v", "").split(".") if p.isdigit()]
+        return r_parts > l_parts
+    except Exception:
+        return remote_ver != local_ver
+
+@app.get("/api/system/version")
+async def get_version_info():
+    latest = get_latest_app_release()
+    
+    # If running locally on desktop, also check Render central server
+    if not os.environ.get("RENDER"):
+        try:
+            import urllib.request
+            req = urllib.request.Request(f"{CLOUD_API_URL}/api/system/version", headers={"User-Agent": "EggDL-Client"})
+            with urllib.request.urlopen(req, timeout=3) as res:
+                if res.status == 200:
+                    remote_data = json.loads(res.read().decode())
+                    if remote_data.get("latest_release"):
+                        latest = remote_data["latest_release"]
+        except Exception:
+            pass
+
+    has_update = is_newer_version(latest.get("version", "2.0.0"), APP_CURRENT_VERSION)
+    return {
+        "success": True,
+        "current_version": APP_CURRENT_VERSION,
+        "latest_version": latest.get("version", "2.0.0"),
+        "update_available": has_update,
+        "release_notes": latest.get("release_notes", "Performance and stability updates"),
+        "download_url": latest.get("download_url", "https://eggdl.onrender.com/download/setup"),
+        "mandatory": bool(latest.get("mandatory", 0)),
+        "latest_release": latest
+    }
+
+# --- Device Registration, Anti-Piracy & Kill-Switch ---
+@app.post("/api/system/device-status")
+async def check_device_status(req: DeviceCheckRequest):
+    dev_id = req.device_id or get_device_id()
+    reg = register_device(dev_id, req.user_email, req.app_version or APP_CURRENT_VERSION)
+    
+    # Check central cloud server if running locally
+    if not os.environ.get("RENDER"):
+        try:
+            import urllib.request
+            data_bytes = json.dumps({"device_id": dev_id, "user_email": req.user_email, "app_version": req.app_version}).encode()
+            remote_req = urllib.request.Request(
+                f"{CLOUD_API_URL}/api/system/device-status",
+                data=data_bytes,
+                headers={"Content-Type": "application/json", "User-Agent": "EggDL-Client"}
+            )
+            with urllib.request.urlopen(remote_req, timeout=3) as res:
+                if res.status == 200:
+                    cloud_status = json.loads(res.read().decode())
+                    if cloud_status.get("is_blocked"):
+                        reg["is_blocked"] = True
+                        reg["block_reason"] = cloud_status.get("block_reason")
+        except Exception:
+            pass
+
+    return {
+        "success": True,
+        "device_id": dev_id,
+        "is_blocked": reg["is_blocked"],
+        "block_reason": reg.get("block_reason") or "Access to this device has been revoked by the administrator."
+    }
+
+# --- Setup Download Endpoint (1-Click Installer) ---
+@app.get("/download/setup")
+async def download_setup_installer():
+    candidates = [
+        os.path.join(os.path.dirname(__file__), "..", "dist", "EggDL_Setup.exe"),
+        os.path.join(os.path.dirname(__file__), "dist", "EggDL_Setup.exe"),
+        os.path.join(os.path.dirname(sys.executable), "dist", "EggDL_Setup.exe"),
+    ]
+    for c in candidates:
+        if os.path.exists(c):
+            return FileResponse(c, filename="EggDL_Setup.exe", media_type="application/octet-stream")
+    return {"message": "Setup installer available at: https://github.com/eggdl-downloader/eggdl"}
+
+# --- Admin Remote Control API ---
+@app.get("/api/admin/overview")
+async def get_admin_overview(admin_key: str = Query(...)):
+    if admin_key != ADMIN_KEY:
+        raise HTTPException(status_code=403, detail="Invalid Admin Key")
+    devices = get_all_devices()
+    latest_release = get_latest_app_release()
+    return {
+        "success": True,
+        "total_devices": len(devices),
+        "devices": devices,
+        "latest_release": latest_release,
+        "admin_active": True
+    }
+
+@app.post("/api/admin/block-device")
+async def admin_block_device(req: BlockDeviceRequest):
+    if req.admin_key != ADMIN_KEY:
+        raise HTTPException(status_code=403, detail="Invalid Admin Key")
+    set_device_blocked(req.device_id, blocked=req.blocked, reason=req.reason or "Access revoked by admin")
+    return {
+        "success": True,
+        "message": f"Device {req.device_id} {'blocked' if req.blocked else 'unblocked'} successfully",
+        "device_id": req.device_id,
+        "is_blocked": req.blocked
+    }
+
+@app.post("/api/admin/push-release")
+async def admin_push_release(req: PushReleaseRequest):
+    if req.admin_key != ADMIN_KEY:
+        raise HTTPException(status_code=403, detail="Invalid Admin Key")
+    set_app_release(req.version, req.release_notes, req.download_url, req.mandatory)
+    return {
+        "success": True,
+        "message": f"Release v{req.version} is now active. All online clients will be notified.",
+        "version": req.version
     }
 
 

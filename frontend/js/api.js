@@ -276,5 +276,55 @@ const API = {
   async getSystemStats() {
     const res = await fetch(`${this.baseUrl}/api/system/stats`, { headers: this.getHeaders() });
     return res.json();
+  },
+
+  async checkVersion() {
+    const res = await fetch(`${this.baseUrl}/api/system/version`, { headers: this.getHeaders() });
+    if (!res.ok) throw new Error('Could not fetch version information');
+    return res.json();
+  },
+
+  async checkDeviceStatus(userEmail = null) {
+    const res = await fetch(`${this.baseUrl}/api/system/device-status`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ user_email: userEmail, app_version: '2.0.0' })
+    });
+    return res.json();
+  },
+
+  async getAdminOverview(adminKey) {
+    const res = await fetch(`${this.baseUrl}/api/admin/overview?admin_key=${encodeURIComponent(adminKey)}`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Invalid Admin Key' }));
+      throw new Error(err.detail || 'Invalid Admin Key');
+    }
+    return res.json();
+  },
+
+  async adminBlockDevice(adminKey, deviceId, blocked, reason) {
+    const res = await fetch(`${this.baseUrl}/api/admin/block-device`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_key: adminKey, device_id: deviceId, blocked, reason })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Admin operation failed' }));
+      throw new Error(err.detail || 'Admin operation failed');
+    }
+    return res.json();
+  },
+
+  async adminPushRelease(adminKey, version, notes, downloadUrl, mandatory = false) {
+    const res = await fetch(`${this.baseUrl}/api/admin/push-release`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_key: adminKey, version, release_notes: notes, download_url: downloadUrl, mandatory })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to push release' }));
+      throw new Error(err.detail || 'Failed to push release');
+    }
+    return res.json();
   }
 };

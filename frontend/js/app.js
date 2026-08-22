@@ -23,6 +23,9 @@ const App = {
     this.updateSystemStats();
     setInterval(() => this.updateSystemStats(), 8000);
     this.initPWA();
+    this.checkVersion(false);
+    this.checkDeviceAuthorization();
+    this.initAdminPanel();
   },
 
   initPWA() {
@@ -513,6 +516,7 @@ const App = {
       document.getElementById('settings-modal').style.display = 'none';
     });
     document.getElementById('save-settings-btn')?.addEventListener('click', () => this.saveSettings());
+    document.getElementById('btn-check-updates')?.addEventListener('click', () => this.checkVersion(true));
 
     // Sniffer batch actions
     document.getElementById('sniffer-select-all')?.addEventListener('click', () => this.toggleSnifferSelectAll());
@@ -1291,6 +1295,217 @@ const App = {
     UI.closeAccountModal();
     UI.showToast('Logged out of EggDL', 'info');
     await this.initAuth();
+  },
+
+  // --- In-App Auto Updates & Versioning ---
+  async checkVersion(manual = false) {
+    const statusHint = document.getElementById('settings-update-status');
+    const versionBadge = document.getElementById('settings-app-version');
+    if (versionBadge) versionBadge.innerText = 'v2.0.0';
+
+    try {
+      if (manual && statusHint) statusHint.innerText = 'Checking for updates on server...';
+      const info = await API.checkVersion();
+      
+      if (info.update_available) {
+        if (statusHint) statusHint.innerText = `New version v${info.latest_version} available!`;
+        this.showUpdateModal(info);
+      } else {
+        if (statusHint) statusHint.innerText = `You are running the latest version (v${info.current_version}).`;
+        if (manual) {
+          UI.showToast(`✓ You are up to date! EggDL v${info.current_version} is the latest version.`, 'success');
+        }
+      }
+    } catch (e) {
+      if (statusHint) statusHint.innerText = 'Could not reach update server.';
+      if (manual) UI.showToast('Could not check updates: ' + e.message, 'error');
+    }
+  },
+
+  showUpdateModal(info) {
+    const modal = document.getElementById('update-modal');
+    if (!modal) return;
+    const verBadge = document.getElementById('update-modal-version');
+    const notesBox = document.getElementById('update-modal-notes');
+    const nowBtn = document.getElementById('update-modal-now-btn');
+    const laterBtn = document.getElementById('update-modal-later-btn');
+
+    if (verBadge) verBadge.innerText = `v${info.latest_version} Available`;
+    if (notesBox) notesBox.innerText = info.release_notes || 'Exciting new features and performance upgrades.';
+    
+    if (nowBtn) {
+      nowBtn.onclick = () => {
+        window.open(info.download_url || 'https://eggdl.onrender.com/download/setup', '_blank');
+        modal.style.display = 'none';
+        UI.showToast('Downloading newest EggDL setup installer...', 'info');
+      };
+    }
+    if (laterBtn) {
+      laterBtn.onclick = () => {
+        modal.style.display = 'none';
+      };
+    }
+
+    modal.style.display = 'flex';
+    if (window.lucide) window.lucide.createIcons();
+  },
+
+  // --- Remote Kill-Switch & Anti-Piracy Authorization ---
+  async checkDeviceAuthorization() {
+    try {
+      const email = this.authData?.user?.email || null;
+      const res = await API.checkDeviceStatus(email);
+      if (res.is_blocked) {
+        const blockedScreen = document.getElementById('blocked-screen');
+        if (blockedScreen) {
+          blockedScreen.style.display = 'flex';
+          const devIdEl = document.getElementById('blocked-device-id');
+          const reasonEl = document.getElementById('blocked-reason-text');
+          if (devIdEl) devIdEl.innerText = res.device_id;
+          if (reasonEl) reasonEl.innerText = res.block_reason || 'License violation detected';
+          if (window.lucide) window.lucide.createIcons();
+        }
+      }
+    } catch (e) {
+      console.warn('Device authorization check:', e);
+    }
+  },
+
+  // --- Developer Admin Remote Control Center ---
+  adminKey: null,
+  initAdminPanel() {
+    const openAdminBtn = document.getElementById('btn-open-admin');
+    const adminModal = document.getElementById('admin-modal');
+    const closeAdminBtn = document.getElementById('close-admin-modal-btn');
+    const adminLoginBtn = document.getElementById('btn-admin-login');
+    const adminKeyInput = document.getElementById('admin-master-key-input');
+    const loginView = document.getElementById('admin-login-view');
+    const dashView = document.getElementById('admin-dashboard-view');
+    const tabReleases = document.getElementById('admin-tab-releases-btn');
+    const tabDevices = document.getElementById('admin-tab-devices-btn');
+    const viewReleases = document.getElementById('admin-view-releases');
+    const viewDevices = document.getElementById('admin-view-devices');
+    const pushReleaseBtn = document.getElementById('btn-admin-push-release');
+    const refreshDevicesBtn = document.getElementById('btn-admin-refresh-devices');
+
+    if (openAdminBtn) {
+      openAdminBtn.onclick = () => {
+        if (adminModal) {
+          adminModal.style.display = 'flex';
+          if (window.lucide) window.lucide.createIcons();
+        }
+      };
+    }
+    if (closeAdminBtn) {
+      closeAdminBtn.onclick = () => {
+        if (adminModal) adminModal.style.display = 'none';
+      };
+    }
+
+    if (adminLoginBtn) {
+      adminLoginBtn.onclick = async () => {
+        const key = adminKeyInput.value.trim();
+        if (!key) return UI.showToast('Please enter master key', 'error');
+        try {
+          adminLoginBtn.disabled = true;
+          const data = await API.getAdminOverview(key);
+          this.adminKey = key;
+          loginView.style.display = 'none';
+          dashView.style.display = 'block';
+          this.renderAdminDevices(data.devices);
+          UI.showToast('Master Control Center Unlocked', 'success');
+        } catch (e) {
+          UI.showToast(e.message || 'Invalid Master Key', 'error');
+        } finally {
+          adminLoginBtn.disabled = false;
+        }
+      };
+    }
+
+    if (tabReleases && tabDevices) {
+      tabReleases.onclick = () => {
+        tabReleases.classList.add('active');
+        tabDevices.classList.remove('active');
+        viewReleases.style.display = 'block';
+        viewDevices.style.display = 'none';
+      };
+      tabDevices.onclick = () => {
+        tabDevices.classList.add('active');
+        tabReleases.classList.remove('active');
+        viewDevices.style.display = 'block';
+        viewReleases.style.display = 'none';
+        if (this.adminKey) this.refreshAdminDevices();
+      };
+    }
+
+    if (pushReleaseBtn) {
+      pushReleaseBtn.onclick = async () => {
+        const ver = document.getElementById('admin-release-ver').value.trim();
+        const notes = document.getElementById('admin-release-notes').value.trim();
+        const url = document.getElementById('admin-release-url').value.trim();
+        if (!ver) return UI.showToast('Version is required', 'error');
+        try {
+          pushReleaseBtn.disabled = true;
+          await API.adminPushRelease(this.adminKey, ver, notes, url);
+          UI.showToast(`🚀 Broadcasted v${ver} update to all users!`, 'success');
+        } catch (e) {
+          UI.showToast('Push failed: ' + e.message, 'error');
+        } finally {
+          pushReleaseBtn.disabled = false;
+        }
+      };
+    }
+
+    if (refreshDevicesBtn) {
+      refreshDevicesBtn.onclick = () => this.refreshAdminDevices();
+    }
+  },
+
+  async refreshAdminDevices() {
+    if (!this.adminKey) return;
+    try {
+      const data = await API.getAdminOverview(this.adminKey);
+      this.renderAdminDevices(data.devices);
+    } catch (e) {
+      UI.showToast('Refresh failed: ' + e.message, 'error');
+    }
+  },
+
+  renderAdminDevices(devices = []) {
+    const list = document.getElementById('admin-devices-list');
+    if (!list) return;
+    if (!devices.length) {
+      list.innerHTML = '<div style="color: var(--text-dim); text-align: center; padding: 20px;">No registered devices found.</div>';
+      return;
+    }
+    list.innerHTML = devices.map(d => `
+      <div style="background: var(--bg-secondary); border: 1px solid ${d.is_blocked ? 'rgba(239, 68, 68, 0.4)' : 'var(--border-color)'}; border-radius: 8px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <div style="font-weight: 700; font-family: monospace; font-size: 0.88rem; color: ${d.is_blocked ? '#F87171' : 'var(--text-main)'};">
+            ${d.device_id} ${d.is_blocked ? '<span class="badge" style="background: #EF4444; color: #fff; font-size: 0.65rem; padding: 1px 6px; border-radius: 4px;">BLOCKED</span>' : '<span class="badge" style="background: #10B981; color: #fff; font-size: 0.65rem; padding: 1px 6px; border-radius: 4px;">ACTIVE</span>'}
+          </div>
+          <div style="font-size: 0.76rem; color: var(--text-muted); margin-top: 2px;">
+            PC: <b>${d.machine_name || 'PC'}</b> • OS: ${d.os_info || 'Win'} • User: ${d.user_email || 'Guest'}
+          </div>
+        </div>
+        <div>
+          <button class="btn btn-sm ${d.is_blocked ? 'btn-secondary' : 'btn-danger'}" onclick="App.toggleDeviceBlock('${d.device_id}', ${d.is_blocked ? 'false' : 'true'})">
+            ${d.is_blocked ? 'Unblock PC' : 'Kill-Switch Block'}
+          </button>
+        </div>
+      </div>
+    `).join('');
+  },
+
+  async toggleDeviceBlock(deviceId, shouldBlock) {
+    if (!this.adminKey) return;
+    try {
+      await API.adminBlockDevice(this.adminKey, deviceId, shouldBlock, shouldBlock ? 'Revoked by developer' : null);
+      UI.showToast(`Device ${deviceId} ${shouldBlock ? 'BLOCKED' : 'UNBLOCKED'}`, 'success');
+      this.refreshAdminDevices();
+    } catch (e) {
+      UI.showToast(e.message || 'Block failed', 'error');
+    }
   }
 };
 
