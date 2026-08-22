@@ -344,7 +344,7 @@ class MediaExtractor:
         if "youtube" in url.lower() or "youtu.be" in url.lower():
             ydl_opts["extractor_args"] = {
                 "youtube": {
-                    "player_client": ["android", "web", "mweb", "ios"]
+                    "player_client": ["android_creator", "web"]
                 }
             }
 
@@ -365,7 +365,7 @@ class MediaExtractor:
                     "quiet": True,
                     "skip_download": True,
                     "noplaylist": True,
-                    "extractor_args": {"youtube": {"player_client": ["android", "web"]}}
+                    "extractor_args": {"youtube": {"player_client": ["all"]}}
                 }
                 if cookie_path:
                     fallback_opts["cookiefile"] = cookie_path
@@ -745,7 +745,7 @@ class StreamDownloadTask:
         if "youtube" in self.url.lower() or "youtu.be" in self.url.lower():
             ydl_opts["extractor_args"] = {
                 "youtube": {
-                    "player_client": ["android", "web", "mweb", "ios"]
+                    "player_client": ["android_creator", "web"]
                 }
             }
 
