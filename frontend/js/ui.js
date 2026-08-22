@@ -549,13 +549,14 @@ const UI = {
     if (modal) modal.style.display = 'none';
   },
 
-  // --- Auth & Account UI ---
+  // --- Machine ID & Account UI ---
   renderUserProfile(authData) {
     const container = document.getElementById('user-header-area');
     if (!container) return;
 
-    const isAuth = authData && authData.authenticated;
-    const user = (authData && authData.user) || { name: 'Guest User', plan_type: 'trial' };
+    const user = (authData && authData.user) || {};
+    const machine = (authData && authData.machine) || {};
+    const desktopName = machine.desktop_name || user.name || 'DESKTOP-PC';
     const plan = (authData && authData.plan) || { badge: '7-Day Trial', name: '7-Day Free Trial' };
     const isPro = authData && authData.is_pro;
     const isTrial = authData && authData.is_trial;
@@ -563,91 +564,73 @@ const UI = {
     const trialDaysLeft = (authData && authData.trial_days_remaining) || 0;
     const daysLeft = authData && authData.days_remaining;
 
-    if (isAuth) {
-      const initial = (user.name || user.email || 'U').charAt(0).toUpperCase();
-      let badgeClass = 'user-plan-badge';
-      let badgeText = plan.badge || 'Trial';
-      if (user.plan_type === 'lifetime') {
-        badgeClass += ' lifetime';
-        badgeText = '👑 Ultimate Pass';
-      } else if (isPro) {
-        badgeClass += ' pro';
-        badgeText = `⚡ ${plan.name || plan.badge} (${daysLeft}d)`;
-      } else if (isTrial) {
-        badgeClass += ' trial';
-        badgeText = `⏳ 7-Day Trial (${trialDaysLeft}d Left)`;
-      } else {
-        badgeClass += ' expired';
-        badgeText = `⚠️ Trial Expired`;
-      }
+    let badgeClass = 'user-plan-badge trial';
+    let badgeText = `⏳ ${trialDaysLeft}d Trial Left`;
 
-      container.innerHTML = `
-        <button class="user-pill-btn" id="user-profile-btn" title="Click to view Account & Subscriptions">
-          <div class="user-avatar">${initial}</div>
-          <span class="user-name">${user.name || user.email.split('@')[0]}</span>
-          <span class="${badgeClass}">${badgeText}</span>
-        </button>
-      `;
-
-      document.getElementById('user-profile-btn')?.addEventListener('click', () => {
-        UI.openAccountModal(authData);
-      });
+    if (user.plan_type === 'lifetime' || (isPro && !daysLeft)) {
+      badgeClass = 'user-plan-badge lifetime';
+      badgeText = '👑 Pro Lifetime';
+    } else if (isPro) {
+      badgeClass = 'user-plan-badge pro';
+      badgeText = `⚡ Pro (${daysLeft}d Left)`;
+    } else if (isTrial) {
+      badgeClass = 'user-plan-badge trial';
+      badgeText = `⏳ 7-Day Trial (${trialDaysLeft}d Left)`;
     } else {
-      let badgeText = `⏳ 7-Day Trial (${trialDaysLeft}d Left)`;
-      let badgeClass = 'user-plan-badge trial';
-      if (isPro) {
-        badgeText = `👑 Pro Active`;
-        badgeClass = 'user-plan-badge pro';
-      } else if (trialExpired) {
-        badgeText = `⚠️ Trial Expired`;
-        badgeClass = 'user-plan-badge expired';
-      }
-
-      container.innerHTML = `
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <button class="user-pill-btn" id="header-trial-badge" title="Click to view Account & Subscriptions">
-            <span class="${badgeClass}">${badgeText}</span>
-          </button>
-          <button class="btn btn-primary btn-sm btn-glow" id="header-auth-btn">
-            <i data-lucide="log-in"></i>
-            <span>Sign In</span>
-          </button>
-        </div>
-      `;
-
-      document.getElementById('header-trial-badge')?.addEventListener('click', () => {
-        UI.openAccountModal(authData);
-      });
-      document.getElementById('header-auth-btn')?.addEventListener('click', () => {
-        UI.openAuthModal('login');
-      });
+      badgeClass = 'user-plan-badge expired';
+      badgeText = `⚠️ Trial Expired`;
     }
 
-    // Update Topbar Status Greeting: "Hi, <Name>! 👋" on 1st time, "Welcome Back, <Name>! 👋" on returning
+    container.innerHTML = `
+      <button class="user-pill-btn" id="user-profile-btn" title="Click to view Machine License & Product Key">
+        <div class="user-avatar"><i data-lucide="monitor" style="width: 14px; height: 14px;"></i></div>
+        <span class="user-name">${desktopName}</span>
+        <span class="${badgeClass}">${badgeText}</span>
+      </button>
+    `;
+
+    document.getElementById('user-profile-btn')?.addEventListener('click', () => {
+      UI.openAccountModal(authData);
+    });
+
+    // Topbar Status Greeting
     const engineTextEl = document.getElementById('engine-status-text');
     if (engineTextEl) {
-      if (isAuth && user && (user.name || user.email)) {
-        const rawName = (user.name || user.email.split('@')[0]).trim();
-        const userKey = (user.email || user.id || rawName).toLowerCase();
-        
-        let visited = [];
-        try {
-          visited = JSON.parse(localStorage.getItem('eggdl_visited_users') || '[]');
-        } catch (_) {}
-
-        if (visited.includes(userKey)) {
-          engineTextEl.innerHTML = `Welcome Back, <span class="greeting-highlight">${rawName}!</span> <span class="wave-hand">👋</span>`;
-        } else {
-          engineTextEl.innerHTML = `Hi, <span class="greeting-highlight">${rawName}!</span> <span class="wave-hand">👋</span>`;
-          visited.push(userKey);
-          try {
-            localStorage.setItem('eggdl_visited_users', JSON.stringify(visited));
-          } catch (_) {}
-        }
+      if (isPro) {
+        engineTextEl.innerHTML = `EggDL Pro Engine <span class="engine-dot-ready">⚡</span> <span style="font-size:0.75rem; color:#10B981; font-weight:600;">(Unlimited Turbo)</span>`;
+      } else if (isTrial) {
+        engineTextEl.innerHTML = `EggDL Trial Ready <span class="engine-dot-ready">⚡</span> <span style="font-size:0.75rem; color:#F59E0B; font-weight:600;">(${trialDaysLeft} Days Remaining)</span>`;
       } else {
-        engineTextEl.innerHTML = 'EggDL Engine Ready <span class="engine-dot-ready">⚡</span>';
+        engineTextEl.innerHTML = `EggDL Engine <span style="font-size:0.75rem; color:#EF4444; font-weight:600;">(Trial Expired • Activate Key)</span>`;
       }
     }
+    lucide.createIcons();
+  },
+
+  renderDeviceSuspended(reason = 'Access to this device has been suspended by the administrator.') {
+    let overlay = document.getElementById('device-kill-lockout-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'device-kill-lockout-overlay';
+      overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:#06080F;z-index:999999;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;font-family:Inter,system-ui,sans-serif;color:#F8FAFC;';
+      document.body.appendChild(overlay);
+    }
+
+    overlay.innerHTML = `
+      <div style="max-width:520px;background:#0F172A;border:1px solid rgba(239,68,68,0.4);border-radius:20px;padding:40px 32px;box-shadow:0 25px 60px rgba(0,0,0,0.8);">
+        <div style="width:72px;height:72px;border-radius:50%;background:rgba(239,68,68,0.15);color:#EF4444;display:flex;align-items:center;justify-content:center;margin:0 auto 20px auto;font-size:2rem;">
+          <i data-lucide="shield-alert"></i>
+        </div>
+        <h2 style="font-size:1.5rem;font-weight:800;color:#EF4444;margin-bottom:12px;">🚨 Device Access Suspended</h2>
+        <p style="font-size:0.95rem;color:#94A3B8;line-height:1.6;margin-bottom:24px;">${reason}</p>
+        <div style="background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:14px;font-family:monospace;font-size:0.8rem;color:#CBD5E1;margin-bottom:24px;word-break:break-all;">
+          STATUS: LOCKED BY MASTER ADMIN
+        </div>
+        <p style="font-size:0.82rem;color:#64748B;">Please contact administrator for license activation.</p>
+      </div>
+    `;
+    lucide.createIcons();
+  },
 
     lucide.createIcons();
   },
@@ -708,40 +691,22 @@ const UI = {
 
   openAccountModal(authData) {
     const modal = document.getElementById('account-modal');
-    const isAuth = authData && authData.authenticated;
     const user = (authData && authData.user) || { name: '', email: '', plan_type: 'free' };
+    const machine = (authData && authData.machine) || {};
+    const desktopName = machine.desktop_name || user.name || 'DESKTOP-PC';
+    const machineId = machine.machine_id || user.id || 'EGG-UNKNOWN';
     const plan = (authData && authData.plan) || { badge: 'Free', name: 'Free Plan' };
     const isPro = authData && authData.is_pro;
     const daysLeft = authData && authData.days_remaining;
 
-    const initial = (user.name || user.email || 'U').charAt(0).toUpperCase();
-    const avatarEl = document.getElementById('acc-avatar-display');
     const nameEl = document.getElementById('acc-name-display');
-    const emailEl = document.getElementById('acc-email-display');
+    const machineIdEl = document.getElementById('acc-machine-id');
     const pillEl = document.getElementById('acc-plan-pill');
     const keyInput = document.getElementById('license-key-input');
     const feedbackMsg = document.getElementById('license-feedback-msg');
 
-    const loggedInView = document.getElementById('acc-user-logged-in-view');
-    const guestView = document.getElementById('acc-user-guest-view');
-    const logoutBtn = document.getElementById('logout-btn');
-    const signinBtn = document.getElementById('acc-footer-signin-btn');
-
-    if (isAuth) {
-      if (loggedInView) loggedInView.style.display = 'flex';
-      if (guestView) guestView.style.display = 'none';
-      if (logoutBtn) logoutBtn.style.display = 'inline-flex';
-      if (signinBtn) signinBtn.style.display = 'none';
-      if (avatarEl) avatarEl.innerText = initial;
-      if (nameEl) nameEl.innerText = user.name || user.email.split('@')[0];
-      if (emailEl) emailEl.innerText = user.email || '';
-    } else {
-      if (loggedInView) loggedInView.style.display = 'none';
-      if (guestView) guestView.style.display = 'flex';
-      if (logoutBtn) logoutBtn.style.display = 'none';
-      if (signinBtn) signinBtn.style.display = 'inline-flex';
-    }
-
+    if (nameEl) nameEl.innerText = desktopName;
+    if (machineIdEl) machineIdEl.innerText = machineId;
     if (keyInput) keyInput.value = '';
     if (feedbackMsg) feedbackMsg.style.display = 'none';
 
@@ -963,5 +928,94 @@ const UI = {
       okBtn.onclick = () => cleanup(true);
       cancelBtn.onclick = () => cleanup(false);
     });
+  },
+
+  renderAdminDevices(devicesData, adminKey) {
+    const listContainer = document.getElementById('admin-devices-list');
+    const totalCountEl = document.getElementById('admin-total-devices-count');
+    const onlineCountEl = document.getElementById('admin-online-devices-count');
+    const proCountEl = document.getElementById('admin-pro-devices-count');
+    const blockedCountEl = document.getElementById('admin-blocked-devices-count');
+
+    if (!listContainer) return;
+
+    const devices = devicesData.devices || [];
+    if (totalCountEl) totalCountEl.innerText = devicesData.total_devices || devices.length;
+    if (onlineCountEl) onlineCountEl.innerText = devicesData.online_count || 0;
+    if (proCountEl) proCountEl.innerText = devicesData.pro_count || 0;
+    if (blockedCountEl) blockedCountEl.innerText = devicesData.blocked_count || 0;
+
+    if (!devices.length) {
+      listContainer.innerHTML = `
+        <div style="text-align:center;padding:40px;color:var(--text-dim);">
+          <i data-lucide="monitor-off" style="width:36px;height:36px;margin:0 auto 12px auto;opacity:0.5;"></i>
+          <p>No connected devices recorded yet.</p>
+        </div>
+      `;
+      lucide.createIcons();
+      return;
+    }
+
+    let html = '';
+    devices.forEach((dev) => {
+      const isOnline = dev.is_online;
+      const isBlocked = dev.is_blocked;
+      const isPro = dev.is_pro;
+      
+      const onlineDot = isOnline 
+        ? '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#10B981;box-shadow:0 0 8px #10B981;margin-right:6px;"></span>'
+        : '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#64748B;margin-right:6px;"></span>';
+
+      html += `
+        <div class="admin-device-card ${isBlocked ? 'blocked' : ''}" style="background:rgba(255,255,255,0.03);border:1px solid ${isBlocked ? 'rgba(239,68,68,0.4)' : 'rgba(255,255,255,0.08)'};border-radius:14px;padding:16px 18px;margin-bottom:12px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:14px;">
+          <div style="display:flex;align-items:center;gap:14px;min-width:260px;">
+            <div style="width:42px;height:42px;border-radius:10px;background:${isBlocked ? 'rgba(239,68,68,0.15)' : 'rgba(59,130,246,0.12)'};color:${isBlocked ? '#EF4444' : '#3B82F6'};display:flex;align-items:center;justify-content:center;font-size:1.2rem;">
+              <i data-lucide="${isBlocked ? 'shield-ban' : 'monitor'}"></i>
+            </div>
+            <div>
+              <div style="font-weight:700;font-size:0.96rem;color:var(--text-main);display:flex;align-items:center;">
+                ${onlineDot} ${dev.desktop_name}
+                <span style="font-size:0.72rem;background:rgba(255,255,255,0.08);padding:2px 6px;border-radius:6px;margin-left:8px;font-family:monospace;color:var(--text-dim);">${dev.device_id}</span>
+              </div>
+              <div style="font-size:0.78rem;color:var(--text-secondary);margin-top:3px;">
+                User: <span style="color:#CBD5E1;">${dev.user_name || 'User'}</span> • ${dev.os_info || 'Windows'} • v${dev.app_version} • <span style="font-family:monospace;">${dev.ip_address || '127.0.0.1'}</span>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:16px;">
+            <div style="text-align:right;">
+              <div style="font-size:0.82rem;font-weight:700;color:${isBlocked ? '#EF4444' : (isPro ? '#10B981' : '#F59E0B')};">
+                ${dev.status_badge}
+              </div>
+              <div style="font-size:0.72rem;color:var(--text-dim);margin-top:2px;">
+                ${dev.last_seen_str}
+              </div>
+            </div>
+
+            <div style="display:flex;gap:6px;">
+              ${isBlocked ? `
+                <button class="btn btn-sm btn-secondary" onclick="App.handleAdminDeviceAction('${dev.device_id}', 'unblock')" title="Unblock Machine">
+                  <i data-lucide="check-circle" style="width:13px;height:13px;"></i> Unblock
+                </button>
+              ` : `
+                <button class="btn btn-sm btn-danger" onclick="App.handleAdminDeviceAction('${dev.device_id}', 'block')" title="Kill & Block Machine">
+                  <i data-lucide="shield-alert" style="width:13px;height:13px;"></i> Kill Machine
+                </button>
+              `}
+              <button class="btn btn-sm btn-primary" onclick="App.handleAdminDeviceAction('${dev.device_id}', 'grant_pro', 'lifetime')" title="Grant Pro Lifetime">
+                <i data-lucide="crown" style="width:13px;height:13px;"></i> Grant Pro
+              </button>
+              <button class="btn btn-sm btn-secondary" onclick="App.handleAdminDeviceAction('${dev.device_id}', 'reset_trial')" title="Reset 7-Day Trial">
+                <i data-lucide="rotate-ccw" style="width:13px;height:13px;"></i> Reset 7D
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+
+    listContainer.innerHTML = html;
+    lucide.createIcons();
   }
 };

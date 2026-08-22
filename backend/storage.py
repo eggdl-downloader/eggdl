@@ -116,12 +116,36 @@ def init_db():
         machine_name TEXT,
         os_info TEXT,
         app_version TEXT,
+        user_name TEXT,
+        ip_address TEXT,
+        plan_type TEXT DEFAULT 'trial',
+        plan_expires_at TIMESTAMP,
+        is_pro INTEGER DEFAULT 0,
+        license_key TEXT,
+        total_downloads INTEGER DEFAULT 0,
+        data_downloaded_mb REAL DEFAULT 0.0,
         is_blocked INTEGER DEFAULT 0,
         block_reason TEXT,
         last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """)
+
+    # Ensure devices columns exist if table was created previously
+    for col, col_type in [
+        ("user_name", "TEXT"),
+        ("ip_address", "TEXT"),
+        ("plan_type", "TEXT DEFAULT 'trial'"),
+        ("plan_expires_at", "TIMESTAMP"),
+        ("is_pro", "INTEGER DEFAULT 0"),
+        ("license_key", "TEXT"),
+        ("total_downloads", "INTEGER DEFAULT 0"),
+        ("data_downloaded_mb", "REAL DEFAULT 0.0")
+    ]:
+        try:
+            cursor.execute(f"ALTER TABLE devices ADD COLUMN {col} {col_type};")
+        except Exception:
+            pass
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS app_releases (
@@ -497,167 +521,205 @@ def get_user_payments(user_id: str) -> List[Dict[str, Any]]:
     conn.close()
     return [dict(r) for r in rows]
 
-# --- Device Tracking, Remote Kill-Switch & Anti-Piracy ---
+# --- IDM-Style Machine ID Licensing & Device Telemetry ---
 import platform
 import hashlib
 import uuid
+import math
+from datetime import datetime, timedelta
 
-def get_device_id() -> str:
+def get_machine_info() -> Dict[str, str]:
+    """Extracts hardware fingerprints: HWID, Desktop PC Name, Username, and OS."""
+    try:
+        desktop_name = os.environ.get("COMPUTERNAME") or platform.node() or "DESKTOP-PC"
+    except Exception:
+        desktop_name = "DESKTOP-PC"
+    
+    try:
+        user_name = os.environ.get("USERNAME") or os.environ.get("USER") or "User"
+    except Exception:
+        user_name = "User"
+        
+    os_info = f"{platform.system()} {platform.release()}"
+    
+    # Secure Hardware Fingerprint
     components = [
-        platform.node(),
+        desktop_name,
         platform.machine(),
         str(uuid.getnode()),
+        os_info
     ]
     raw = ":".join(components)
-    return "EGG-" + hashlib.sha256(raw.encode()).hexdigest()[:16].upper()
-
-def register_device(device_id: str, user_email: Optional[str] = None, app_version: str = "2.0.0") -> Dict[str, Any]:
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    machine_name = platform.node()
-    os_info = f"{platform.system()} {platform.release()}"
-    now = datetime.now().isoformat()
+    hwid = "EGG-" + hashlib.sha256(raw.encode()).hexdigest()[:16].upper()
     
-    cursor.execute("SELECT is_blocked, block_reason, created_at FROM devices WHERE device_id = ?", (device_id,))
-    row = cursor.fetchone()
-    is_blocked = 0
-    block_reason = None
-    created_at = now
-    if row:
-        is_blocked = row["is_blocked"]
-        block_reason = row["block_reason"]
-        created_at = row["created_at"] or now
-        cursor.execute("""
-        UPDATE devices SET
-            user_email = COALESCE(?, user_email),
-            machine_name = ?,
-            os_info = ?,
-            app_version = ?,
-            last_seen = ?
-        WHERE device_id = ?
-        """, (user_email, machine_name, os_info, app_version, now, device_id))
-    else:
-        cursor.execute("""
-        INSERT INTO devices (device_id, user_email, machine_name, os_info, app_version, is_blocked, last_seen, created_at)
-        VALUES (?, ?, ?, ?, ?, 0, ?, ?)
-        """, (device_id, user_email, machine_name, os_info, app_version, now, now))
-    conn.commit()
-    conn.close()
     return {
-        "device_id": device_id,
-        "is_blocked": bool(is_blocked),
-        "block_reason": block_reason,
-        "created_at": created_at
+        "machine_id": hwid,
+        "desktop_name": desktop_name,
+        "user_name": user_name,
+        "os_info": os_info
     }
 
-def get_trial_and_subscription_status(user_id: Optional[str] = None, device_id: Optional[str] = None) -> Dict[str, Any]:
-    """
-    Computes active status, 7-Day Free Trial countdown, and Unlimited Download authorization.
-    """
-    from datetime import datetime, timedelta
-    import math
+def get_device_id() -> str:
+    return get_machine_info()["machine_id"]
 
+def register_or_update_device(
+    device_id: str,
+    desktop_name: Optional[str] = None,
+    user_name: Optional[str] = None,
+    os_info: Optional[str] = None,
+    app_version: str = "2.1.2",
+    ip_address: Optional[str] = None,
+    total_downloads: Optional[int] = None,
+    data_downloaded_mb: Optional[float] = None
+) -> Dict[str, Any]:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    now = datetime.now().isoformat()
+    
+    info = get_machine_info()
+    m_name = desktop_name or info["desktop_name"]
+    u_name = user_name or info["user_name"]
+    o_info = os_info or info["os_info"]
+    
+    cursor.execute("SELECT * FROM devices WHERE device_id = ?", (device_id,))
+    row = cursor.fetchone()
+    
+    if row:
+        cursor.execute("""
+        UPDATE devices SET
+            machine_name = COALESCE(?, machine_name),
+            user_name = COALESCE(?, user_name),
+            os_info = COALESCE(?, os_info),
+            app_version = ?,
+            ip_address = COALESCE(?, ip_address),
+            total_downloads = CASE WHEN ? IS NOT NULL THEN ? ELSE total_downloads END,
+            data_downloaded_mb = CASE WHEN ? IS NOT NULL THEN ? ELSE data_downloaded_mb END,
+            last_seen = ?
+        WHERE device_id = ?
+        """, (m_name, u_name, o_info, app_version, ip_address, 
+              total_downloads, total_downloads,
+              data_downloaded_mb, data_downloaded_mb,
+              now, device_id))
+    else:
+        cursor.execute("""
+        INSERT INTO devices (
+            device_id, machine_name, user_name, os_info, app_version, ip_address,
+            plan_type, is_pro, is_blocked, total_downloads, data_downloaded_mb, last_seen, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, 'trial', 0, 0, ?, ?, ?, ?)
+        """, (device_id, m_name, u_name, o_info, app_version, ip_address,
+              total_downloads or 0, data_downloaded_mb or 0.0, now, now))
+        
+    conn.commit()
+    conn.close()
+    return get_device_license_status(device_id)
+
+def get_device_license_status(device_id: str) -> Dict[str, Any]:
+    """Computes exact license, 7-Day Free Trial countdown, and authorization for a Machine ID."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM devices WHERE device_id = ?", (device_id,))
+    row = cursor.fetchone()
+    conn.close()
+    
     now = datetime.now()
     TRIAL_DAYS = 7
-
-    # 1. If user is logged in, check user subscription & trial
-    if user_id:
-        user = get_user_by_id(user_id)
-        if user:
-            plan_type = user.get("plan_type", "free")
-            plan_expires_at = user.get("plan_expires_at")
-            
-            # Check paid / active Pro plan
-            if plan_type not in ["free", "trial"] and plan_expires_at:
-                try:
-                    exp_date = datetime.fromisoformat(plan_expires_at)
-                    if plan_type == "lifetime" or exp_date.year >= 2099:
-                        return {
-                            "is_pro": True,
-                            "is_trial": False,
-                            "trial_expired": False,
-                            "can_download": True,
-                            "is_unlimited": True,
-                            "days_remaining": 9999,
-                            "trial_days_remaining": 0,
-                            "plan_type": plan_type,
-                            "plan_expires_at": plan_expires_at
-                        }
-                    elif exp_date > now:
-                        days_left = max(1, (exp_date - now).days)
-                        return {
-                            "is_pro": True,
-                            "is_trial": False,
-                            "trial_expired": False,
-                            "can_download": True,
-                            "is_unlimited": True,
-                            "days_remaining": days_left,
-                            "trial_days_remaining": 0,
-                            "plan_type": plan_type,
-                            "plan_expires_at": plan_expires_at
-                        }
-                except Exception:
-                    pass
-
-            # Not paid or paid plan expired -> Check 7-Day Free Trial based on user created_at
-            user_created = user.get("created_at")
-            created_dt = now
-            if user_created:
-                try:
-                    if "T" in str(user_created):
-                        created_dt = datetime.fromisoformat(str(user_created))
-                    else:
-                        created_dt = datetime.strptime(str(user_created)[:19], "%Y-%m-%d %H:%M:%S")
-                except Exception:
-                    created_dt = now
-
-            trial_end = created_dt + timedelta(days=TRIAL_DAYS)
-            if now < trial_end:
-                seconds_left = (trial_end - now).total_seconds()
-                days_left = max(1, math.ceil(seconds_left / 86400))
-                return {
-                    "is_pro": False,
-                    "is_trial": True,
-                    "trial_expired": False,
-                    "can_download": True,
-                    "is_unlimited": True,
-                    "days_remaining": 0,
-                    "trial_days_remaining": days_left,
-                    "plan_type": "trial",
-                    "plan_expires_at": trial_end.isoformat()
-                }
-            else:
-                return {
-                    "is_pro": False,
-                    "is_trial": False,
-                    "trial_expired": True,
-                    "can_download": False,
-                    "is_unlimited": False,
-                    "days_remaining": 0,
-                    "trial_days_remaining": 0,
-                    "plan_type": "free",
-                    "plan_expires_at": None
-                }
-
-    # 2. If guest / unauthenticated, check device-level 7-Day Free Trial
-    dev_id = device_id or get_device_id()
-    device_info = register_device(dev_id)
-    dev_created = device_info.get("created_at")
-    created_dt = now
-    if dev_created:
-        try:
-            if "T" in str(dev_created):
-                created_dt = datetime.fromisoformat(str(dev_created))
-            else:
-                created_dt = datetime.strptime(str(dev_created)[:19], "%Y-%m-%d %H:%M:%S")
-        except Exception:
-            created_dt = now
-
+    
+    if not row:
+        # First time device seen, register now
+        dev_info = register_or_update_device(device_id)
+        return dev_info
+        
+    dev = dict(row)
+    is_blocked = bool(dev.get("is_blocked", 0))
+    block_reason = dev.get("block_reason") or "Access Suspended"
+    
+    if is_blocked:
+        return {
+            "device_id": device_id,
+            "desktop_name": dev.get("machine_name") or "DESKTOP-PC",
+            "user_name": dev.get("user_name") or "User",
+            "is_blocked": True,
+            "block_reason": block_reason,
+            "is_pro": False,
+            "is_trial": False,
+            "trial_expired": True,
+            "can_download": False,
+            "is_unlimited": False,
+            "trial_days_remaining": 0,
+            "plan_type": "blocked",
+            "plan_expires_at": None
+        }
+        
+    # Check if Device is Pro
+    is_pro = bool(dev.get("is_pro", 0))
+    plan_type = dev.get("plan_type", "trial")
+    plan_expires_at = dev.get("plan_expires_at")
+    
+    if is_pro and plan_type not in ["free", "trial", "blocked"]:
+        if plan_type == "lifetime" or not plan_expires_at:
+            return {
+                "device_id": device_id,
+                "desktop_name": dev.get("machine_name") or "DESKTOP-PC",
+                "user_name": dev.get("user_name") or "User",
+                "is_blocked": False,
+                "block_reason": None,
+                "is_pro": True,
+                "is_trial": False,
+                "trial_expired": False,
+                "can_download": True,
+                "is_unlimited": True,
+                "days_remaining": 9999,
+                "trial_days_remaining": 0,
+                "plan_type": "lifetime",
+                "plan_expires_at": None,
+                "license_key": dev.get("license_key")
+            }
+        else:
+            try:
+                exp_dt = datetime.fromisoformat(str(plan_expires_at))
+                if exp_dt > now:
+                    days_left = max(1, (exp_dt - now).days)
+                    return {
+                        "device_id": device_id,
+                        "desktop_name": dev.get("machine_name") or "DESKTOP-PC",
+                        "user_name": dev.get("user_name") or "User",
+                        "is_blocked": False,
+                        "block_reason": None,
+                        "is_pro": True,
+                        "is_trial": False,
+                        "trial_expired": False,
+                        "can_download": True,
+                        "is_unlimited": True,
+                        "days_remaining": days_left,
+                        "trial_days_remaining": 0,
+                        "plan_type": plan_type,
+                        "plan_expires_at": plan_expires_at,
+                        "license_key": dev.get("license_key")
+                    }
+            except Exception:
+                pass
+                
+    # Check 7-Day Free Trial based on device created_at
+    dev_created = dev.get("created_at") or now.isoformat()
+    try:
+        if "T" in str(dev_created):
+            created_dt = datetime.fromisoformat(str(dev_created))
+        else:
+            created_dt = datetime.strptime(str(dev_created)[:19], "%Y-%m-%d %H:%M:%S")
+    except Exception:
+        created_dt = now
+        
     trial_end = created_dt + timedelta(days=TRIAL_DAYS)
     if now < trial_end:
         seconds_left = (trial_end - now).total_seconds()
         days_left = max(1, math.ceil(seconds_left / 86400))
         return {
+            "device_id": device_id,
+            "desktop_name": dev.get("machine_name") or "DESKTOP-PC",
+            "user_name": dev.get("user_name") or "User",
+            "is_blocked": False,
+            "block_reason": None,
             "is_pro": False,
             "is_trial": True,
             "trial_expired": False,
@@ -670,6 +732,11 @@ def get_trial_and_subscription_status(user_id: Optional[str] = None, device_id: 
         }
     else:
         return {
+            "device_id": device_id,
+            "desktop_name": dev.get("machine_name") or "DESKTOP-PC",
+            "user_name": dev.get("user_name") or "User",
+            "is_blocked": False,
+            "block_reason": None,
             "is_pro": False,
             "is_trial": False,
             "trial_expired": True,
@@ -681,6 +748,110 @@ def get_trial_and_subscription_status(user_id: Optional[str] = None, device_id: 
             "plan_expires_at": None
         }
 
+def get_trial_and_subscription_status(user_id: Optional[str] = None, device_id: Optional[str] = None) -> Dict[str, Any]:
+    dev_id = device_id or get_device_id()
+    return get_device_license_status(dev_id)
+
+def grant_device_pro(device_id: str, plan_type: str = "lifetime", duration_days: int = 36500) -> Dict[str, Any]:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    exp_dt = (datetime.now() + timedelta(days=duration_days)).isoformat() if plan_type != "lifetime" else None
+    
+    cursor.execute("""
+    UPDATE devices SET
+        is_pro = 1,
+        plan_type = ?,
+        plan_expires_at = ?,
+        is_blocked = 0,
+        block_reason = NULL
+    WHERE device_id = ?
+    """, (plan_type, exp_dt, device_id))
+    
+    if cursor.rowcount == 0:
+        info = get_machine_info()
+        now = datetime.now().isoformat()
+        cursor.execute("""
+        INSERT INTO devices (device_id, machine_name, user_name, os_info, plan_type, plan_expires_at, is_pro, is_blocked, last_seen, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, 1, 0, ?, ?)
+        """, (device_id, info["desktop_name"], info["user_name"], info["os_info"], plan_type, exp_dt, now, now))
+        
+    conn.commit()
+    conn.close()
+    return get_device_license_status(device_id)
+
+def revoke_device_pro(device_id: str) -> Dict[str, Any]:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+    UPDATE devices SET
+        is_pro = 0,
+        plan_type = 'free',
+        plan_expires_at = NULL,
+        license_key = NULL
+    WHERE device_id = ?
+    """, (device_id,))
+    conn.commit()
+    conn.close()
+    return get_device_license_status(device_id)
+
+def reset_device_trial(device_id: str) -> Dict[str, Any]:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    now = datetime.now().isoformat()
+    cursor.execute("""
+    UPDATE devices SET
+        created_at = ?,
+        is_blocked = 0,
+        block_reason = NULL,
+        plan_type = 'trial'
+    WHERE device_id = ?
+    """, (now, device_id))
+    conn.commit()
+    conn.close()
+    return get_device_license_status(device_id)
+
+def activate_product_key_for_device(device_id: str, license_key: str) -> Dict[str, Any]:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    key_clean = license_key.strip().upper()
+    
+    cursor.execute("SELECT * FROM license_keys WHERE key = ?", (key_clean,))
+    row = cursor.fetchone()
+    
+    if not row:
+        conn.close()
+        raise ValueError("Invalid product key. Please check and try again.")
+        
+    key_data = dict(row)
+    if key_data.get("is_used") and key_data.get("used_by_user_id") != device_id:
+        conn.close()
+        raise ValueError("This product key has already been activated on another PC.")
+        
+    plan_type = key_data.get("plan_type", "lifetime")
+    duration_days = key_data.get("duration_days", 36500)
+    now = datetime.now()
+    exp_dt = (now + timedelta(days=duration_days)).isoformat() if plan_type != "lifetime" else None
+    
+    # Mark key as used by this machine
+    cursor.execute("""
+    UPDATE license_keys SET is_used = 1, used_by_user_id = ?, activated_at = ? WHERE key = ?
+    """, (device_id, now.isoformat(), key_clean))
+    
+    # Upgrade device
+    cursor.execute("""
+    UPDATE devices SET
+        is_pro = 1,
+        plan_type = ?,
+        plan_expires_at = ?,
+        license_key = ?,
+        is_blocked = 0
+    WHERE device_id = ?
+    """, (plan_type, exp_dt, key_clean, device_id))
+    
+    conn.commit()
+    conn.close()
+    return get_device_license_status(device_id)
+
 def is_device_blocked(device_id: str) -> Dict[str, Any]:
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -691,27 +862,97 @@ def is_device_blocked(device_id: str) -> Dict[str, Any]:
         return {"blocked": bool(row["is_blocked"]), "reason": row["block_reason"] or "Suspended by administrator"}
     return {"blocked": False, "reason": ""}
 
-def set_device_blocked(device_id: str, blocked: bool = True, reason: str = "License violation or cracked version detected"):
+def set_device_blocked(device_id: str, blocked: bool = True, reason: str = "License violation or crack attempt detected"):
     conn = get_db_connection()
     cursor = conn.cursor()
+    now = datetime.now().isoformat()
     cursor.execute("""
     UPDATE devices SET is_blocked = ?, block_reason = ? WHERE device_id = ?
     """, (1 if blocked else 0, reason if blocked else None, device_id))
     if cursor.rowcount == 0:
+        info = get_machine_info()
         cursor.execute("""
-        INSERT INTO devices (device_id, is_blocked, block_reason, last_seen, created_at)
-        VALUES (?, ?, ?, ?, ?)
-        """, (device_id, 1 if blocked else 0, reason if blocked else None, datetime.now().isoformat(), datetime.now().isoformat()))
+        INSERT INTO devices (device_id, machine_name, user_name, os_info, is_blocked, block_reason, last_seen, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (device_id, info["desktop_name"], info["user_name"], info["os_info"], 1 if blocked else 0, reason if blocked else None, now, now))
     conn.commit()
     conn.close()
 
-def get_all_devices() -> List[Dict[str, Any]]:
+def get_all_devices_telemetry() -> List[Dict[str, Any]]:
+    """Returns telemetry of all registered devices with live online/offline calculation."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM devices ORDER BY last_seen DESC")
     rows = cursor.fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    
+    now = datetime.now()
+    devices = []
+    
+    for r in rows:
+        dev = dict(r)
+        last_seen = dev.get("last_seen")
+        is_online = False
+        last_seen_str = "Never"
+        
+        if last_seen:
+            try:
+                if "T" in str(last_seen):
+                    ls_dt = datetime.fromisoformat(str(last_seen))
+                else:
+                    ls_dt = datetime.strptime(str(last_seen)[:19], "%Y-%m-%d %H:%M:%S")
+                diff_sec = (now - ls_dt).total_seconds()
+                if diff_sec <= 75:
+                    is_online = True
+                    last_seen_str = "🟢 Active Now"
+                elif diff_sec < 3600:
+                    last_seen_str = f"🟡 {int(diff_sec // 60)}m ago"
+                elif diff_sec < 86400:
+                    last_seen_str = f"⚪ {int(diff_sec // 3600)}h ago"
+                else:
+                    last_seen_str = f"⚫ {int(diff_sec // 86400)}d ago"
+            except Exception:
+                last_seen_str = str(last_seen)[:16]
+                
+        # Status text
+        if dev.get("is_blocked"):
+            status_badge = "🚨 BLOCKED"
+            tier = "Suspended / Banned"
+        elif dev.get("is_pro"):
+            status_badge = "⭐ PRO LIFETIME" if dev.get("plan_type") == "lifetime" else f"⭐ PRO ({dev.get('plan_type')})"
+            tier = "Pro Active"
+        else:
+            # Check trial
+            st = get_device_license_status(dev["device_id"])
+            if st.get("is_trial"):
+                status_badge = f"⏳ {st.get('trial_days_remaining')}d Trial Left"
+                tier = "7-Day Free Trial"
+            else:
+                status_badge = "❌ Trial Expired"
+                tier = "Unlicensed"
+                
+        devices.append({
+            "device_id": dev["device_id"],
+            "desktop_name": dev.get("machine_name") or "DESKTOP-PC",
+            "user_name": dev.get("user_name") or "User",
+            "os_info": dev.get("os_info") or "Windows",
+            "app_version": dev.get("app_version") or "2.1.2",
+            "ip_address": dev.get("ip_address") or "127.0.0.1",
+            "plan_type": dev.get("plan_type") or "trial",
+            "is_pro": bool(dev.get("is_pro")),
+            "is_blocked": bool(dev.get("is_blocked")),
+            "block_reason": dev.get("block_reason"),
+            "license_key": dev.get("license_key"),
+            "total_downloads": dev.get("total_downloads") or 0,
+            "data_downloaded_mb": dev.get("data_downloaded_mb") or 0.0,
+            "is_online": is_online,
+            "last_seen_str": last_seen_str,
+            "status_badge": status_badge,
+            "tier": tier,
+            "created_at": dev.get("created_at")
+        })
+        
+    return devices
 
 # --- App Version & Update Management ---
 def get_latest_app_release() -> Dict[str, Any]:

@@ -322,29 +322,106 @@ const API = {
     return cloudRes.json();
   },
 
-  async adminBlockDevice(adminKey, deviceId, blocked, reason) {
+  async getMachineInfo() {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/system/machine-info`);
+      if (res.ok) return await res.json();
+    } catch (_) {}
+    return { success: false };
+  },
+
+  async telemetryHeartbeat(payload = {}) {
     let res = null;
     try {
-      res = await fetch(`${this.baseUrl}/api/admin/block-device`, {
+      res = await fetch(`${this.baseUrl}/api/telemetry/heartbeat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ admin_key: adminKey, device_id: deviceId, blocked, reason })
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) return await res.json();
+    } catch (_) {}
+
+    // Fallback direct cloud ping
+    try {
+      res = await fetch(`https://eggdl.onrender.com/api/telemetry/heartbeat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) return await res.json();
+    } catch (_) {}
+    return { success: false };
+  },
+
+  async activateMachineKey(licenseKey, deviceId = null) {
+    let res = null;
+    try {
+      res = await fetch(`${this.baseUrl}/api/license/activate-machine-key`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ license_key: licenseKey, device_id: deviceId })
       });
     } catch (_) {}
 
     if (!res || !res.ok) {
-      res = await fetch(`https://eggdl.onrender.com/api/admin/block-device`, {
+      res = await fetch(`https://eggdl.onrender.com/api/license/activate-machine-key`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ admin_key: adminKey, device_id: deviceId, blocked, reason })
+        body: JSON.stringify({ license_key: licenseKey, device_id: deviceId })
+      });
+    }
+
+    const data = await res.json().catch(() => ({ detail: 'Activation failed' }));
+    if (!res.ok) {
+      throw new Error(data.detail || data.message || 'Product key activation failed');
+    }
+    return data;
+  },
+
+  async getAdminDevices(adminKey) {
+    let res = null;
+    try {
+      res = await fetch(`${this.baseUrl}/api/admin/devices?admin_key=${encodeURIComponent(adminKey)}`);
+    } catch (_) {}
+
+    if (!res || !res.ok) {
+      res = await fetch(`https://eggdl.onrender.com/api/admin/devices?admin_key=${encodeURIComponent(adminKey)}`);
+    }
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to fetch devices' }));
+      throw new Error(err.detail || 'Failed to fetch connected devices');
+    }
+    return res.json();
+  },
+
+  async adminDeviceAction(adminKey, deviceId, action, planType = 'lifetime', reason = '') {
+    let res = null;
+    try {
+      res = await fetch(`${this.baseUrl}/api/admin/device-action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ admin_key: adminKey, device_id: deviceId, action, plan_type: planType, reason })
+      });
+    } catch (_) {}
+
+    if (!res || !res.ok) {
+      res = await fetch(`https://eggdl.onrender.com/api/admin/device-action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ admin_key: adminKey, device_id: deviceId, action, plan_type: planType, reason })
       });
     }
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Admin operation failed' }));
-      throw new Error(err.detail || 'Admin operation failed');
+      const err = await res.json().catch(() => ({ detail: 'Action failed' }));
+      throw new Error(err.detail || 'Failed to perform device action');
     }
     return res.json();
+  },
+
+  async adminBlockDevice(adminKey, deviceId, blocked, reason) {
+    return this.adminDeviceAction(adminKey, deviceId, blocked ? 'block' : 'unblock', 'lifetime', reason);
   },
 
   async adminPushRelease(adminKey, version, notes, downloadUrl, mandatory = false) {

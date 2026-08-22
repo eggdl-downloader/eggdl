@@ -39,7 +39,10 @@ try:
         create_user, get_user_by_email, get_user_by_id, get_user_by_google_id,
         update_user_plan, create_license_key, get_license_key, activate_license_key,
         create_payment_record, get_user_payments, get_daily_downloads_count,
-        get_device_id, register_device, is_device_blocked, set_device_blocked,
+        get_device_id, get_machine_info, register_or_update_device,
+        get_device_license_status, grant_device_pro, revoke_device_pro,
+        reset_device_trial, activate_product_key_for_device, get_all_devices_telemetry,
+        is_device_blocked, set_device_blocked,
         get_all_devices, get_latest_app_release, set_app_release,
         get_trial_and_subscription_status
     )
@@ -195,6 +198,26 @@ class PaymentProcessRequest(BaseModel):
     card_number: Optional[str] = None
     card_expiry: Optional[str] = None
     card_cvv: Optional[str] = None
+
+class HeartbeatRequest(BaseModel):
+    device_id: Optional[str] = None
+    desktop_name: Optional[str] = None
+    user_name: Optional[str] = None
+    os_info: Optional[str] = None
+    app_version: Optional[str] = None
+    total_downloads: Optional[int] = None
+    data_downloaded_mb: Optional[float] = None
+
+class DeviceActionRequest(BaseModel):
+    admin_key: str
+    device_id: str
+    action: str  # 'block', 'unblock', 'grant_pro', 'revoke_pro', 'reset_trial'
+    plan_type: Optional[str] = "lifetime"
+    reason: Optional[str] = None
+
+class MachineKeyActivateRequest(BaseModel):
+    device_id: Optional[str] = None
+    license_key: str
 
 # Helper to extract current user from Authorization header
 async def get_current_user_optional(authorization: Optional[str] = Header(None)) -> Optional[Dict[str, Any]]:
@@ -400,46 +423,135 @@ async def auth_firebase(req: FirebaseAuthRequest):
         }
     }
 
+@app.get("/api/system/machine-info")
+async def get_system_machine_info():
+    machine = get_machine_info()
+    license_status = get_device_license_status(machine["machine_id"])
+    return {
+        "success": True,
+        "machine": machine,
+        "license": license_status,
+        "plan": PLAN_CONFIGS.get(license_status["plan_type"], PLAN_CONFIGS["trial" if license_status["is_trial"] else "free"])
+    }
+
+@app.post("/api/telemetry/heartbeat")
+async def telemetry_heartbeat(req: HeartbeatRequest):
+    dev_id = req.device_id or get_device_id()
+    app_ver = req.app_version or APP_CURRENT_VERSION
+    
+    # Update device in local database
+    dev_status = register_or_update_device(
+        device_id=dev_id,
+        desktop_name=req.desktop_name,
+        user_name=req.user_name,
+        os_info=req.os_info,
+        app_version=app_ver,
+        total_downloads=req.total_downloads,
+        data_downloaded_mb=req.data_downloaded_mb
+    )
+    
+    # Sync with cloud Render server in background if running locally
+    if not os.environ.get("RENDER"):
+        try:
+            import urllib.request
+            payload = {
+                "device_id": dev_id,
+                "desktop_name": req.desktop_name,
+                "user_name": req.user_name,
+                "os_info": req.os_info,
+                "app_version": app_ver,
+                "total_downloads": req.total_downloads,
+                "data_downloaded_mb": req.data_downloaded_mb
+            }
+            data_bytes = json.dumps(payload).encode()
+            remote_req = urllib.request.Request(
+                f"{CLOUD_API_URL}/api/telemetry/heartbeat",
+                data=data_bytes,
+                headers={"Content-Type": "application/json", "User-Agent": "EggDL-Client"}
+            )
+            with urllib.request.urlopen(remote_req, timeout=3) as res:
+                if res.status == 200:
+                    cloud_res = json.loads(res.read().decode())
+                    if cloud_res.get("is_blocked"):
+                        dev_status["is_blocked"] = True
+                        dev_status["block_reason"] = cloud_res.get("block_reason")
+                    if cloud_res.get("is_pro"):
+                        dev_status["is_pro"] = True
+                        dev_status["plan_type"] = cloud_res.get("plan_type", "lifetime")
+        except Exception:
+            pass
+
+    return {
+        "success": True,
+        "device_id": dev_id,
+        "desktop_name": dev_status.get("desktop_name"),
+        "is_blocked": dev_status.get("is_blocked", False),
+        "block_reason": dev_status.get("block_reason"),
+        "is_pro": dev_status.get("is_pro", False),
+        "is_trial": dev_status.get("is_trial", False),
+        "trial_expired": dev_status.get("trial_expired", False),
+        "trial_days_remaining": dev_status.get("trial_days_remaining", 0),
+        "days_remaining": dev_status.get("days_remaining", 0),
+        "plan_type": dev_status.get("plan_type", "trial")
+    }
+
+@app.post("/api/license/activate-machine-key")
+async def activate_machine_key(req: MachineKeyActivateRequest):
+    dev_id = req.device_id or get_device_id()
+    key = req.license_key.strip().upper()
+    if not key:
+        raise HTTPException(status_code=400, detail="Please enter a valid product key.")
+        
+    try:
+        updated_status = activate_product_key_for_device(dev_id, key)
+        plan_type = updated_status["plan_type"]
+        plan_info = PLAN_CONFIGS.get(plan_type, PLAN_CONFIGS["lifetime"])
+        
+        # Also sync activation to Cloud if local
+        if not os.environ.get("RENDER"):
+            try:
+                import urllib.request
+                data_bytes = json.dumps({"device_id": dev_id, "license_key": key}).encode()
+                remote_req = urllib.request.Request(
+                    f"{CLOUD_API_URL}/api/license/activate-machine-key",
+                    data=data_bytes,
+                    headers={"Content-Type": "application/json", "User-Agent": "EggDL-Client"}
+                )
+                urllib.request.urlopen(remote_req, timeout=3)
+            except Exception:
+                pass
+                
+        return {
+            "success": True,
+            "message": f"✨ Product key activated successfully for this PC ({updated_status.get('desktop_name')})!",
+            "license": updated_status,
+            "plan": plan_info
+        }
+    except ValueError as val_err:
+        raise HTTPException(status_code=400, detail=str(val_err))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Activation error: {str(e)}")
+
 @app.get("/api/auth/me")
 async def auth_me(user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)):
-    user_id = user["id"] if user else None
-    status = get_trial_and_subscription_status(user_id=user_id)
+    machine = get_machine_info()
+    dev_id = machine["machine_id"]
+    status = get_device_license_status(dev_id)
     
     plan_type = status["plan_type"]
     plan_info = PLAN_CONFIGS.get(plan_type, PLAN_CONFIGS["trial" if status["is_trial"] else "free"])
     
-    if not user:
-        return {
-            "authenticated": False,
-            "user": {
-                "id": "guest",
-                "name": "Guest User",
-                "email": "",
-                "plan_type": plan_type,
-                "plan_expires_at": status["plan_expires_at"]
-            },
-            "plan": plan_info,
-            "is_pro": status["is_pro"],
-            "is_trial": status["is_trial"],
-            "trial_expired": status["trial_expired"],
-            "trial_days_remaining": status["trial_days_remaining"],
-            "days_remaining": status["days_remaining"],
-            "can_download": status["can_download"],
-            "is_unlimited": status["is_unlimited"],
-            "daily_downloads_used": 0,
-            "daily_downloads_limit": None
-        }
-    
     return {
         "authenticated": True,
+        "machine": machine,
         "user": {
-            "id": user["id"],
-            "email": user["email"],
-            "name": user["name"],
-            "avatar": user.get("avatar", ""),
+            "id": dev_id,
+            "name": machine["desktop_name"],
+            "user_name": machine["user_name"],
+            "email": "",
             "plan_type": plan_type,
-            "plan_expires_at": user.get("plan_expires_at") or status["plan_expires_at"],
-            "license_key": user.get("license_key", "")
+            "plan_expires_at": status["plan_expires_at"],
+            "license_key": status.get("license_key", "")
         },
         "plan": plan_info,
         "is_pro": status["is_pro"],
@@ -757,6 +869,17 @@ async def start_download(req: StartDownloadRequest, user: Optional[Dict[str, Any
     user_id = user["id"] if user else None
     status = get_trial_and_subscription_status(user_id=user_id)
     
+    if status.get("is_blocked"):
+        return JSONResponse(
+            status_code=403,
+            content={
+                "success": False,
+                "error": "device_blocked",
+                "message": f"🚨 Access Suspended: {status.get('block_reason', 'This device has been blocked by the administrator.')}",
+                "is_blocked": True
+            }
+        )
+
     if not status["can_download"]:
         return JSONResponse(
             status_code=403,
@@ -1303,14 +1426,63 @@ async def download_setup_installer():
 async def get_admin_overview(admin_key: str = Query(...)):
     if admin_key != ADMIN_KEY:
         raise HTTPException(status_code=403, detail="Invalid Admin Key")
-    devices = get_all_devices()
+    devices = get_all_devices_telemetry()
     latest_release = get_latest_app_release()
     return {
         "success": True,
         "total_devices": len(devices),
+        "online_count": sum(1 for d in devices if d.get("is_online")),
+        "pro_count": sum(1 for d in devices if d.get("is_pro")),
+        "blocked_count": sum(1 for d in devices if d.get("is_blocked")),
         "devices": devices,
         "latest_release": latest_release,
         "admin_active": True
+    }
+
+@app.get("/api/admin/devices")
+async def get_admin_devices(admin_key: str = Query(...)):
+    if admin_key != ADMIN_KEY:
+        raise HTTPException(status_code=403, detail="Invalid Admin Key")
+    devices = get_all_devices_telemetry()
+    return {
+        "success": True,
+        "total_devices": len(devices),
+        "online_count": sum(1 for d in devices if d.get("is_online")),
+        "pro_count": sum(1 for d in devices if d.get("is_pro")),
+        "blocked_count": sum(1 for d in devices if d.get("is_blocked")),
+        "devices": devices
+    }
+
+@app.post("/api/admin/device-action")
+async def admin_device_action(req: DeviceActionRequest):
+    if req.admin_key != ADMIN_KEY:
+        raise HTTPException(status_code=403, detail="Invalid Admin Key")
+    
+    action = req.action.lower().strip()
+    device_id = req.device_id
+    
+    if action == "block":
+        set_device_blocked(device_id, blocked=True, reason=req.reason or "Suspended by Administrator")
+        msg = f"🚨 Machine {device_id} has been blocked and killed."
+    elif action == "unblock":
+        set_device_blocked(device_id, blocked=False)
+        msg = f"✅ Machine {device_id} has been unblocked."
+    elif action == "grant_pro":
+        grant_device_pro(device_id, plan_type=req.plan_type or "lifetime")
+        msg = f"⭐ Granted Pro ({req.plan_type or 'lifetime'}) to machine {device_id}."
+    elif action == "revoke_pro":
+        revoke_device_pro(device_id)
+        msg = f"Revoked Pro from machine {device_id}."
+    elif action == "reset_trial":
+        reset_device_trial(device_id)
+        msg = f"⏳ 7-Day Free Trial has been reset for machine {device_id}."
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown action: {action}")
+        
+    return {
+        "success": True,
+        "message": msg,
+        "device": get_device_license_status(device_id)
     }
 
 @app.post("/api/admin/block-device")

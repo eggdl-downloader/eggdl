@@ -13,9 +13,8 @@ const App = {
     this.bindEvents();
     this.bindAuthEvents();
     this.initWebSocket();
-    this.initFirebase();
     await this.initAuth();
-    this.initGoogleOAuth();
+    this.startTelemetryHeartbeat();
     this.loadSettings();
     this.loadDownloads();
     this.cleanAutofillSearch();
@@ -24,7 +23,6 @@ const App = {
     setInterval(() => this.updateSystemStats(), 8000);
     this.initPWA();
     this.checkVersion(false);
-    this.checkDeviceAuthorization();
     this.initAdminPanel();
   },
 
@@ -406,10 +404,31 @@ const App = {
   },
 
   bindEvents() {
-    // Reload shortcut (F5 / Ctrl+R) for Desktop App window
+    // Stealth Admin Hotkey: Shift + F5 (pressed 2 times quickly within 1.5s)
+    let lastShiftF5 = 0;
     window.addEventListener('keydown', (e) => {
-      if (e.key === 'F5' || (e.ctrlKey && (e.key === 'r' || e.key === 'R'))) {
-        window.location.reload();
+      if (e.shiftKey && (e.key === 'F5' || e.code === 'F5' || e.keyCode === 116)) {
+        e.preventDefault();
+        const now = Date.now();
+        if (now - lastShiftF5 < 1500) {
+          lastShiftF5 = 0;
+          this.triggerStealthAdmin();
+        } else {
+          lastShiftF5 = now;
+        }
+      }
+    });
+
+    // Stealth Admin Alternative: Click brand logo 5 times quickly
+    let logoClicks = 0;
+    let logoClickTimer = null;
+    document.getElementById('brand-logo-btn')?.addEventListener('click', () => {
+      logoClicks++;
+      clearTimeout(logoClickTimer);
+      logoClickTimer = setTimeout(() => { logoClicks = 0; }, 1800);
+      if (logoClicks >= 5) {
+        logoClicks = 0;
+        this.triggerStealthAdmin();
       }
     });
 
@@ -1293,19 +1312,63 @@ const App = {
     }
   },
 
+  startTelemetryHeartbeat() {
+    const sendPing = async () => {
+      try {
+        const machine = this.authData?.machine || {};
+        const res = await API.telemetryHeartbeat({
+          device_id: machine.machine_id,
+          desktop_name: machine.desktop_name,
+          user_name: machine.user_name,
+          os_info: machine.os_info,
+          app_version: '2.1.2',
+          total_downloads: this.downloads?.length || 0,
+          data_downloaded_mb: 0
+        });
+
+        if (res && res.is_blocked) {
+          UI.renderDeviceSuspended(res.block_reason || 'Access has been suspended by the administrator.');
+        } else if (res && res.is_pro && !this.authData?.is_pro) {
+          await this.initAuth();
+        }
+      } catch (_) {}
+    };
+
+    sendPing();
+    setInterval(sendPing, 30000);
+  },
+
+  triggerStealthAdmin() {
+    const adminModal = document.getElementById('admin-modal');
+    const loginView = document.getElementById('admin-login-view');
+    const dashView = document.getElementById('admin-dashboard-view');
+    const keyInput = document.getElementById('admin-master-key-input');
+
+    if (!adminModal) return;
+
+    if (this.adminKey) {
+      if (loginView) loginView.style.display = 'none';
+      if (dashView) dashView.style.display = 'block';
+      this.refreshAdminDevices();
+    } else {
+      if (loginView) loginView.style.display = 'block';
+      if (dashView) dashView.style.display = 'none';
+      if (keyInput) {
+        keyInput.value = '';
+        setTimeout(() => keyInput.focus(), 150);
+      }
+    }
+
+    adminModal.style.display = 'flex';
+    if (window.lucide) window.lucide.createIcons();
+    UI.showToast('🛡️ Master Admin Mode Activated', 'info');
+  },
+
   async handleActivateLicense() {
     const input = document.getElementById('license-key-input');
     const key = input?.value.trim();
     const feedbackMsg = document.getElementById('license-feedback-msg');
     const btn = document.getElementById('activate-license-btn');
-
-    if (!this.authData || !this.authData.authenticated) {
-      if (key) this.pendingProductKey = key;
-      UI.closeAccountModal();
-      UI.openAuthModal('login');
-      UI.showToast('Please sign in or create an account first to bind your product key.', 'info');
-      return;
-    }
 
     if (!key) {
       if (feedbackMsg) {
@@ -1317,15 +1380,16 @@ const App = {
     }
 
     try {
-      btn.disabled = true;
-      const res = await API.activateLicense(key);
+      if (btn) btn.disabled = true;
+      const machineId = this.authData?.machine?.machine_id;
+      const res = await API.activateMachineKey(key, machineId);
       if (res.success) {
         if (feedbackMsg) {
           feedbackMsg.className = 'license-feedback success';
           feedbackMsg.innerText = `✓ ${res.message}`;
           feedbackMsg.style.display = 'block';
         }
-        UI.showToast(`🎉 Upgraded to ${res.plan.name}! All Turbo features unlocked.`, 'success');
+        UI.showToast(`🎉 Upgraded this PC to ${res.plan?.name || 'Pro'}! All features unlocked.`, 'success');
         await this.initAuth();
         UI.openAccountModal(this.authData);
       }
@@ -1336,19 +1400,14 @@ const App = {
         feedbackMsg.style.display = 'block';
       }
     } finally {
-      btn.disabled = false;
+      if (btn) btn.disabled = false;
     }
   },
 
   async handleLogout() {
-    if (this.firebaseAuth) {
-      try {
-        await this.firebaseAuth.signOut();
-      } catch (_) {}
-    }
     await API.logout();
     UI.closeAccountModal();
-    UI.showToast('Logged out of EggDL', 'info');
+    UI.showToast('Logged out', 'info');
     await this.initAuth();
   },
 
@@ -1356,7 +1415,7 @@ const App = {
   async checkVersion(manual = false) {
     const statusHint = document.getElementById('settings-update-status');
     const versionBadge = document.getElementById('settings-app-version');
-    if (versionBadge) versionBadge.innerText = 'v2.0.0';
+    if (versionBadge) versionBadge.innerText = 'v2.1.2';
 
     try {
       if (manual && statusHint) statusHint.innerText = 'Checking for updates on server...';
@@ -1405,14 +1464,7 @@ const App = {
           
           const downloadsNav = document.getElementById('nav-downloads');
           if (downloadsNav) downloadsNav.click();
-          
-          const activeSec = document.getElementById('active-section');
-          if (activeSec) {
-            activeSec.style.display = 'block';
-            activeSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }
         } catch (err) {
-          console.warn('In-app update queue note:', err);
           window.open(downloadUrl, '_blank');
         }
       };
@@ -1427,52 +1479,28 @@ const App = {
     if (window.lucide) window.lucide.createIcons();
   },
 
-  // --- Remote Kill-Switch & Anti-Piracy Authorization ---
-  async checkDeviceAuthorization() {
-    try {
-      const email = this.authData?.user?.email || null;
-      const res = await API.checkDeviceStatus(email);
-      if (res.is_blocked) {
-        const blockedScreen = document.getElementById('blocked-screen');
-        if (blockedScreen) {
-          blockedScreen.style.display = 'flex';
-          const devIdEl = document.getElementById('blocked-device-id');
-          const reasonEl = document.getElementById('blocked-reason-text');
-          if (devIdEl) devIdEl.innerText = res.device_id;
-          if (reasonEl) reasonEl.innerText = res.block_reason || 'License violation detected';
-          if (window.lucide) window.lucide.createIcons();
-        }
-      }
-    } catch (e) {
-      console.warn('Device authorization check:', e);
-    }
-  },
-
   // --- Developer Admin Remote Control Center ---
   adminKey: null,
   initAdminPanel() {
-    const openAdminBtn = document.getElementById('btn-open-admin');
     const adminModal = document.getElementById('admin-modal');
     const closeAdminBtn = document.getElementById('close-admin-modal-btn');
     const adminLoginBtn = document.getElementById('btn-admin-login');
     const adminKeyInput = document.getElementById('admin-master-key-input');
     const loginView = document.getElementById('admin-login-view');
     const dashView = document.getElementById('admin-dashboard-view');
-    const tabReleases = document.getElementById('admin-tab-releases-btn');
+    
     const tabDevices = document.getElementById('admin-tab-devices-btn');
-    const viewReleases = document.getElementById('admin-view-releases');
+    const tabKeys = document.getElementById('admin-tab-keys-btn');
+    const tabReleases = document.getElementById('admin-tab-releases-btn');
+    
     const viewDevices = document.getElementById('admin-view-devices');
+    const viewKeys = document.getElementById('admin-view-keys');
+    const viewReleases = document.getElementById('admin-view-releases');
+    
     const pushReleaseBtn = document.getElementById('btn-admin-push-release');
     const refreshDevicesBtn = document.getElementById('btn-admin-refresh-devices');
+    const generateKeysBtn = document.getElementById('btn-admin-generate-keys');
 
-    if (openAdminBtn) {
-      openAdminBtn.onclick = () => {
-        if (adminModal) {
-          adminModal.style.display = 'flex';
-          if (window.lucide) window.lucide.createIcons();
-        }
-      };
-    }
     if (closeAdminBtn) {
       closeAdminBtn.onclick = () => {
         if (adminModal) adminModal.style.display = 'none';
@@ -1485,11 +1513,11 @@ const App = {
         if (!key) return UI.showToast('Please enter master key', 'error');
         try {
           adminLoginBtn.disabled = true;
-          const data = await API.getAdminOverview(key);
+          const data = await API.getAdminDevices(key);
           this.adminKey = key;
           loginView.style.display = 'none';
           dashView.style.display = 'block';
-          this.renderAdminDevices(data.devices);
+          UI.renderAdminDevices(data, this.adminKey);
           UI.showToast('Master Control Center Unlocked', 'success');
         } catch (e) {
           UI.showToast(e.message || 'Invalid Master Key', 'error');
@@ -1499,22 +1527,74 @@ const App = {
       };
     }
 
-    if (tabReleases && tabDevices) {
+    // Admin Tab Navigation
+    if (tabDevices && tabKeys && tabReleases) {
+      tabDevices.onclick = () => {
+        tabDevices.classList.add('active');
+        tabKeys.classList.remove('active');
+        tabReleases.classList.remove('active');
+        if (viewDevices) viewDevices.style.display = 'block';
+        if (viewKeys) viewKeys.style.display = 'none';
+        if (viewReleases) viewReleases.style.display = 'none';
+        if (this.adminKey) this.refreshAdminDevices();
+      };
+
+      tabKeys.onclick = () => {
+        tabKeys.classList.add('active');
+        tabDevices.classList.remove('active');
+        tabReleases.classList.remove('active');
+        if (viewKeys) viewKeys.style.display = 'block';
+        if (viewDevices) viewDevices.style.display = 'none';
+        if (viewReleases) viewReleases.style.display = 'none';
+      };
+
       tabReleases.onclick = () => {
         tabReleases.classList.add('active');
         tabDevices.classList.remove('active');
-        viewReleases.style.display = 'block';
-        viewDevices.style.display = 'none';
-      };
-      tabDevices.onclick = () => {
-        tabDevices.classList.add('active');
-        tabReleases.classList.remove('active');
-        viewDevices.style.display = 'block';
-        viewReleases.style.display = 'none';
-        if (this.adminKey) this.refreshAdminDevices();
+        tabKeys.classList.remove('active');
+        if (viewReleases) viewReleases.style.display = 'block';
+        if (viewDevices) viewDevices.style.display = 'none';
+        if (viewKeys) viewKeys.style.display = 'none';
       };
     }
 
+    // Refresh Devices
+    if (refreshDevicesBtn) {
+      refreshDevicesBtn.onclick = () => this.refreshAdminDevices();
+    }
+
+    // Generate Keys
+    if (generateKeysBtn) {
+      generateKeysBtn.onclick = async () => {
+        const planTier = document.getElementById('admin-key-plan-tier')?.value || 'lifetime';
+        const count = parseInt(document.getElementById('admin-key-count')?.value || '5', 10);
+        const outBox = document.getElementById('admin-generated-keys-box');
+        const outText = document.getElementById('admin-generated-keys-output');
+
+        try {
+          generateKeysBtn.disabled = true;
+          const res = await fetch(`${API.baseUrl}/api/license/generate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ plan_type: planTier, count })
+          });
+          const data = await res.json();
+          if (res.ok && data.keys) {
+            if (outBox) outBox.style.display = 'block';
+            if (outText) outText.value = data.keys.join('\n');
+            UI.showToast(`✨ Generated ${data.keys.length} product keys!`, 'success');
+          } else {
+            UI.showToast(data.detail || 'Key generation failed', 'error');
+          }
+        } catch (err) {
+          UI.showToast('Generation error: ' + err.message, 'error');
+        } finally {
+          generateKeysBtn.disabled = false;
+        }
+      };
+    }
+
+    // Push Releases
     if (pushReleaseBtn) {
       pushReleaseBtn.onclick = async () => {
         const ver = document.getElementById('admin-release-ver').value.trim();
@@ -1532,56 +1612,26 @@ const App = {
         }
       };
     }
-
-    if (refreshDevicesBtn) {
-      refreshDevicesBtn.onclick = () => this.refreshAdminDevices();
-    }
   },
 
   async refreshAdminDevices() {
     if (!this.adminKey) return;
     try {
-      const data = await API.getAdminOverview(this.adminKey);
-      this.renderAdminDevices(data.devices);
+      const data = await API.getAdminDevices(this.adminKey);
+      UI.renderAdminDevices(data, this.adminKey);
     } catch (e) {
       UI.showToast('Refresh failed: ' + e.message, 'error');
     }
   },
 
-  renderAdminDevices(devices = []) {
-    const list = document.getElementById('admin-devices-list');
-    if (!list) return;
-    if (!devices.length) {
-      list.innerHTML = '<div style="color: var(--text-dim); text-align: center; padding: 20px;">No registered devices found.</div>';
-      return;
-    }
-    list.innerHTML = devices.map(d => `
-      <div style="background: var(--bg-secondary); border: 1px solid ${d.is_blocked ? 'rgba(239, 68, 68, 0.4)' : 'var(--border-color)'}; border-radius: 8px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center;">
-        <div>
-          <div style="font-weight: 700; font-family: monospace; font-size: 0.88rem; color: ${d.is_blocked ? '#F87171' : 'var(--text-main)'};">
-            ${d.device_id} ${d.is_blocked ? '<span class="badge" style="background: #EF4444; color: #fff; font-size: 0.65rem; padding: 1px 6px; border-radius: 4px;">BLOCKED</span>' : '<span class="badge" style="background: #10B981; color: #fff; font-size: 0.65rem; padding: 1px 6px; border-radius: 4px;">ACTIVE</span>'}
-          </div>
-          <div style="font-size: 0.76rem; color: var(--text-muted); margin-top: 2px;">
-            PC: <b>${d.machine_name || 'PC'}</b> • OS: ${d.os_info || 'Win'} • User: ${d.user_email || 'Guest'}
-          </div>
-        </div>
-        <div>
-          <button class="btn btn-sm ${d.is_blocked ? 'btn-secondary' : 'btn-danger'}" onclick="App.toggleDeviceBlock('${d.device_id}', ${d.is_blocked ? 'false' : 'true'})">
-            ${d.is_blocked ? 'Unblock PC' : 'Kill-Switch Block'}
-          </button>
-        </div>
-      </div>
-    `).join('');
-  },
-
-  async toggleDeviceBlock(deviceId, shouldBlock) {
+  async handleAdminDeviceAction(deviceId, action, planType = 'lifetime', reason = '') {
     if (!this.adminKey) return;
     try {
-      await API.adminBlockDevice(this.adminKey, deviceId, shouldBlock, shouldBlock ? 'Revoked by developer' : null);
-      UI.showToast(`Device ${deviceId} ${shouldBlock ? 'BLOCKED' : 'UNBLOCKED'}`, 'success');
+      const res = await API.adminDeviceAction(this.adminKey, deviceId, action, planType, reason);
+      UI.showToast(res.message || 'Action executed successfully', 'success');
       this.refreshAdminDevices();
     } catch (e) {
-      UI.showToast(e.message || 'Block failed', 'error');
+      UI.showToast(e.message || 'Device action failed', 'error');
     }
   }
 };
