@@ -111,13 +111,15 @@ def ensure_premiere_compatible_mp4(file_path: str) -> str:
     if not ffmpeg_bin or not os.path.exists(ffmpeg_bin):
         return file_path
 
+    cflags = 0x08000000 if sys.platform == "win32" else 0
     try:
         probe = subprocess.run(
             [ffmpeg_bin, "-i", file_path],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            timeout=20
+            timeout=20,
+            creationflags=cflags
         )
         output = probe.stderr or probe.stdout or ""
         
@@ -148,7 +150,7 @@ def ensure_premiere_compatible_mp4(file_path: str) -> str:
             temp_out
         ]
 
-        conv = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=600)
+        conv = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=600, creationflags=cflags)
         if conv.returncode == 0 and os.path.exists(temp_out) and os.path.getsize(temp_out) > 1000:
             if os.path.exists(file_path):
                 try:
@@ -820,8 +822,6 @@ class StreamDownloadTask:
                             final_path = base_prep
 
                     if final_path and os.path.exists(final_path):
-                        if not self.is_audio_only:
-                            final_path = ensure_premiere_compatible_mp4(final_path)
                         self.file_path = os.path.abspath(final_path)
                         self.filename = os.path.basename(final_path)
                         self.file_size = os.path.getsize(final_path)
