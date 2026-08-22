@@ -2,6 +2,35 @@ const API = {
   baseUrl: '',
   tokenKey: 'eggdl_auth_token',
 
+  getOrCreateDeviceId() {
+    let devId = localStorage.getItem('eggdl_hwid');
+    if (!devId) {
+      const randHex = Array.from(crypto.getRandomValues(new Uint8Array(8)))
+        .map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+      devId = 'EGG-' + randHex;
+      localStorage.setItem('eggdl_hwid', devId);
+    }
+    return devId;
+  },
+
+  getDeviceName() {
+    let name = localStorage.getItem('eggdl_pc_name');
+    if (!name) {
+      const ua = navigator.userAgent;
+      let platform = 'PC';
+      if (ua.includes('Windows')) platform = 'DESKTOP-WIN';
+      else if (ua.includes('Macintosh')) platform = 'MACBOOK';
+      else if (ua.includes('Android')) platform = 'ANDROID-DEVICE';
+      else if (ua.includes('iPhone') || ua.includes('iPad')) platform = 'IPHONE';
+      else if (ua.includes('Linux')) platform = 'LINUX-PC';
+      
+      const randNum = Math.floor(1000 + Math.random() * 9000);
+      name = `${platform}-${randNum}`;
+      localStorage.setItem('eggdl_pc_name', name);
+    }
+    return name;
+  },
+
   getToken() {
     return localStorage.getItem(this.tokenKey) || '';
   },
@@ -15,7 +44,14 @@ const API = {
   },
 
   getHeaders(extra = {}) {
-    const headers = { 'Content-Type': 'application/json', ...extra };
+    const headers = {
+      'Content-Type': 'application/json',
+      'x-device-id': this.getOrCreateDeviceId(),
+      'x-desktop-name': this.getDeviceName(),
+      'x-user-name': 'User',
+      'x-os-info': navigator.platform || 'Windows',
+      ...extra
+    };
     const token = this.getToken();
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
@@ -23,86 +59,49 @@ const API = {
     return headers;
   },
 
-  // --- Authentication APIs ---
-  async login(email, password) {
-    const res = await fetch(`${this.baseUrl}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.detail || 'Login failed');
-    }
-    if (data.token) {
-      this.setToken(data.token);
-    }
-    return data;
-  },
-
-  async register(email, password, name = '') {
-    const res = await fetch(`${this.baseUrl}/api/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, name })
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.detail || 'Registration failed');
-    }
-    if (data.token) {
-      this.setToken(data.token);
-    }
-    return data;
-  },
-
-  async googleAuth(payload) {
-    const res = await fetch(`${this.baseUrl}/api/auth/google`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.detail || 'Google sign in failed');
-    }
-    if (data.token) {
-      this.setToken(data.token);
-    }
-    return data;
-  },
-
-  async firebaseAuth(payload) {
-    const res = await fetch(`${this.baseUrl}/api/auth/firebase`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.detail || 'Firebase authentication failed');
-    }
-    if (data.token) {
-      this.setToken(data.token);
-    }
-    return data;
-  },
-
+  // --- Hardware Machine Status ---
   async getMe() {
-    const res = await fetch(`${this.baseUrl}/api/auth/me`, {
-      headers: this.getHeaders()
-    });
-    if (!res.ok) {
-      return { authenticated: false, user: { name: 'Guest User', plan_type: 'free' } };
-    }
-    return res.json();
+    try {
+      const res = await fetch(`${this.baseUrl}/api/auth/me`, {
+        headers: this.getHeaders()
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.machine?.desktop_name && data.machine.desktop_name !== 'DESKTOP-PC' && data.machine.desktop_name !== 'WEB-CLIENT') {
+          localStorage.setItem('eggdl_pc_name', data.machine.desktop_name);
+        }
+        return data;
+      }
+    } catch (_) {}
+
+    const devId = this.getOrCreateDeviceId();
+    const pcName = this.getDeviceName();
+    return {
+      authenticated: true,
+      machine: {
+        machine_id: devId,
+        desktop_name: pcName,
+        user_name: 'User',
+        os_info: navigator.platform || 'Windows'
+      },
+      user: {
+        id: devId,
+        name: pcName,
+        user_name: 'User',
+        plan_type: 'trial'
+      },
+      plan: { name: '7-Day Free Trial', badge: 'Trial' },
+      is_pro: false,
+      is_trial: true,
+      trial_expired: false,
+      trial_days_remaining: 7,
+      days_remaining: 7,
+      can_download: true,
+      is_unlimited: true
+    };
   },
 
   async logout() {
-    this.setToken(null);
-    try {
-      await fetch(`${this.baseUrl}/api/auth/logout`, { method: 'POST' });
-    } catch (e) {}
     return { success: true };
   },
 

@@ -896,45 +896,8 @@ const App = {
     this.showDownloadsTab();
   },
 
-  // --- Authentication & Licensing Handlers ---
+  // --- Hardware Licensing Handlers ---
   bindAuthEvents() {
-    // Auth Tabs
-    document.getElementById('tab-login-btn')?.addEventListener('click', () => {
-      this.authMode = 'login';
-      UI.openAuthModal('login');
-    });
-
-    document.getElementById('tab-register-btn')?.addEventListener('click', () => {
-      this.authMode = 'register';
-      UI.openAuthModal('register');
-    });
-
-    // Close Auth Modal
-    document.getElementById('close-auth-modal-btn')?.addEventListener('click', () => UI.closeAuthModal());
-    document.getElementById('cancel-auth-btn')?.addEventListener('click', () => UI.closeAuthModal());
-
-    // Submit Auth Form
-    document.getElementById('submit-auth-btn')?.addEventListener('click', () => this.handleAuthSubmit());
-    document.getElementById('auth-password-input')?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') this.handleAuthSubmit();
-    });
-
-    // Google Sign-In button
-    document.getElementById('google-login-btn')?.addEventListener('click', () => this.handleGoogleLogin());
-
-    // Account Modal Header & Footer Sign-In Buttons
-    document.getElementById('acc-quick-signin-btn')?.addEventListener('click', () => {
-      UI.closeAccountModal();
-      UI.openAuthModal('login');
-    });
-    document.getElementById('acc-quick-google-btn')?.addEventListener('click', () => {
-      this.handleGoogleLogin();
-    });
-    document.getElementById('acc-footer-signin-btn')?.addEventListener('click', () => {
-      UI.closeAccountModal();
-      UI.openAuthModal('login');
-    });
-
     // Account Modal Controls
     document.getElementById('close-account-modal-btn')?.addEventListener('click', () => UI.closeAccountModal());
     document.getElementById('close-account-btn')?.addEventListener('click', () => UI.closeAccountModal());
@@ -956,18 +919,11 @@ const App = {
       });
     });
 
-    // Buy / Upgrade Plan button click (closes account modal and shows signin if not auth)
+    // Buy / Upgrade Plan button click
     document.querySelectorAll('.btn-plan-buy').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const plan = btn.dataset.plan;
-        if (!this.authData || !this.authData.authenticated) {
-          this.pendingCheckoutPlan = plan;
-          UI.closeAccountModal();
-          UI.openAuthModal('login');
-          UI.showToast('Please sign in or create an account first to proceed to checkout.', 'info');
-          return;
-        }
         UI.openPaymentModal(plan);
       });
     });
@@ -995,9 +951,6 @@ const App = {
       UI.closeAccountModal();
       UI.showToast('🚀 Pro status activated! Enjoy unlimited turbo speed.', 'success');
     });
-
-    // Logout
-    document.getElementById('logout-btn')?.addEventListener('click', () => this.handleLogout());
   },
 
   async handlePaymentSubmit() {
@@ -1006,16 +959,10 @@ const App = {
     const submitBtn = document.getElementById('submit-payment-btn');
     const errBanner = document.getElementById('payment-error-msg');
 
-    if (!this.authData || !this.authData.authenticated) {
-      UI.closePaymentModal();
-      UI.openAuthModal('login');
-      UI.showToast('Please sign in first to complete payment.', 'info');
-      return;
-    }
-
     let payload = {
       plan_type: planType,
-      payment_method: method
+      payment_method: method,
+      device_id: this.authData?.machine?.machine_id || API.getOrCreateDeviceId()
     };
 
     if (method === 'upi') {
@@ -1052,13 +999,10 @@ const App = {
       submitBtn.innerHTML = '<i data-lucide="loader-2" class="spin"></i> <span>Processing Payment...</span>';
       lucide.createIcons();
 
-      // Call payment process API
       const res = await API.processPayment(payload);
       if (res.success) {
         UI.closePaymentModal();
-        // Refresh auth profile state
         await this.initAuth();
-        // Open success modal showing masked key and auto-activation
         UI.openPaymentSuccessModal(res);
       }
     } catch (e) {
@@ -1068,261 +1012,10 @@ const App = {
       }
     } finally {
       submitBtn.disabled = false;
-      const planPrices = { '1month': 99, '3month': 249, '6month': 499, '1year': 799, 'lifetime': 1999 };
+      const planPrices = { '1month': 99, '3month': 249, '6month': 449, '1year': 699, 'lifetime': 1499 };
       const price = planPrices[planType] || 99;
       submitBtn.innerHTML = `<i data-lucide="lock"></i> <span>Pay ₹${price.toLocaleString('en-IN')} & Auto-Activate</span>`;
       lucide.createIcons();
-    }
-  },
-
-  initFirebase() {
-    if (typeof firebase === 'undefined') return;
-    try {
-      const firebaseConfig = {
-        apiKey: "AIzaSyBtHfNuT0if_8LC5a6I7VpJIWoKLuD54Eo",
-        authDomain: "eggdl-2a037.firebaseapp.com",
-        projectId: "eggdl-2a037",
-        storageBucket: "eggdl-2a037.firebasestorage.app",
-        messagingSenderId: "639135809960",
-        appId: "1:639135809960:web:d5ff28f597aff624179d9d",
-        measurementId: "G-11Y278YRCD"
-      };
-
-      if (!firebase.apps.length) {
-        firebase.initializeApp(firebaseConfig);
-      }
-      this.firebaseAuth = firebase.auth();
-      try {
-        if (firebase.analytics) firebase.analytics();
-      } catch (_) {}
-
-      // Handle redirect results from signInWithRedirect
-      this.firebaseAuth.getRedirectResult().then(async (result) => {
-        if (result && result.user) {
-          const user = result.user;
-          const idToken = await user.getIdToken();
-          const res = await API.firebaseAuth({
-            id_token: idToken,
-            email: user.email,
-            name: user.displayName || user.email.split('@')[0],
-            avatar: user.photoURL || '',
-            uid: user.uid,
-            auth_provider: 'google'
-          });
-          const displayName = res.user.name || res.user.email.split('@')[0];
-          await this.onAuthSuccess(displayName);
-        }
-      }).catch((err) => {
-        console.warn('Redirect result note:', err);
-      });
-    } catch (err) {
-      console.warn('Firebase init note:', err);
-    }
-  },
-
-  async onAuthSuccess(displayName) {
-    UI.showToast(`✨ Welcome to EggDL, ${displayName}!`, 'success');
-    await this.initAuth();
-    UI.closeAuthModal();
-    if (this.pendingCheckoutPlan) {
-      const p = this.pendingCheckoutPlan;
-      this.pendingCheckoutPlan = null;
-      UI.openPaymentModal(p);
-    } else if (this.pendingProductKey) {
-      const k = this.pendingProductKey;
-      this.pendingProductKey = null;
-      UI.openAccountModal(this.authData);
-      const input = document.getElementById('license-key-input');
-      if (input) input.value = k;
-      this.handleActivateLicense();
-    } else {
-      UI.openAccountModal(this.authData);
-    }
-  },
-
-  async handleAuthSubmit() {
-    const email = document.getElementById('auth-email-input')?.value.trim();
-    const password = document.getElementById('auth-password-input')?.value;
-    const name = document.getElementById('auth-name-input')?.value.trim();
-    const errBanner = document.getElementById('auth-error-msg');
-    const submitBtn = document.getElementById('submit-auth-btn');
-
-    if (!email || !password) {
-      if (errBanner) {
-        errBanner.innerText = 'Please enter both email and password';
-        errBanner.style.display = 'block';
-      }
-      return;
-    }
-
-    if (errBanner) errBanner.style.display = 'none';
-    submitBtn.disabled = true;
-
-    try {
-      if (this.firebaseAuth) {
-        let fbUser;
-        if (this.authMode === 'register') {
-          const userCredential = await this.firebaseAuth.createUserWithEmailAndPassword(email, password);
-          fbUser = userCredential.user;
-          if (name) {
-            try { await fbUser.updateProfile({ displayName: name }); } catch (_) {}
-          }
-        } else {
-          const userCredential = await this.firebaseAuth.signInWithEmailAndPassword(email, password);
-          fbUser = userCredential.user;
-        }
-
-        const idToken = await fbUser.getIdToken();
-        const res = await API.firebaseAuth({
-          id_token: idToken,
-          email: fbUser.email,
-          name: name || fbUser.displayName || fbUser.email.split('@')[0],
-          avatar: fbUser.photoURL || '',
-          uid: fbUser.uid,
-          auth_provider: 'email'
-        });
-
-        const displayName = res.user.name || res.user.email.split('@')[0];
-        await this.onAuthSuccess(displayName);
-        return;
-      }
-
-      // Legacy fallback
-      let res;
-      if (this.authMode === 'register') {
-        res = await API.register(email, password, name);
-      } else {
-        res = await API.login(email, password);
-      }
-
-      const displayName = res?.user?.name || email.split('@')[0];
-      await this.onAuthSuccess(displayName);
-    } catch (e) {
-      if (errBanner) {
-        let msg = e.message || 'Authentication error';
-        if (e.code === 'auth/email-already-in-use') msg = 'This email is already registered. Please sign in.';
-        else if (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') msg = 'Incorrect email or password.';
-        else if (e.code === 'auth/weak-password') msg = 'Password should be at least 6 characters.';
-        else if (e.code === 'auth/invalid-email') msg = 'Please enter a valid email address.';
-        errBanner.innerText = msg;
-        errBanner.style.display = 'block';
-      }
-    } finally {
-      submitBtn.disabled = false;
-    }
-  },
-
-  initGoogleOAuth() {
-    const GOOGLE_CLIENT_ID = "672502283484-4gub6ocl1hbrhv9c1ico1sjsnocc5nvk.apps.googleusercontent.com";
-    
-    const setupGsi = () => {
-      if (typeof google === 'undefined' || !google.accounts || !google.accounts.id) {
-        return;
-      }
-      try {
-        google.accounts.id.initialize({
-          client_id: GOOGLE_CLIENT_ID,
-          callback: async (response) => {
-            if (response && response.credential) {
-              await this.handleGoogleCredential(response.credential);
-            }
-          },
-          auto_select: false,
-          cancel_on_tap_outside: true
-        });
-      } catch (err) {
-        console.warn('Google Identity Services setup note:', err);
-      }
-    };
-
-    if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
-      setupGsi();
-    } else {
-      window.addEventListener('load', () => setTimeout(setupGsi, 600));
-      setTimeout(setupGsi, 1500);
-    }
-  },
-
-  async handleGoogleCredential(credential) {
-    try {
-      UI.showToast('Signing in...', 'info');
-      let payloadData = { credential };
-
-      try {
-        const base64Url = credential.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-        }).join(''));
-        const parsed = JSON.parse(jsonPayload);
-        if (parsed.email) payloadData.email = parsed.email;
-        if (parsed.name) payloadData.name = parsed.name;
-        if (parsed.picture) payloadData.avatar = parsed.picture;
-        if (parsed.sub) payloadData.google_id = parsed.sub;
-      } catch (clientParseErr) {
-        console.warn('Client token parse note:', clientParseErr);
-      }
-
-      const res = await API.googleAuth(payloadData);
-      if (res.success) {
-        const displayName = res.user.name || res.user.email.split('@')[0];
-        await this.onAuthSuccess(displayName);
-      }
-    } catch (e) {
-      UI.showToast(e.message || 'Authentication failed', 'error');
-    }
-  },
-
-  async handleGoogleLogin() {
-    if (this.firebaseAuth) {
-      const provider = new firebase.auth.GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: 'select_account' });
-      try {
-        UI.showToast('Opening Google Sign-In...', 'info');
-        const result = await this.firebaseAuth.signInWithPopup(provider);
-        const user = result.user;
-        const idToken = await user.getIdToken();
-
-        const res = await API.firebaseAuth({
-          id_token: idToken,
-          email: user.email,
-          name: user.displayName || user.email.split('@')[0],
-          avatar: user.photoURL || '',
-          uid: user.uid,
-          auth_provider: 'google'
-        });
-
-        const displayName = res.user.name || res.user.email.split('@')[0];
-        await this.onAuthSuccess(displayName);
-        return;
-      } catch (fbErr) {
-        console.warn('Google Auth popup note:', fbErr);
-        if (fbErr.code === 'auth/popup-closed-by-user' || fbErr.code === 'auth/cancelled-popup-request') {
-          return;
-        }
-        if (fbErr.code === 'auth/popup-blocked' || fbErr.code === 'auth/cancelled-popup-request') {
-          UI.showToast('Connecting to Google Account...', 'info');
-          try {
-            await this.firebaseAuth.signInWithRedirect(provider);
-            return;
-          } catch (redErr) {
-            console.warn('Redirect sign-in note:', redErr);
-          }
-        }
-        if (fbErr.code === 'auth/operation-not-allowed' || fbErr.message?.includes('invalid')) {
-          UI.showToast('Google Sign-In needs to be enabled in Firebase Console (Authentication > Sign-in method > Google).', 'warning');
-          return;
-        }
-        UI.showToast(fbErr.message || 'Google sign-in error', 'error');
-        return;
-      }
-    }
-
-    if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
-      try {
-        google.accounts.id.prompt();
-        return;
-      } catch (_) {}
     }
   },
 

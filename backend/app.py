@@ -533,13 +533,40 @@ async def activate_machine_key(req: MachineKeyActivateRequest):
         raise HTTPException(status_code=400, detail=f"Activation error: {str(e)}")
 
 @app.get("/api/auth/me")
-async def auth_me(user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)):
-    machine = get_machine_info()
-    dev_id = machine["machine_id"]
-    status = get_device_license_status(dev_id)
+async def auth_me(request: Request):
+    client_dev_id = request.headers.get("x-device-id")
+    client_pc_name = request.headers.get("x-desktop-name")
+    client_user_name = request.headers.get("x-user-name")
+    client_os_info = request.headers.get("x-os-info")
     
-    plan_type = status["plan_type"]
-    plan_info = PLAN_CONFIGS.get(plan_type, PLAN_CONFIGS["trial" if status["is_trial"] else "free"])
+    is_render = bool(os.environ.get("RENDER"))
+    if is_render and client_dev_id:
+        dev_id = client_dev_id
+        machine = {
+            "machine_id": dev_id,
+            "desktop_name": client_pc_name or "WEB-CLIENT",
+            "user_name": client_user_name or "User",
+            "os_info": client_os_info or "Web Browser"
+        }
+        register_or_update_device(
+            dev_id,
+            desktop_name=machine["desktop_name"],
+            user_name=machine["user_name"],
+            os_info=machine["os_info"]
+        )
+    else:
+        machine = get_machine_info()
+        dev_id = machine["machine_id"]
+        register_or_update_device(
+            dev_id,
+            desktop_name=machine["desktop_name"],
+            user_name=machine["user_name"],
+            os_info=machine["os_info"]
+        )
+        
+    status = get_device_license_status(dev_id)
+    plan_type = status.get("plan_type", "trial")
+    plan_info = PLAN_CONFIGS.get(plan_type, PLAN_CONFIGS["trial" if status.get("is_trial") else "free"])
     
     return {
         "authenticated": True,
@@ -550,17 +577,19 @@ async def auth_me(user: Optional[Dict[str, Any]] = Depends(get_current_user_opti
             "user_name": machine["user_name"],
             "email": "",
             "plan_type": plan_type,
-            "plan_expires_at": status["plan_expires_at"],
+            "plan_expires_at": status.get("plan_expires_at"),
             "license_key": status.get("license_key", "")
         },
         "plan": plan_info,
-        "is_pro": status["is_pro"],
-        "is_trial": status["is_trial"],
-        "trial_expired": status["trial_expired"],
-        "trial_days_remaining": status["trial_days_remaining"],
-        "days_remaining": status["days_remaining"],
-        "can_download": status["can_download"],
-        "is_unlimited": status["is_unlimited"],
+        "is_pro": status.get("is_pro", False),
+        "is_trial": status.get("is_trial", True),
+        "trial_expired": status.get("trial_expired", False),
+        "trial_days_remaining": status.get("trial_days_remaining", 7),
+        "days_remaining": status.get("days_remaining", 0),
+        "can_download": status.get("can_download", True),
+        "is_unlimited": status.get("is_unlimited", True),
+        "is_blocked": status.get("is_blocked", False),
+        "block_reason": status.get("block_reason"),
         "daily_downloads_used": 0,
         "daily_downloads_limit": None
     }

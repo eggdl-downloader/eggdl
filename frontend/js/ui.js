@@ -550,18 +550,16 @@ const UI = {
     if (modal) modal.style.display = 'none';
   },
 
-  // --- Machine ID & Account UI ---
+  // --- Machine ID & License UI ---
   renderUserProfile(authData) {
     const container = document.getElementById('user-header-area');
     if (!container) return;
 
     const user = (authData && authData.user) || {};
     const machine = (authData && authData.machine) || {};
-    const desktopName = machine.desktop_name || user.name || 'DESKTOP-PC';
-    const plan = (authData && authData.plan) || { badge: '7-Day Trial', name: '7-Day Free Trial' };
+    const desktopName = machine.desktop_name || user.name || (typeof API !== 'undefined' ? API.getDeviceName() : 'DESKTOP-PC');
     const isPro = authData && authData.is_pro;
     const isTrial = authData && authData.is_trial;
-    const trialExpired = authData && authData.trial_expired;
     const trialDaysLeft = (authData && authData.trial_days_remaining) || 0;
     const daysLeft = authData && authData.days_remaining;
 
@@ -583,7 +581,7 @@ const UI = {
     }
 
     container.innerHTML = `
-      <button class="user-pill-btn" id="user-profile-btn" title="Click to view Machine License & Product Key">
+      <button class="user-pill-btn" id="user-profile-btn" title="Click to view Hardware License & Registration">
         <div class="user-avatar"><i data-lucide="monitor" style="width: 14px; height: 14px;"></i></div>
         <span class="user-name">${desktopName}</span>
         <span class="${badgeClass}">${badgeText}</span>
@@ -631,60 +629,6 @@ const UI = {
       </div>
     `;
     lucide.createIcons();
-  },
-
-  openAuthModal(mode = 'login') {
-    const modal = document.getElementById('auth-modal');
-    const title = document.getElementById('auth-modal-title');
-    const tabLogin = document.getElementById('tab-login-btn');
-    const tabReg = document.getElementById('tab-register-btn');
-    const nameGroup = document.getElementById('auth-name-group');
-    const submitText = document.getElementById('submit-auth-text');
-    const errBanner = document.getElementById('auth-error-msg');
-    
-    if (errBanner) {
-      errBanner.style.display = 'none';
-      errBanner.innerText = '';
-    }
-
-    if (mode === 'register') {
-      if (title) title.innerText = 'Create EggDL Account';
-      tabLogin?.classList.remove('active');
-      tabReg?.classList.add('active');
-      if (nameGroup) nameGroup.style.display = 'flex';
-      if (submitText) submitText.innerText = 'Create Account';
-    } else {
-      if (title) title.innerText = 'Sign In to EggDL';
-      tabLogin?.classList.add('active');
-      tabReg?.classList.remove('active');
-      if (nameGroup) nameGroup.style.display = 'none';
-      if (submitText) submitText.innerText = 'Sign In';
-    }
-
-    if (modal) modal.style.display = 'flex';
-    if (typeof App !== 'undefined' && App.initGoogleOAuth) {
-      setTimeout(() => App.initGoogleOAuth(), 100);
-    }
-    lucide.createIcons();
-  },
-
-  toggleAuthPassword(btn) {
-    const wrapper = btn.closest('.auth-input-wrapper');
-    const input = wrapper ? wrapper.querySelector('input') : null;
-    if (!input) return;
-    if (input.type === 'password') {
-      input.type = 'text';
-      btn.innerHTML = '<i data-lucide="eye-off" style="width: 15px; height: 15px;"></i>';
-    } else {
-      input.type = 'password';
-      btn.innerHTML = '<i data-lucide="eye" style="width: 15px; height: 15px;"></i>';
-    }
-    lucide.createIcons();
-  },
-
-  closeAuthModal() {
-    const modal = document.getElementById('auth-modal');
-    if (modal) modal.style.display = 'none';
   },
 
   openAccountModal(authData) {
