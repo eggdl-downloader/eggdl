@@ -1062,6 +1062,26 @@ const App = {
       try {
         if (firebase.analytics) firebase.analytics();
       } catch (_) {}
+
+      // Handle redirect results from signInWithRedirect
+      this.firebaseAuth.getRedirectResult().then(async (result) => {
+        if (result && result.user) {
+          const user = result.user;
+          const idToken = await user.getIdToken();
+          const res = await API.firebaseAuth({
+            id_token: idToken,
+            email: user.email,
+            name: user.displayName || user.email.split('@')[0],
+            avatar: user.photoURL || '',
+            uid: user.uid,
+            auth_provider: 'google'
+          });
+          const displayName = res.user.name || res.user.email.split('@')[0];
+          await this.onAuthSuccess(displayName);
+        }
+      }).catch((err) => {
+        console.warn('Redirect result note:', err);
+      });
     } catch (err) {
       console.warn('Firebase init note:', err);
     }
@@ -1222,10 +1242,10 @@ const App = {
 
   async handleGoogleLogin() {
     if (this.firebaseAuth) {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
       try {
         UI.showToast('Opening Google Sign-In...', 'info');
-        const provider = new firebase.auth.GoogleAuthProvider();
-        provider.setCustomParameters({ prompt: 'select_account' });
         const result = await this.firebaseAuth.signInWithPopup(provider);
         const user = result.user;
         const idToken = await user.getIdToken();
@@ -1246,6 +1266,15 @@ const App = {
         console.warn('Google Auth popup note:', fbErr);
         if (fbErr.code === 'auth/popup-closed-by-user' || fbErr.code === 'auth/cancelled-popup-request') {
           return;
+        }
+        if (fbErr.code === 'auth/popup-blocked' || fbErr.code === 'auth/cancelled-popup-request') {
+          UI.showToast('Connecting to Google Account...', 'info');
+          try {
+            await this.firebaseAuth.signInWithRedirect(provider);
+            return;
+          } catch (redErr) {
+            console.warn('Redirect sign-in note:', redErr);
+          }
         }
         if (fbErr.code === 'auth/operation-not-allowed' || fbErr.message?.includes('invalid')) {
           UI.showToast('Google Sign-In needs to be enabled in Firebase Console (Authentication > Sign-in method > Google).', 'warning');
