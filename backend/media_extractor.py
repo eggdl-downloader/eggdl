@@ -382,11 +382,11 @@ class MediaExtractor:
             except Exception:
                 err_str = str(last_error) if last_error else ""
                 if "unavailable" in err_str.lower():
-                    raise Exception("⚠️ This video is unavailable, private, or has been removed on YouTube.")
+                    raise Exception("This video is unavailable, deleted, or private on YouTube.")
                 if "Sign in to confirm you" in err_str or "bot" in err_str.lower():
-                    raise Exception("⚠️ YouTube is requesting sign-in verification for this video.")
+                    raise Exception("YouTube is requesting sign-in verification for this video.")
                 if "private" in err_str.lower():
-                    raise Exception("⚠️ This video is private or restricted.")
+                    raise Exception("This video is private or restricted.")
                 raise Exception(f"Video extraction failed: {err_str or 'Unknown error'}")
 
         title = info.get("title", "Untitled Video")

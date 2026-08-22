@@ -713,7 +713,14 @@ async def inspect_url(req: InspectRequest):
                 "data": stream_info
             }
         except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Could not extract video stream: {str(e)}")
+            err_msg = str(e)
+            if "unavailable" in err_msg.lower():
+                err_msg = "This video is unavailable, deleted, or private on YouTube."
+            elif "bot" in err_msg.lower() or "confirm" in err_msg.lower():
+                err_msg = "YouTube is requesting sign-in verification for this video."
+            elif "private" in err_msg.lower():
+                err_msg = "This video is private or restricted."
+            raise HTTPException(status_code=400, detail=err_msg)
 
     # 2. Try inspecting as direct file
     settings = get_settings()

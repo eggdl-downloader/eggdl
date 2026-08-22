@@ -61,7 +61,7 @@ const UI = {
     return { class: 'hd', text: resolution };
   },
 
-  showToast(message, type = 'info') {
+  showToast(message, type = 'info', duration = 5000) {
     const container = document.getElementById('toast-container');
     if (!container) return;
     
@@ -71,20 +71,21 @@ const UI = {
     let iconName = 'info';
     if (type === 'success') iconName = 'check-circle';
     if (type === 'error') iconName = 'alert-triangle';
+    if (type === 'warning') iconName = 'alert-circle';
 
     toast.innerHTML = `
       <i data-lucide="${iconName}"></i>
       <span>${message}</span>
     `;
     container.appendChild(toast);
-    lucide.createIcons();
+    if (window.lucide) window.lucide.createIcons();
 
     setTimeout(() => {
       toast.style.opacity = '0';
       toast.style.transform = 'translateX(100%)';
       toast.style.transition = 'all 0.3s ease';
       setTimeout(() => toast.remove(), 300);
-    }, 4000);
+    }, duration);
   },
 
   renderActiveTasks(tasks) {

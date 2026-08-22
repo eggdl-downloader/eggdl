@@ -590,19 +590,22 @@ const App = {
     const originalBtn = inspectBtn.innerHTML;
     inspectBtn.innerHTML = '<i data-lucide="loader-2" class="spin"></i> Inspecting...';
     inspectBtn.disabled = true;
-    lucide.createIcons();
+    if (window.lucide) window.lucide.createIcons();
 
     try {
       const res = await API.inspectUrl(url);
-      if (res.success) {
+      if (res && res.success) {
         UI.renderInspectModal(res, url);
+      } else {
+        UI.showToast(res?.message || 'Could not inspect link', 'error', 6000);
       }
     } catch (e) {
-      UI.showToast(e.message || 'Could not inspect link', 'error');
+      console.warn('Inspect error:', e);
+      UI.showToast(e.message || 'Could not inspect link. Please check if the video is available.', 'error', 7000);
     } finally {
       inspectBtn.innerHTML = originalBtn;
       inspectBtn.disabled = false;
-      lucide.createIcons();
+      if (window.lucide) window.lucide.createIcons();
     }
   },
 
