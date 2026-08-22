@@ -610,8 +610,7 @@ async def inspect_url(req: InspectRequest):
                 "data": stream_info
             }
         except Exception as e:
-            # Fallback to direct inspection
-            pass
+            raise HTTPException(status_code=400, detail=f"Could not extract video stream: {str(e)}")
 
     # 2. Try inspecting as direct file
     settings = get_settings()
