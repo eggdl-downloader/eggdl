@@ -555,28 +555,34 @@ const UI = {
     if (!container) return;
 
     const isAuth = authData && authData.authenticated;
-    const user = (authData && authData.user) || { name: 'Guest User', plan_type: 'free' };
-    const plan = (authData && authData.plan) || { badge: 'Free', name: 'Free Plan' };
+    const user = (authData && authData.user) || { name: 'Guest User', plan_type: 'trial' };
+    const plan = (authData && authData.plan) || { badge: '7-Day Trial', name: '7-Day Free Trial' };
     const isPro = authData && authData.is_pro;
+    const isTrial = authData && authData.is_trial;
+    const trialExpired = authData && authData.trial_expired;
+    const trialDaysLeft = (authData && authData.trial_days_remaining) || 0;
     const daysLeft = authData && authData.days_remaining;
 
     if (isAuth) {
       const initial = (user.name || user.email || 'U').charAt(0).toUpperCase();
       let badgeClass = 'user-plan-badge';
-      let badgeText = plan.badge || 'Free';
+      let badgeText = plan.badge || 'Trial';
       if (user.plan_type === 'lifetime') {
         badgeClass += ' lifetime';
         badgeText = '👑 Ultimate Pass';
       } else if (isPro) {
         badgeClass += ' pro';
         badgeText = `⚡ ${plan.name || plan.badge} (${daysLeft}d)`;
+      } else if (isTrial) {
+        badgeClass += ' trial';
+        badgeText = `⏳ 7-Day Trial (${trialDaysLeft}d Left)`;
       } else {
-        const used = authData?.daily_downloads_used || 0;
-        badgeText = `Free (${used}/3 DL)`;
+        badgeClass += ' expired';
+        badgeText = `⚠️ Trial Expired`;
       }
 
       container.innerHTML = `
-        <button class="user-pill-btn" id="user-profile-btn" title="Click to view Account & License">
+        <button class="user-pill-btn" id="user-profile-btn" title="Click to view Account & Subscriptions">
           <div class="user-avatar">${initial}</div>
           <span class="user-name">${user.name || user.email.split('@')[0]}</span>
           <span class="${badgeClass}">${badgeText}</span>
@@ -587,16 +593,24 @@ const UI = {
         UI.openAccountModal(authData);
       });
     } else {
-      const used = authData?.daily_downloads_used || 0;
+      let badgeText = `⏳ 7-Day Trial (${trialDaysLeft}d Left)`;
+      let btnClass = 'btn btn-primary btn-sm btn-glow';
+      if (isPro) {
+        badgeText = `👑 Pro Active`;
+      } else if (trialExpired) {
+        badgeText = `⚠️ Trial Ended • Enter Key / Buy`;
+        btnClass = 'btn btn-danger btn-sm btn-glow';
+      }
+
       container.innerHTML = `
-        <button class="btn btn-primary btn-sm btn-glow" id="header-auth-btn">
-          <i data-lucide="user"></i>
-          <span>Free (${used}/3 DL) • Upgrade</span>
+        <button class="${btnClass}" id="header-auth-btn">
+          <i data-lucide="crown"></i>
+          <span>${badgeText}</span>
         </button>
       `;
 
       document.getElementById('header-auth-btn')?.addEventListener('click', () => {
-        UI.openAuthModal('login');
+        UI.openAccountModal(authData);
       });
     }
 
@@ -711,10 +725,12 @@ const UI = {
       } else if (isPro) {
         pillEl.className = 'plan-pill pro';
         pillEl.innerHTML = `⚡ ${plan.name || 'Pro'} (${daysLeft} days remaining)`;
+      } else if (authData?.is_trial) {
+        pillEl.className = 'plan-pill trial';
+        pillEl.innerHTML = `⏳ 7-Day Free Trial • ${authData.trial_days_remaining} Days Remaining (Unlimited Downloads)`;
       } else {
-        const used = authData?.daily_downloads_used || 0;
-        pillEl.className = 'plan-pill';
-        pillEl.innerHTML = `Free Trial • ${used}/3 Downloads Today`;
+        pillEl.className = 'plan-pill expired';
+        pillEl.innerHTML = `⚠️ 7-Day Free Trial Ended • Enter Product Key or Purchase Plan Below`;
       }
     }
 

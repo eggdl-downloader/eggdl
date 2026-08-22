@@ -12,22 +12,38 @@ from datetime import datetime, timedelta
 SECRET_KEY = os.environ.get("EGGDL_SECRET_KEY", "eggdl-super-secret-production-key-2026-auth-v1")
 
 PLAN_CONFIGS = {
-    "free": {
-        "name": "Free Plan",
-        "tier_name": "Free Trial",
+    "trial": {
+        "name": "7-Day Free Trial",
+        "tier_name": "7-Day Free Trial",
         "price": 0,
-        "effective_monthly": "Free",
-        "duration_days": 0,
-        "badge": "Free",
-        "max_downloads_per_day": 3,
-        "max_threads": 4,
-        "max_concurrent": 1,
-        "max_resolution": "720p",
+        "effective_monthly": "Free Trial",
+        "duration_days": 7,
+        "badge": "7-Day Trial",
+        "max_downloads_per_day": None,
+        "max_threads": 16,
+        "max_concurrent": 3,
+        "max_resolution": "4K",
         "features": [
-            "3 Downloads / Day",
-            "Up to 720p HD Support",
-            "1 Simultaneous Download",
-            "Standard Download Engine"
+            "Unlimited Downloads",
+            "16 Turbo Acceleration Threads",
+            "Up to 4K Ultra HD Support",
+            "3 Simultaneous Downloads",
+            "Full Features Included"
+        ]
+    },
+    "free": {
+        "name": "Trial Expired",
+        "tier_name": "Trial Expired",
+        "price": 0,
+        "effective_monthly": "Expired",
+        "duration_days": 0,
+        "badge": "Expired",
+        "max_downloads_per_day": 0,
+        "max_threads": 1,
+        "max_concurrent": 0,
+        "max_resolution": "None",
+        "features": [
+            "Trial Ended - Enter product key or purchase a plan to unlock"
         ]
     },
     "1month": {

@@ -40,7 +40,8 @@ try:
         update_user_plan, create_license_key, get_license_key, activate_license_key,
         create_payment_record, get_user_payments, get_daily_downloads_count,
         get_device_id, register_device, is_device_blocked, set_device_blocked,
-        get_all_devices, get_latest_app_release, set_app_release
+        get_all_devices, get_latest_app_release, set_app_release,
+        get_trial_and_subscription_status
     )
     from auth import (
         hash_password, verify_password, create_access_token, verify_access_token,
@@ -58,7 +59,8 @@ except ImportError:
         update_user_plan, create_license_key, get_license_key, activate_license_key,
         create_payment_record, get_user_payments, get_daily_downloads_count,
         get_device_id, register_device, is_device_blocked, set_device_blocked,
-        get_all_devices, get_latest_app_release, set_app_release
+        get_all_devices, get_latest_app_release, set_app_release,
+        get_trial_and_subscription_status
     )
     from backend.auth import (
         hash_password, verify_password, create_access_token, verify_access_token,
@@ -400,52 +402,33 @@ async def auth_firebase(req: FirebaseAuthRequest):
 
 @app.get("/api/auth/me")
 async def auth_me(user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)):
+    user_id = user["id"] if user else None
+    status = get_trial_and_subscription_status(user_id=user_id)
+    
+    plan_type = status["plan_type"]
+    plan_info = PLAN_CONFIGS.get(plan_type, PLAN_CONFIGS["trial" if status["is_trial"] else "free"])
+    
     if not user:
-        daily_count = get_daily_downloads_count(None)
         return {
             "authenticated": False,
             "user": {
                 "id": "guest",
                 "name": "Guest User",
                 "email": "",
-                "plan_type": "free",
-                "plan_expires_at": None
+                "plan_type": plan_type,
+                "plan_expires_at": status["plan_expires_at"]
             },
-            "plan": PLAN_CONFIGS["free"],
-            "is_pro": False,
-            "days_remaining": 0,
-            "daily_downloads_used": daily_count,
-            "daily_downloads_limit": 3,
-            "is_unlimited": False
+            "plan": plan_info,
+            "is_pro": status["is_pro"],
+            "is_trial": status["is_trial"],
+            "trial_expired": status["trial_expired"],
+            "trial_days_remaining": status["trial_days_remaining"],
+            "days_remaining": status["days_remaining"],
+            "can_download": status["can_download"],
+            "is_unlimited": status["is_unlimited"],
+            "daily_downloads_used": 0,
+            "daily_downloads_limit": None
         }
-    
-    plan_type = user.get("plan_type", "free")
-    plan_expires_at = user.get("plan_expires_at")
-    from datetime import datetime
-    now = datetime.now()
-    is_expired = False
-    days_remaining = 0
-    
-    if plan_type != "free" and plan_expires_at:
-        try:
-            exp_date = datetime.fromisoformat(plan_expires_at)
-            if plan_type == "lifetime" or exp_date.year >= 2099:
-                days_remaining = 9999
-            elif exp_date > now:
-                days_remaining = max(1, (exp_date - now).days)
-            else:
-                is_expired = True
-                days_remaining = 0
-        except Exception:
-            pass
-            
-    if is_expired:
-        update_user_plan(user["id"], "free", None, "")
-        plan_type = "free"
-        
-    plan_info = PLAN_CONFIGS.get(plan_type, PLAN_CONFIGS["free"])
-    is_pro = (plan_type != "free" and not is_expired)
-    daily_count = get_daily_downloads_count(user["id"])
     
     return {
         "authenticated": True,
@@ -455,15 +438,19 @@ async def auth_me(user: Optional[Dict[str, Any]] = Depends(get_current_user_opti
             "name": user["name"],
             "avatar": user.get("avatar", ""),
             "plan_type": plan_type,
-            "plan_expires_at": user.get("plan_expires_at"),
+            "plan_expires_at": user.get("plan_expires_at") or status["plan_expires_at"],
             "license_key": user.get("license_key", "")
         },
         "plan": plan_info,
-        "is_pro": is_pro,
-        "days_remaining": days_remaining,
-        "daily_downloads_used": daily_count,
-        "daily_downloads_limit": None if is_pro else 3,
-        "is_unlimited": is_pro
+        "is_pro": status["is_pro"],
+        "is_trial": status["is_trial"],
+        "trial_expired": status["trial_expired"],
+        "trial_days_remaining": status["trial_days_remaining"],
+        "days_remaining": status["days_remaining"],
+        "can_download": status["can_download"],
+        "is_unlimited": status["is_unlimited"],
+        "daily_downloads_used": 0,
+        "daily_downloads_limit": None
     }
 
 @app.post("/api/auth/logout")
@@ -681,33 +668,19 @@ async def sniff_page(req: SniffRequest):
 async def save_direct_file(req: SaveFileRequest, user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)):
     import base64
     user_id = user["id"] if user else None
-    is_pro = False
-    if user:
-        plan_type = user.get("plan_type", "free")
-        plan_expires_at = user.get("plan_expires_at")
-        if plan_type != "free" and plan_expires_at:
-            try:
-                from datetime import datetime
-                exp_date = datetime.fromisoformat(plan_expires_at)
-                if plan_type == "lifetime" or exp_date.year >= 2099 or exp_date > datetime.now():
-                    is_pro = True
-            except Exception:
-                pass
-
-    if not is_pro:
-        daily_count = get_daily_downloads_count(user_id)
-        if daily_count >= 3:
-            return JSONResponse(
-                status_code=403,
-                content={
-                    "success": False,
-                    "error": "daily_limit_reached",
-                    "message": "Daily Free Limit Reached (3/3 Downloads). Purchase a plan to unlock unlimited turbo downloads!",
-                    "daily_count": daily_count,
-                    "daily_limit": 3,
-                    "plan_type": "free"
-                }
-            )
+    status = get_trial_and_subscription_status(user_id=user_id)
+    
+    if not status["can_download"]:
+        return JSONResponse(
+            status_code=403,
+            content={
+                "success": False,
+                "error": "trial_expired",
+                "message": "Your 7-Day Free Trial has ended. Please enter a product key or select a plan to continue downloading unlimited files.",
+                "trial_expired": True,
+                "plan_type": "free"
+            }
+        )
 
     settings = get_settings()
     target_dir = settings.get("download_dir", str(Path.home() / "Downloads" / "EggDL"))
@@ -782,42 +755,27 @@ async def start_download(req: StartDownloadRequest, user: Optional[Dict[str, Any
         raise HTTPException(status_code=400, detail="URL is required")
 
     user_id = user["id"] if user else None
-    is_pro = False
-    plan_key = "free"
-    if user:
-        plan_type = user.get("plan_type", "free")
-        plan_expires_at = user.get("plan_expires_at")
-        if plan_type != "free" and plan_expires_at:
-            try:
-                from datetime import datetime
-                exp_date = datetime.fromisoformat(plan_expires_at)
-                if plan_type == "lifetime" or exp_date.year >= 2099 or exp_date > datetime.now():
-                    is_pro = True
-                    plan_key = plan_type
-            except Exception:
-                pass
-
-    if not is_pro:
-        daily_count = get_daily_downloads_count(user_id)
-        if daily_count >= 3:
-            return JSONResponse(
-                status_code=403,
-                content={
-                    "success": False,
-                    "error": "daily_limit_reached",
-                    "message": "Daily Free Limit Reached (3/3 Downloads). Purchase a plan to unlock unlimited turbo downloads!",
-                    "daily_count": daily_count,
-                    "daily_limit": 3,
-                    "plan_type": "free"
-                }
-            )
+    status = get_trial_and_subscription_status(user_id=user_id)
+    
+    if not status["can_download"]:
+        return JSONResponse(
+            status_code=403,
+            content={
+                "success": False,
+                "error": "trial_expired",
+                "message": "Your 7-Day Free Trial has ended. Please enter a product key or select a plan to continue downloading unlimited files.",
+                "trial_expired": True,
+                "plan_type": "free"
+            }
+        )
 
     task_id = str(uuid.uuid4())[:8]
     settings = get_settings()
     target_dir = settings.get("download_dir", str(Path.home() / "Downloads" / "EggDL"))
     
-    plan_info = PLAN_CONFIGS.get(plan_key, PLAN_CONFIGS["free"])
-    max_threads = plan_info.get("max_threads", 4)
+    plan_key = status["plan_type"] if (status["is_pro"] or status["is_trial"]) else "trial"
+    plan_info = PLAN_CONFIGS.get(plan_key, PLAN_CONFIGS["trial"])
+    max_threads = plan_info.get("max_threads", 16)
     segments = min(req.segments_count or settings.get("max_segments_per_download", 8), max_threads)
 
     download_type = req.download_type

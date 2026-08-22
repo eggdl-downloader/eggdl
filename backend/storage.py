@@ -518,13 +518,15 @@ def register_device(device_id: str, user_email: Optional[str] = None, app_versio
     os_info = f"{platform.system()} {platform.release()}"
     now = datetime.now().isoformat()
     
-    cursor.execute("SELECT is_blocked, block_reason FROM devices WHERE device_id = ?", (device_id,))
+    cursor.execute("SELECT is_blocked, block_reason, created_at FROM devices WHERE device_id = ?", (device_id,))
     row = cursor.fetchone()
     is_blocked = 0
     block_reason = None
+    created_at = now
     if row:
         is_blocked = row["is_blocked"]
         block_reason = row["block_reason"]
+        created_at = row["created_at"] or now
         cursor.execute("""
         UPDATE devices SET
             user_email = COALESCE(?, user_email),
@@ -544,8 +546,140 @@ def register_device(device_id: str, user_email: Optional[str] = None, app_versio
     return {
         "device_id": device_id,
         "is_blocked": bool(is_blocked),
-        "block_reason": block_reason
+        "block_reason": block_reason,
+        "created_at": created_at
     }
+
+def get_trial_and_subscription_status(user_id: Optional[str] = None, device_id: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Computes active status, 7-Day Free Trial countdown, and Unlimited Download authorization.
+    """
+    from datetime import datetime, timedelta
+    import math
+
+    now = datetime.now()
+    TRIAL_DAYS = 7
+
+    # 1. If user is logged in, check user subscription & trial
+    if user_id:
+        user = get_user_by_id(user_id)
+        if user:
+            plan_type = user.get("plan_type", "free")
+            plan_expires_at = user.get("plan_expires_at")
+            
+            # Check paid / active Pro plan
+            if plan_type not in ["free", "trial"] and plan_expires_at:
+                try:
+                    exp_date = datetime.fromisoformat(plan_expires_at)
+                    if plan_type == "lifetime" or exp_date.year >= 2099:
+                        return {
+                            "is_pro": True,
+                            "is_trial": False,
+                            "trial_expired": False,
+                            "can_download": True,
+                            "is_unlimited": True,
+                            "days_remaining": 9999,
+                            "trial_days_remaining": 0,
+                            "plan_type": plan_type,
+                            "plan_expires_at": plan_expires_at
+                        }
+                    elif exp_date > now:
+                        days_left = max(1, (exp_date - now).days)
+                        return {
+                            "is_pro": True,
+                            "is_trial": False,
+                            "trial_expired": False,
+                            "can_download": True,
+                            "is_unlimited": True,
+                            "days_remaining": days_left,
+                            "trial_days_remaining": 0,
+                            "plan_type": plan_type,
+                            "plan_expires_at": plan_expires_at
+                        }
+                except Exception:
+                    pass
+
+            # Not paid or paid plan expired -> Check 7-Day Free Trial based on user created_at
+            user_created = user.get("created_at")
+            created_dt = now
+            if user_created:
+                try:
+                    if "T" in str(user_created):
+                        created_dt = datetime.fromisoformat(str(user_created))
+                    else:
+                        created_dt = datetime.strptime(str(user_created)[:19], "%Y-%m-%d %H:%M:%S")
+                except Exception:
+                    created_dt = now
+
+            trial_end = created_dt + timedelta(days=TRIAL_DAYS)
+            if now < trial_end:
+                seconds_left = (trial_end - now).total_seconds()
+                days_left = max(1, math.ceil(seconds_left / 86400))
+                return {
+                    "is_pro": False,
+                    "is_trial": True,
+                    "trial_expired": False,
+                    "can_download": True,
+                    "is_unlimited": True,
+                    "days_remaining": 0,
+                    "trial_days_remaining": days_left,
+                    "plan_type": "trial",
+                    "plan_expires_at": trial_end.isoformat()
+                }
+            else:
+                return {
+                    "is_pro": False,
+                    "is_trial": False,
+                    "trial_expired": True,
+                    "can_download": False,
+                    "is_unlimited": False,
+                    "days_remaining": 0,
+                    "trial_days_remaining": 0,
+                    "plan_type": "free",
+                    "plan_expires_at": None
+                }
+
+    # 2. If guest / unauthenticated, check device-level 7-Day Free Trial
+    dev_id = device_id or get_device_id()
+    device_info = register_device(dev_id)
+    dev_created = device_info.get("created_at")
+    created_dt = now
+    if dev_created:
+        try:
+            if "T" in str(dev_created):
+                created_dt = datetime.fromisoformat(str(dev_created))
+            else:
+                created_dt = datetime.strptime(str(dev_created)[:19], "%Y-%m-%d %H:%M:%S")
+        except Exception:
+            created_dt = now
+
+    trial_end = created_dt + timedelta(days=TRIAL_DAYS)
+    if now < trial_end:
+        seconds_left = (trial_end - now).total_seconds()
+        days_left = max(1, math.ceil(seconds_left / 86400))
+        return {
+            "is_pro": False,
+            "is_trial": True,
+            "trial_expired": False,
+            "can_download": True,
+            "is_unlimited": True,
+            "days_remaining": 0,
+            "trial_days_remaining": days_left,
+            "plan_type": "trial",
+            "plan_expires_at": trial_end.isoformat()
+        }
+    else:
+        return {
+            "is_pro": False,
+            "is_trial": False,
+            "trial_expired": True,
+            "can_download": False,
+            "is_unlimited": False,
+            "days_remaining": 0,
+            "trial_days_remaining": 0,
+            "plan_type": "free",
+            "plan_expires_at": None
+        }
 
 def is_device_blocked(device_id: str) -> Dict[str, Any]:
     conn = get_db_connection()

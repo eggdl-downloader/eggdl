@@ -71,6 +71,14 @@ const App = {
       this.authData = await API.getMe();
       UI.renderUserProfile(this.authData);
       this.cleanAutofillSearch();
+
+      // If 7-Day Free Trial has expired and user is not Pro, automatically show the paywall & product key modal
+      if (this.authData && this.authData.trial_expired && !this.authData.is_pro) {
+        setTimeout(() => {
+          UI.openAccountModal(this.authData);
+          UI.showToast('⏳ Your 7-day free trial has expired. Enter a product key or select a plan to continue downloading.', 'warning', 9000);
+        }, 600);
+      }
     } catch (e) {
       console.warn('Auth init failed:', e);
     }
@@ -586,11 +594,11 @@ const App = {
         }
       }
     } catch (e) {
-      if (e.errorType === 'daily_limit_reached' || (e.message && (e.message.includes('Daily Free Limit') || e.message.includes('daily_limit') || e.message.includes('Limit Reached')))) {
-        UI.showToast('⚠️ Daily free limit reached (3/3). Purchase our plan to unlock unlimited turbo downloads!', 'warning', 7000);
+      if (e.errorType === 'trial_expired' || (e.message && (e.message.includes('Trial has ended') || e.message.includes('trial has expired') || e.message.includes('Trial Expired') || e.message.includes('trial_expired')))) {
+        UI.showToast('⚠️ Your 7-Day Free Trial has ended. Enter a product key or choose a plan to continue!', 'warning', 8000);
         setTimeout(() => {
           UI.openAccountModal(this.authData);
-        }, 700);
+        }, 500);
       } else {
         UI.showToast(e.message || 'Failed to start download', 'error');
       }
