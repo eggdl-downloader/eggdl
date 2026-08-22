@@ -311,14 +311,8 @@ class MediaExtractor:
             "extract_flat": False,
             "lazy_playlist": True,
             "noplaylist": True,
-            "socket_timeout": 15,
+            "socket_timeout": 20,
             "no_color": True,
-            "extractor_args": {
-                "youtube": {
-                    "player_client": ["web", "android", "ios", "mweb"],
-                    "player_skip": ["configs"],
-                }
-            },
             "http_headers": {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                 "Accept-Language": "en-US,en;q=0.9",
@@ -332,10 +326,11 @@ class MediaExtractor:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
         except Exception:
-            # Automatic fallback to TLS-impersonated scraper
-            res = _fallback_scrape_video_page(url)
-            _INSPECT_CACHE[url] = {"data": res, "time": now}
-            return res
+            try:
+                with yt_dlp.YoutubeDL({"quiet": True, "skip_download": True, "noplaylist": True}) as ydl:
+                    info = ydl.extract_info(url, download=False)
+            except Exception:
+                pass
 
         if not info:
             res = _fallback_scrape_video_page(url)
@@ -687,12 +682,6 @@ class StreamDownloadTask:
             "retries": 10,
             "fragment_retries": 10,
             "socket_timeout": 30,
-            "extractor_args": {
-                "youtube": {
-                    "player_client": ["web", "android", "ios", "mweb"],
-                    "player_skip": ["configs"],
-                }
-            },
             "http_headers": {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                 "Accept-Language": "en-US,en;q=0.9",
