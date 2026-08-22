@@ -1,6 +1,5 @@
 // EggDL - Popup Script
 document.addEventListener('DOMContentLoaded', async () => {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   const pageTitleEl = document.getElementById('page-title');
   const countBadge = document.getElementById('stream-count-badge');
   const streamList = document.getElementById('stream-list');
@@ -29,22 +28,71 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  if (tab) {
-    pageTitleEl.innerText = tab.title || "Current Tab";
-    
-    streamList.innerHTML = `<div style="text-align: center; padding: 20px; color: #94A3B8; font-size: 12px;">Extracting all qualities (144p - 8K)...</div>`;
-
-    chrome.runtime.sendMessage({ action: "inspect_page", url: tab.url }, (res) => {
-      if (res && res.success && res.data) {
-        renderInspectQualities(res.data, tab);
-      } else {
-        chrome.runtime.sendMessage({ action: "get_tab_media", tabId: tab.id }, (mediaRes) => {
-          const list = (mediaRes && mediaRes.media) ? mediaRes.media : [];
-          renderSniffedMedia(list, tab);
-        });
-      }
-    });
+  // Resilient tab query (handles popup focus windows cleanly)
+  let tab = null;
+  try {
+    const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    if (tabs && tabs.length > 0) {
+      tab = tabs[0];
+    } else {
+      const allActive = await chrome.tabs.query({ active: true });
+      tab = allActive && allActive.length > 0 ? allActive[0] : null;
+    }
+  } catch (e) {
+    console.error("Tab query error:", e);
   }
+
+  const isValidUrl = tab && tab.url && (tab.url.startsWith('http://') || tab.url.startsWith('https://'));
+
+  if (!isValidUrl) {
+    pageTitleEl.innerText = "EggDL Downloader";
+    countBadge.innerText = "0 Eggs";
+    streamList.innerHTML = `
+      <div style="padding: 16px 12px; text-align: center; color: #94A3B8; font-size: 12px;">
+        Open a video page (YouTube, Instagram, TikTok) to detect media eggs.
+      </div>
+    `;
+    emptyState.style.display = 'block';
+    downloadAllBtn.disabled = true;
+    return;
+  }
+
+  pageTitleEl.innerText = tab.title ? tab.title.slice(0, 45) : "Current Page";
+  pageTitleEl.title = tab.title || "";
+
+  // 1. Immediately render sniffed media from tab store (0ms instant)
+  chrome.runtime.sendMessage({ action: "get_tab_media", tabId: tab.id }, (mediaRes) => {
+    const list = (mediaRes && mediaRes.media) ? mediaRes.media : [];
+    if (list.length > 0) {
+      renderSniffedMedia(list, tab);
+    } else {
+      streamList.innerHTML = `<div style="text-align: center; padding: 22px; color: #94A3B8; font-size: 12.5px;">🔍 Extracting qualities (144p - 8K)...</div>`;
+    }
+  });
+
+  // 2. Concurrently inspect full page stream formats with timeout guard
+  let inspectDone = false;
+  const timeoutId = setTimeout(() => {
+    if (!inspectDone) {
+      chrome.runtime.sendMessage({ action: "get_tab_media", tabId: tab.id }, (mediaRes) => {
+        const list = (mediaRes && mediaRes.media) ? mediaRes.media : [];
+        renderSniffedMedia(list, tab);
+      });
+    }
+  }, 6000);
+
+  chrome.runtime.sendMessage({ action: "inspect_page", url: tab.url }, (res) => {
+    inspectDone = true;
+    clearTimeout(timeoutId);
+    if (res && res.success && res.data) {
+      renderInspectQualities(res.data, tab);
+    } else {
+      chrome.runtime.sendMessage({ action: "get_tab_media", tabId: tab.id }, (mediaRes) => {
+        const list = (mediaRes && mediaRes.media) ? mediaRes.media : [];
+        renderSniffedMedia(list, tab);
+      });
+    }
+  });
 
   function getQualityTag(res) {
     if (!res) return { class: 'hd', label: 'HD' };
