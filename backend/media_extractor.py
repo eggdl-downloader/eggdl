@@ -595,6 +595,8 @@ class StreamDownloadTask:
         audio_format: str = "mp3",
         custom_title: Optional[str] = None,
         expected_size: int = -1,
+        downloaded_bytes: int = 0,
+        progress: float = 0.0,
         on_progress: Optional[Callable] = None
     ):
         self.id = task_id
@@ -610,8 +612,8 @@ class StreamDownloadTask:
         self.filename = ""
         self.file_path = ""
         self.file_size = expected_size if (expected_size and expected_size > 0) else -1
-        self.downloaded_bytes = 0
-        self.progress = 0.0
+        self.downloaded_bytes = downloaded_bytes or 0
+        self.progress = progress or 0.0
         self.speed = 0.0
         self.eta = 0
         self.status = "queued"
@@ -623,7 +625,7 @@ class StreamDownloadTask:
         self._is_paused = False
         self._is_canceled = False
         self._loop = None
-        self._max_progress = 0.0
+        self._max_progress = progress or 0.0
         self._stream_history = {}
         self._stream_totals = {}
 
@@ -736,17 +738,6 @@ class StreamDownloadTask:
         os.makedirs(self.target_dir, exist_ok=True)
         outtmpl = os.path.join(self.target_dir, "%(title).80s.%(ext)s")
 
-        # Clean stale part files in target directory to prevent HTTP 416 Range Not Satisfiable
-        try:
-            for f in os.listdir(self.target_dir):
-                if f.endswith(".part") or f.endswith(".ytdl"):
-                    try:
-                        os.remove(os.path.join(self.target_dir, f))
-                    except Exception:
-                        pass
-        except Exception:
-            pass
-
         ffmpeg_dir = get_ffmpeg_location()
         cookie_path = get_cookie_file()
 
@@ -760,9 +751,10 @@ class StreamDownloadTask:
             "no_warnings": True,
             "noplaylist": True,
             "merge_output_format": "mp4",
-            "overwrites": True,
-            "nooverwrites": False,
-            "continuedl": False,
+            "overwrites": False,
+            "nooverwrites": True,
+            "continuedl": True,
+            "nopart": False,
             "nocheckcertificate": True,
             "retries": 10,
             "fragment_retries": 10,

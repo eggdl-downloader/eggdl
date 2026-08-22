@@ -208,7 +208,9 @@ class DownloadTask:
         self.segments = []
         if not self.supports_ranges or self.file_size <= 0 or self.segments_count <= 1:
             # Single segment
-            self.segments.append(Segment(0, 0, self.file_size - 1 if self.file_size > 0 else -1))
+            part_path = os.path.join(self._temp_dir, "part_0.tmp")
+            downloaded = os.path.getsize(part_path) if (self.supports_ranges and os.path.exists(part_path)) else 0
+            self.segments.append(Segment(0, 0, self.file_size - 1 if self.file_size > 0 else -1, downloaded=downloaded))
             return
 
         chunk_size = math.ceil(self.file_size / self.segments_count)

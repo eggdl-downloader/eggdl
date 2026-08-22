@@ -1083,12 +1083,26 @@ async def _run_task(task_id: str, task: Any):
 async def pause_download(task_id: str):
     task = active_tasks.get(task_id)
     if not task:
+        task_record = get_download_task(task_id)
+        if task_record:
+            update_download_progress(task_id, task_record.get("downloaded_bytes", 0), task_record.get("progress", 0.0), 0, 0, "paused")
+            task_record["status"] = "paused"
+            task_record["speed"] = 0.0
+            task_record["eta"] = 0
+            save_download_task(task_record)
+            await broadcast({"type": "task_updated", "task": task_record})
+            return {"success": True, "message": "Download paused"}
         raise HTTPException(status_code=404, detail="Active download task not found")
     
     if hasattr(task, "pause"):
         task.pause()
+        task_dict = task.to_dict()
+        task_dict["status"] = "paused"
+        task_dict["speed"] = 0.0
+        task_dict["eta"] = 0
+        save_download_task(task_dict)
         update_download_progress(task_id, task.downloaded_bytes, task.progress, 0, 0, "paused")
-        await broadcast({"type": "task_updated", "task": task.to_dict()})
+        await broadcast({"type": "task_updated", "task": task_dict})
         return {"success": True, "message": "Download paused"}
     else:
         raise HTTPException(status_code=400, detail="Cannot pause this download")
@@ -1117,8 +1131,13 @@ async def resume_download(task_id: str):
             format_id=task_record.get("format_id") or "bestvideo+bestaudio/best",
             is_audio_only=(task_record.get("category") == "audio"),
             custom_title=task_record.get("title"),
+            expected_size=task_record.get("file_size", -1),
+            downloaded_bytes=task_record.get("downloaded_bytes", 0),
+            progress=task_record.get("progress", 0.0),
             on_progress=handle_progress_update
         )
+        task.thumbnail = task_record.get("thumbnail") or ""
+        task.filename = task_record.get("filename") or ""
     else:
         task = DownloadTask(
             task_id=task_id,
@@ -1128,6 +1147,10 @@ async def resume_download(task_id: str):
             segments_count=segments,
             on_progress=handle_progress_update
         )
+        task.thumbnail = task_record.get("thumbnail") or ""
+        task.downloaded_bytes = task_record.get("downloaded_bytes", 0)
+        task.file_size = task_record.get("file_size", -1)
+        task.progress = task_record.get("progress", 0.0)
 
     task.status = "downloading"
     active_tasks[task_id] = task
