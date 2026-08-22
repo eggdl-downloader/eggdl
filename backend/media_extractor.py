@@ -93,10 +93,50 @@ def get_ffmpeg_location() -> Optional[str]:
 # Ensure FFmpeg is on PATH if found
 get_ffmpeg_location()
 
+_CACHED_H264_ENCODER = None
+
+def get_best_hardware_h264_encoder(ffmpeg_bin: str):
+    """
+    Auto-detects the fastest hardware GPU encoder available (NVENC / QSV / AMF / MediaFoundation)
+    with ultra-fast multithreaded CPU fallback.
+    """
+    global _CACHED_H264_ENCODER
+    if _CACHED_H264_ENCODER:
+        return _CACHED_H264_ENCODER
+
+    cflags = 0x08000000 if sys.platform == "win32" else 0
+    candidate_configs = [
+        ("h264_nvenc", ["-c:v", "h264_nvenc", "-preset", "p4", "-cq", "19"]),
+        ("h264_qsv", ["-c:v", "h264_qsv", "-preset", "veryfast", "-global_quality", "20"]),
+        ("h264_amf", ["-c:v", "h264_amf", "-quality", "speed", "-rc", "cqp", "-qp_p", "20", "-qp_i", "20"]),
+        ("h264_mf", ["-c:v", "h264_mf", "-b:v", "28M"]),
+        ("libx264", ["-c:v", "libx264", "-preset", "ultrafast", "-threads", "0", "-crf", "20"]),
+    ]
+
+    for enc_name, enc_args in candidate_configs:
+        try:
+            cmd = [
+                ffmpeg_bin, "-y",
+                "-f", "lavfi", "-i", "color=c=black:s=256x256:d=0.05",
+                *enc_args,
+                "-pix_fmt", "yuv420p",
+                "-f", "null", "-"
+            ]
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=cflags, timeout=4)
+            if res.returncode == 0:
+                print(f"[FFmpeg] Selected Hardware GPU Encoder: {enc_name}")
+                _CACHED_H264_ENCODER = (enc_name, enc_args)
+                return _CACHED_H264_ENCODER
+        except Exception:
+            continue
+
+    _CACHED_H264_ENCODER = ("libx264", ["-c:v", "libx264", "-preset", "ultrafast", "-threads", "0", "-crf", "20"])
+    return _CACHED_H264_ENCODER
+
 def ensure_premiere_compatible_mp4(file_path: str) -> str:
     """
     Ensures downloaded video is 100% compatible with Adobe Premiere Pro, DaVinci Resolve,
-    Final Cut Pro, and all major video editors.
+    Final Cut Pro, Sony Vegas, and all editing suites.
     Premiere Pro standard requirements:
       - Video Codec: H.264 / AVC (avc1)
       - Audio Codec: AAC (mp4a)
@@ -137,9 +177,15 @@ def ensure_premiere_compatible_mp4(file_path: str) -> str:
         temp_out = f"{base}_premiere_h264.mp4"
         final_out = f"{base}.mp4"
 
-        # If already H.264 with yuv420p, stream copy video (instant 0s), otherwise transcode to libx264
-        vcodec_args = ["-c:v", "copy"] if (is_h264 and is_yuv420p) else ["-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p"]
-        acodec_args = ["-c:a", "copy"] if is_aac else ["-c:a", "aac", "-b:a", "192k"]
+        # If already H.264 with yuv420p, stream copy video (instant 0s), otherwise use GPU hardware encoder
+        if is_h264 and is_yuv420p:
+            vcodec_args = ["-c:v", "copy"]
+        else:
+            _, enc_args = get_best_hardware_h264_encoder(ffmpeg_bin)
+            vcodec_args = [*enc_args, "-pix_fmt", "yuv420p"]
+
+        # If already AAC audio, stream copy audio (instant 0s), otherwise transcode audio to AAC 320k
+        acodec_args = ["-c:a", "copy"] if is_aac else ["-c:a", "aac", "-b:a", "320k"]
 
         cmd = [
             ffmpeg_bin, "-y",
@@ -150,7 +196,7 @@ def ensure_premiere_compatible_mp4(file_path: str) -> str:
             temp_out
         ]
 
-        conv = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=600, creationflags=cflags)
+        conv = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=300, creationflags=cflags)
         if conv.returncode == 0 and os.path.exists(temp_out) and os.path.getsize(temp_out) > 1000:
             if os.path.exists(file_path):
                 try:
@@ -412,6 +458,7 @@ class MediaExtractor:
             "format_id": "bestvideo+bestaudio/best",
             "label": "Best Video Quality (Auto)",
             "resolution": "Best",
+            "codec": "H.264 / AAC (Premiere Ready)",
             "ext": "mp4",
             "filesize": None,
             "filesize_str": "Auto (Highest Available)",
@@ -489,9 +536,10 @@ class MediaExtractor:
                 "format_id": format_spec,
                 "label": label,
                 "resolution": clean_res,
-                "ext": "mp4",
+                "codec": "H.264 / AAC (Premiere Ready)",
+                "ext": ext,
                 "filesize": comb_size,
-                "filesize_str": format_bytes(comb_size) if comb_size else "Auto",
+                "filesize_str": format_bytes(comb_size) if comb_size else "High Quality",
                 "type": "video"
             })
 
@@ -822,6 +870,8 @@ class StreamDownloadTask:
                             final_path = base_prep
 
                     if final_path and os.path.exists(final_path):
+                        if not self.is_audio_only:
+                            final_path = ensure_premiere_compatible_mp4(final_path)
                         self.file_path = os.path.abspath(final_path)
                         self.filename = os.path.basename(final_path)
                         self.file_size = os.path.getsize(final_path)

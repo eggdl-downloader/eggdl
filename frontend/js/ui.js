@@ -373,7 +373,7 @@ const UI = {
                   <span class="res-tag ${tag.class}">${tag.text}</span>
                   <span>${opt.label}</span>
                 </div>
-                <div class="format-meta">${opt.ext.toUpperCase()} • ${opt.filesize_str}</div>
+                <div class="format-meta">${opt.ext.toUpperCase()} • ${opt.codec ? `<span style="color: var(--accent-cyan); font-weight: 500;">${opt.codec}</span> • ` : ''}${opt.filesize_str}</div>
               </div>
             `;
           }).join('')}
