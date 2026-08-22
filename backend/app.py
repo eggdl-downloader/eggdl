@@ -1287,6 +1287,8 @@ async def check_device_status(req: DeviceCheckRequest):
 @app.get("/download/setup")
 async def download_setup_installer():
     candidates = [
+        os.path.join(os.path.dirname(__file__), "..", "frontend", "downloads", "EggDL_Setup.exe"),
+        os.path.join(os.path.dirname(__file__), "frontend", "downloads", "EggDL_Setup.exe"),
         os.path.join(os.path.dirname(__file__), "..", "dist", "EggDL_Setup.exe"),
         os.path.join(os.path.dirname(__file__), "dist", "EggDL_Setup.exe"),
         os.path.join(os.path.dirname(sys.executable), "dist", "EggDL_Setup.exe"),

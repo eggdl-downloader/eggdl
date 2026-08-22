@@ -1370,10 +1370,32 @@ const App = {
     if (notesBox) notesBox.innerText = info.release_notes || 'Exciting new features and performance upgrades.';
     
     if (nowBtn) {
-      nowBtn.onclick = () => {
-        window.open(info.download_url || 'https://eggdl.onrender.com/download/setup', '_blank');
+      nowBtn.onclick = async () => {
         modal.style.display = 'none';
-        UI.showToast('Downloading newest EggDL setup installer...', 'info');
+        const downloadUrl = info.download_url || 'https://eggdl.onrender.com/download/setup';
+        const targetFilename = `EggDL_Setup_v${info.latest_version}.exe`;
+        
+        UI.showToast(`⬇️ Starting in-app Turbo download for EggDL v${info.latest_version}...`, 'success');
+        
+        try {
+          await this.startDownloadTask({
+            url: downloadUrl,
+            custom_filename: targetFilename,
+            category: 'program'
+          });
+          
+          const downloadsNav = document.getElementById('nav-downloads');
+          if (downloadsNav) downloadsNav.click();
+          
+          const activeSec = document.getElementById('active-section');
+          if (activeSec) {
+            activeSec.style.display = 'block';
+            activeSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        } catch (err) {
+          console.warn('In-app update queue note:', err);
+          window.open(downloadUrl, '_blank');
+        }
       };
     }
     if (laterBtn) {
