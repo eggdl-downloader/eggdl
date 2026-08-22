@@ -341,13 +341,6 @@ class MediaExtractor:
                 "Accept-Language": "en-US,en;q=0.9",
             }
         }
-        if "youtube" in url.lower() or "youtu.be" in url.lower():
-            ydl_opts["extractor_args"] = {
-                "youtube": {
-                    "player_client": ["android_creator", "web"]
-                }
-            }
-
         if ffmpeg_dir:
             ydl_opts["ffmpeg_location"] = ffmpeg_dir
         if cookie_path:
@@ -365,7 +358,6 @@ class MediaExtractor:
                     "quiet": True,
                     "skip_download": True,
                     "noplaylist": True,
-                    "extractor_args": {"youtube": {"player_client": ["all"]}}
                 }
                 if cookie_path:
                     fallback_opts["cookiefile"] = cookie_path
@@ -415,7 +407,7 @@ class MediaExtractor:
 
         # Add "Best Quality" default preset
         video_options.append({
-            "format_id": "bestvideo[vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[vcodec^=avc]+bestaudio[acodec^=mp4a]/bestvideo[vcodec^=avc1]+bestaudio/bestvideo[vcodec^=avc]+bestaudio/bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best",
+            "format_id": "bestvideo+bestaudio/best",
             "label": "Best Video Quality (Auto)",
             "resolution": "Best",
             "ext": "mp4",
@@ -438,11 +430,9 @@ class MediaExtractor:
         sorted_heights = sorted(formats_by_height.keys(), reverse=True)
         for height in sorted_heights:
             height_fmts = formats_by_height[height]
-            # Prioritize H.264 (avc1) format for this height if available
-            avc_fmts = [f for f in height_fmts if "avc" in (f.get("vcodec") or "").lower()]
-            best_fmt = avc_fmts[-1] if avc_fmts else height_fmts[-1]
+            best_fmt = height_fmts[-1]
             max_br = 0
-            for f in (avc_fmts or height_fmts):
+            for f in height_fmts:
                 br = f.get("vbr") or f.get("tbr") or 0
                 sz = f.get("filesize") or f.get("filesize_approx") or 0
                 if sz > 0 or br > max_br:
@@ -492,15 +482,7 @@ class MediaExtractor:
 
             comb_size = (v_size + best_audio_size) if v_size else None
 
-            format_spec = (
-                f"bestvideo[height<={height}][vcodec^=avc1]+bestaudio[acodec^=mp4a]/"
-                f"bestvideo[height<={height}][vcodec^=avc]+bestaudio[acodec^=mp4a]/"
-                f"bestvideo[height<={height}][vcodec^=avc1]+bestaudio/"
-                f"bestvideo[height<={height}][vcodec^=avc]+bestaudio/"
-                f"bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]/"
-                f"bestvideo[height<={height}]+bestaudio/"
-                f"best[height<={height}]/best"
-            )
+            format_spec = f"bestvideo[height<={height}]+bestaudio/best[height<={height}]/bestvideo+bestaudio/best"
             video_options.append({
                 "format_id": format_spec,
                 "label": label,
@@ -742,13 +724,6 @@ class StreamDownloadTask:
             }
         }
 
-        if "youtube" in self.url.lower() or "youtu.be" in self.url.lower():
-            ydl_opts["extractor_args"] = {
-                "youtube": {
-                    "player_client": ["android_creator", "web"]
-                }
-            }
-
         if ffmpeg_dir:
             ydl_opts["ffmpeg_location"] = ffmpeg_dir
         if cookie_path:
@@ -809,7 +784,18 @@ class StreamDownloadTask:
                 except Exception:
                     pass
 
-                info = ydl.extract_info(self.url, download=True)
+                info = None
+                try:
+                    info = ydl.extract_info(self.url, download=True)
+                except Exception as dl_err:
+                    err_msg = str(dl_err)
+                    if "Requested format is not available" in err_msg or "format" in err_msg.lower():
+                        # Retry with universal best fallback
+                        ydl_opts["format"] = "bestvideo+bestaudio/best"
+                        with yt_dlp.YoutubeDL(ydl_opts) as fallback_ydl:
+                            info = fallback_ydl.extract_info(self.url, download=True)
+                    else:
+                        raise dl_err
                 if info:
                     self.title = info.get("title", self.title)
                     self.thumbnail = info.get("thumbnail") or ""
