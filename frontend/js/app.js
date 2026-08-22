@@ -1126,36 +1126,50 @@ const App = {
     const statusHint = document.getElementById('settings-update-status');
     const versionBadge = document.getElementById('settings-app-version');
     const checkBtn = document.getElementById('btn-check-updates');
+    const topBanner = document.getElementById('top-update-banner');
 
-    if (versionBadge) versionBadge.innerText = 'v2.1.3';
+    if (manual) {
+      if (checkBtn) checkBtn.innerHTML = '<i data-lucide="loader-2" class="spin"></i> Checking...';
+      if (statusHint) {
+        statusHint.style.color = '#38BDF8';
+        statusHint.innerHTML = '<i data-lucide="refresh-cw" class="spin" style="width:12px;height:12px;display:inline-block;vertical-align:middle;margin-right:4px;"></i> Checking update server...';
+      }
+    }
 
     try {
-      if (manual) {
-        if (checkBtn) checkBtn.innerHTML = '<i data-lucide="loader-2" class="spin"></i> Checking...';
-        if (statusHint) {
-          statusHint.style.color = '#38BDF8';
-          statusHint.innerHTML = '<i data-lucide="refresh-cw" class="spin" style="width:12px;height:12px;display:inline-block;vertical-align:middle;margin-right:4px;"></i> Checking update server...';
-        }
-      }
-      
       const info = await API.checkVersion();
-      const curVer = info?.current_version || '2.1.3';
-      const latVer = info?.latest_version || '2.1.3';
+      const curVer = info?.current_version || '2.1.2';
+      const latVer = info?.latest_version || curVer;
+
+      if (versionBadge) versionBadge.innerText = `v${curVer}`;
 
       if (info && info.update_available) {
         if (statusHint) {
-          statusHint.style.color = '#EF4444';
+          statusHint.style.color = '#F59E0B';
           statusHint.style.fontWeight = '600';
-          statusHint.innerHTML = `⚠️ New version <b>v${latVer}</b> is available! Click here to update.`;
+          statusHint.innerHTML = `🚀 <b style="color: #F59E0B;">v${latVer} Update Available</b> &bull; <a href="javascript:void(0)" style="color: #38BDF8; text-decoration: underline; margin-left: 4px;">Click to Install</a>`;
           statusHint.style.cursor = 'pointer';
           statusHint.onclick = () => this.showUpdateModal(info);
         }
+
+        if (topBanner) {
+          topBanner.style.display = 'flex';
+          const titleEl = document.getElementById('top-update-title');
+          if (titleEl) titleEl.innerText = `🚀 New EggDL Update v${latVer} is Available!`;
+          const updateBtn = document.getElementById('top-update-btn');
+          if (updateBtn) updateBtn.onclick = () => this.showUpdateModal(info);
+          const dismissBtn = document.getElementById('top-update-dismiss');
+          if (dismissBtn) dismissBtn.onclick = () => { topBanner.style.display = 'none'; };
+        }
+
+        UI.showToast(`🎉 New EggDL Update v${latVer} is available!`, 'success', 7000);
         this.showUpdateModal(info);
       } else {
+        if (topBanner) topBanner.style.display = 'none';
         if (statusHint) {
           statusHint.style.color = '#10B981';
           statusHint.style.fontWeight = '500';
-          statusHint.innerHTML = `✓ EggDL v${curVer} is up to date`;
+          statusHint.innerHTML = `✓ You are running the latest version (v${curVer})`;
           statusHint.style.cursor = 'default';
           statusHint.onclick = null;
         }
@@ -1164,12 +1178,12 @@ const App = {
         }
       }
     } catch (e) {
+      console.warn('Update check failed:', e);
       if (statusHint) {
-        statusHint.style.color = '#10B981';
-        statusHint.style.fontWeight = '500';
-        statusHint.innerHTML = `✓ EggDL v2.1.2 is up to date`;
+        statusHint.style.color = '#EF4444';
+        statusHint.innerHTML = '✕ Could not reach update server.';
       }
-      if (manual && window.UI) UI.showToast('✓ EggDL v2.1.2 is the latest version', 'info');
+      if (manual && window.UI) UI.showToast('Could not reach update server. Check your connection.', 'error');
     } finally {
       if (checkBtn) {
         checkBtn.innerHTML = '<i data-lucide="refresh-cw"></i> Check for Updates';
@@ -1186,16 +1200,19 @@ const App = {
     const nowBtn = document.getElementById('update-modal-now-btn');
     const laterBtn = document.getElementById('update-modal-later-btn');
 
-    if (verBadge) verBadge.innerText = `v${info.latest_version} Available`;
-    if (notesBox) notesBox.innerText = info.release_notes || 'Exciting new features and performance upgrades.';
+    if (verBadge) verBadge.innerText = `v${info.latest_version || '2.1.3'} Available`;
+    if (notesBox) {
+      const rawNotes = info.release_notes || '⚡ True Pause & Resume support\n🎬 Premiere GPU Ready H.264 Encoder\n🚀 4K/8K stream download optimizations';
+      notesBox.innerHTML = rawNotes.split('\n').map(l => `<div style="margin-bottom: 4px;">${l}</div>`).join('');
+    }
     
     if (nowBtn) {
       nowBtn.onclick = async () => {
         modal.style.display = 'none';
         const downloadUrl = info.download_url || 'https://eggdl.onrender.com/download/setup';
-        const targetFilename = `EggDL_Setup_v${info.latest_version}.exe`;
+        const targetFilename = `EggDL_Setup_v${info.latest_version || '2.1.3'}.exe`;
         
-        UI.showToast(`⬇️ Starting in-app Turbo download for EggDL v${info.latest_version}...`, 'success');
+        UI.showToast(`⬇️ Starting in-app download for EggDL v${info.latest_version || '2.1.3'}...`, 'success');
         
         try {
           await this.startDownloadTask({
@@ -1204,8 +1221,8 @@ const App = {
             category: 'program'
           });
           
-          const downloadsNav = document.getElementById('nav-downloads');
-          if (downloadsNav) downloadsNav.click();
+          const allNav = document.querySelector('[data-category="all"]');
+          if (allNav) allNav.click();
         } catch (err) {
           window.open(downloadUrl, '_blank');
         }

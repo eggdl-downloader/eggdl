@@ -131,6 +131,27 @@
         </div>
       </header>
 
+      <!-- In-App Notification / Update Notification Banner -->
+      <div id="top-update-banner" style="display: none; background: linear-gradient(90deg, rgba(245, 158, 11, 0.18), rgba(59, 130, 246, 0.18)); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 12px; padding: 12px 18px; margin-bottom: 18px; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="background: rgba(245, 158, 11, 0.2); color: #F59E0B; width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+            <i data-lucide="sparkles" style="width: 18px; height: 18px;"></i>
+          </div>
+          <div>
+            <div style="font-size: 0.9rem; font-weight: 700; color: #F59E0B;" id="top-update-title">🚀 New EggDL Update Available!</div>
+            <div style="font-size: 0.78rem; color: var(--text-muted);" id="top-update-desc">Upgrade to get True Byte Pause/Resume & GPU H.264 Premiere Ready downloads.</div>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button class="btn btn-primary btn-sm btn-glow" id="top-update-btn">
+            <i data-lucide="download"></i> Update Now
+          </button>
+          <button class="btn btn-secondary btn-sm" id="top-update-dismiss" style="padding: 6px 10px;">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+      </div>
+
       <!-- Quick Dashboard Stats Bar -->
       <section class="stats-grid">
         <div class="stat-card">

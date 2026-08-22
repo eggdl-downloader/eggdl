@@ -290,16 +290,71 @@ const API = {
     return res.json();
   },
 
+  isNewerVersion(remoteVer, localVer) {
+    if (!remoteVer || !localVer) return false;
+    try {
+      const r = remoteVer.toString().replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0);
+      const l = localVer.toString().replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0);
+      for (let i = 0; i < Math.max(r.length, l.length); i++) {
+        const rVal = r[i] !== undefined ? r[i] : 0;
+        const lVal = l[i] !== undefined ? l[i] : 0;
+        if (rVal > lVal) return true;
+        if (rVal < lVal) return false;
+      }
+      return false;
+    } catch (_) {
+      return remoteVer !== localVer;
+    }
+  },
+
   async checkVersion() {
+    let currentVer = '2.1.2';
+    let localData = null;
+
+    // 1. Try local server
     try {
       const res = await fetch(`${this.baseUrl}/api/system/version`, { headers: this.getHeaders() });
-      if (res.ok) return await res.json();
+      if (res.ok) {
+        localData = await res.json();
+        currentVer = localData.current_version || '2.1.2';
+        if (localData.update_available) {
+          return localData;
+        }
+      }
     } catch (_) {}
 
-    // Fallback to central cloud server
-    const cloudRes = await fetch('https://eggdl.onrender.com/api/system/version');
-    if (!cloudRes.ok) throw new Error('Could not fetch version information');
-    return cloudRes.json();
+    // 2. Direct cloud query to ensure no outdated cache
+    try {
+      const cloudRes = await fetch('https://eggdl.onrender.com/api/system/version', {
+        headers: { 'User-Agent': 'EggDL-Client' }
+      });
+      if (cloudRes.ok) {
+        const cloudData = await cloudRes.json();
+        const latestVer = cloudData.latest_version || cloudData.latest_release?.version || '2.1.3';
+        const hasUpdate = this.isNewerVersion(latestVer, currentVer);
+        return {
+          success: true,
+          current_version: currentVer,
+          latest_version: latestVer,
+          update_available: hasUpdate,
+          release_notes: cloudData.release_notes || cloudData.latest_release?.release_notes || 'Exciting new features and performance upgrades.',
+          download_url: cloudData.download_url || cloudData.latest_release?.download_url || 'https://eggdl.onrender.com/download/setup',
+          mandatory: Boolean(cloudData.mandatory || cloudData.latest_release?.mandatory),
+          latest_release: cloudData.latest_release || cloudData
+        };
+      }
+    } catch (err) {
+      console.warn('Cloud update check error:', err);
+    }
+
+    if (localData) return localData;
+
+    return {
+      success: true,
+      current_version: currentVer,
+      latest_version: currentVer,
+      update_available: false
+    };
   },
 
   async checkDeviceStatus(userEmail = null) {
