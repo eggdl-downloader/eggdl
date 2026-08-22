@@ -105,7 +105,7 @@ def main():
     server_thread.start()
     wait_for_server(port)
 
-    target_url = f"http://127.0.0.1:{port}/"
+    target_url = f"http://localhost:{port}/"
     icon_path = os.path.join(BUNDLE_DIR, "eggdl.ico")
     if not os.path.exists(icon_path):
         icon_path = os.path.join(BUNDLE_DIR, "frontend", "images", "egg-icon.png")
