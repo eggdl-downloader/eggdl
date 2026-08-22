@@ -121,8 +121,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const formatId = btn.dataset.formatId;
         const isAudio = btn.dataset.type === 'audio';
         const fileSize = btn.dataset.filesize ? parseInt(btn.dataset.filesize) : null;
-        btn.innerText = '✓ Started';
-        btn.style.background = '#10B981';
+        btn.innerText = '⏳ Starting...';
 
         chrome.runtime.sendMessage({
           action: "download_task",
@@ -135,12 +134,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             expected_size: fileSize,
             is_audio_only: isAudio
           }
+        }, (res) => {
+          if (res && res.success) {
+            btn.innerText = '✓ Started';
+            btn.style.background = '#10B981';
+          } else {
+            btn.innerText = '✕ Retry';
+            btn.style.background = '#EF4444';
+          }
         });
       });
     });
 
     downloadAllBtn.onclick = () => {
       if (videoOpts[0]) {
+        downloadAllBtn.innerText = '⏳ Starting...';
         chrome.runtime.sendMessage({
           action: "download_task",
           payload: {
@@ -149,8 +157,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             format_id: videoOpts[0].format_id,
             custom_title: data.title || currentTab.title
           }
+        }, (res) => {
+          if (res && res.success) {
+            downloadAllBtn.innerText = '✓ Started Best';
+            downloadAllBtn.style.background = '#10B981';
+          } else {
+            downloadAllBtn.innerText = '✕ Retry';
+            downloadAllBtn.style.background = '#EF4444';
+          }
         });
-        downloadAllBtn.innerText = '✓ Started Best';
       }
     };
   }
@@ -189,14 +204,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     streamList.querySelectorAll('.dl-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const url = btn.dataset.url;
-        btn.innerText = '✓ Started';
-        btn.style.background = '#10B981';
+        btn.innerText = '⏳ Starting...';
         chrome.runtime.sendMessage({
           action: "download_task",
           payload: {
             url: url,
             download_type: "auto",
             custom_title: currentTab.title || "Video Download"
+          }
+        }, (res) => {
+          if (res && res.success) {
+            btn.innerText = '✓ Started';
+            btn.style.background = '#10B981';
+          } else {
+            btn.innerText = '✕ Retry';
+            btn.style.background = '#EF4444';
           }
         });
       });

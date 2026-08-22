@@ -285,9 +285,13 @@
             expected_size: fileSize,
             is_audio_only: isAudio
           }
-        }, () => {
+        }, (res) => {
           menu.classList.remove('active');
-          showFloatingToast("🥚 Download started in EggDL!");
+          if (res && res.success) {
+            showFloatingToast("🥚 Download started in EggDL!");
+          } else {
+            showFloatingToast(`❌ Download failed: ${res?.detail || 'Cannot connect to EggDL app'}`);
+          }
         });
       });
     });
@@ -338,9 +342,13 @@
             download_type: "auto",
             custom_title: pageTitle
           }
-        }, () => {
+        }, (res) => {
           menu.classList.remove('active');
-          showFloatingToast("🥚 Download started in EggDL!");
+          if (res && res.success) {
+            showFloatingToast("🥚 Download started in EggDL!");
+          } else {
+            showFloatingToast(`❌ Download failed: ${res?.detail || 'Cannot connect to EggDL app'}`);
+          }
         });
       });
     });

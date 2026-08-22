@@ -78,6 +78,18 @@ app = FastAPI(title="EggDL API", version="2.0.0")
 APP_CURRENT_VERSION = "2.1.3"
 CLOUD_API_URL = os.environ.get("CLOUD_API_URL", "https://eggdl.onrender.com")
 
+@app.middleware("http")
+async def add_pna_and_cors_headers(request: Request, call_next):
+    if request.method == "OPTIONS":
+        response = Response(status_code=204)
+    else:
+        response = await call_next(request)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, HEAD"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    response.headers["Access-Control-Allow-Private-Network"] = "true"
+    return response
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

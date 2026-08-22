@@ -419,6 +419,39 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   }
 });
 
+const CANDIDATE_SERVERS = [
+  "http://127.0.0.1:8000",
+  "http://localhost:8000",
+  "http://127.0.0.1:8001",
+  "http://localhost:8001"
+];
+let activeBackendUrl = "http://127.0.0.1:8000";
+
+async function fetchFromBackend(endpoint, options = {}) {
+  const urlsToTry = [activeBackendUrl, ...CANDIDATE_SERVERS.filter(u => u !== activeBackendUrl)];
+  let lastError = null;
+
+  for (const base of urlsToTry) {
+    try {
+      const res = await fetch(`${base}${endpoint}`, {
+        ...options,
+        headers: {
+          "Content-Type": "application/json",
+          ...(options.headers || {})
+        }
+      });
+      if (res.ok) {
+        activeBackendUrl = base;
+        return await res.json();
+      }
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  console.error("EggDL backend connection error:", lastError);
+  return { success: false, detail: lastError ? String(lastError) : "Cannot connect to EggDL application" };
+}
+
 // Handle extension messaging
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "get_tab_media") {
@@ -428,14 +461,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (request.action === "inspect_page") {
-    fetch(`${BACKEND_URL}/api/inspect`, {
+    fetchFromBackend("/api/inspect", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url: request.url })
-    })
-    .then(r => r.json())
-    .then(data => sendResponse(data))
-    .catch(err => sendResponse({ success: false, detail: String(err) }));
+    }).then(data => sendResponse(data))
+      .catch(err => sendResponse({ success: false, detail: String(err) }));
     return true;
   }
 
@@ -446,29 +476,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 async function sendDownload(payload) {
-  try {
-    const res = await fetch(`${BACKEND_URL}/api/download/start`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    return await res.json();
-  } catch (err) {
-    console.error("EggDL backend error:", err);
-    return { success: false, detail: String(err) };
-  }
+  return await fetchFromBackend("/api/download/start", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
 }
 
 async function saveDirectFile(payload) {
-  try {
-    const res = await fetch(`${BACKEND_URL}/api/download/save_file`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    return await res.json();
-  } catch (err) {
-    console.error("EggDL save file error:", err);
-    return { success: false, detail: String(err) };
-  }
+  return await fetchFromBackend("/api/download/save_file", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
 }
