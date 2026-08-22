@@ -25,7 +25,7 @@ if sys.platform == "win32":
     except Exception:
         pass
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Query, Header, Depends
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, HTTPException, Query, Header, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -74,6 +74,9 @@ except ImportError:
     from backend.page_sniffer import sniff_webpage
 
 app = FastAPI(title="EggDL API", version="2.0.0")
+
+APP_CURRENT_VERSION = "2.1.2"
+CLOUD_API_URL = os.environ.get("CLOUD_API_URL", "https://eggdl.onrender.com")
 
 app.add_middleware(
     CORSMiddleware,

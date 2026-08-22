@@ -1088,7 +1088,7 @@ const App = {
 
     try {
       if (btn) btn.disabled = true;
-      const machineId = this.authData?.machine?.machine_id;
+      const machineId = this.authData?.machine?.machine_id || this.authData?.user?.id || (typeof API !== 'undefined' ? API.getOrCreateDeviceId() : '');
       const res = await API.activateMachineKey(key, machineId);
       if (res.success) {
         if (feedbackMsg) {
@@ -1097,8 +1097,11 @@ const App = {
           feedbackMsg.style.display = 'block';
         }
         UI.showToast(`🎉 Upgraded this PC to ${res.plan?.name || 'Pro'}! All features unlocked.`, 'success');
+        
+        // Refresh authentication & hardware state immediately
         await this.initAuth();
         UI.openAccountModal(this.authData);
+        if (typeof this.updateStats === 'function') this.updateStats();
       }
     } catch (e) {
       if (feedbackMsg) {
@@ -1122,7 +1125,6 @@ const App = {
   async checkVersion(manual = false) {
     const statusHint = document.getElementById('settings-update-status');
     const versionBadge = document.getElementById('settings-app-version');
-    const resultBox = document.getElementById('settings-update-result-box');
     const checkBtn = document.getElementById('btn-check-updates');
 
     if (versionBadge) versionBadge.innerText = 'v2.1.2';
@@ -1130,12 +1132,9 @@ const App = {
     try {
       if (manual) {
         if (checkBtn) checkBtn.innerHTML = '<i data-lucide="loader-2" class="spin"></i> Checking...';
-        if (resultBox) {
-          resultBox.style.display = 'block';
-          resultBox.style.background = 'rgba(59, 130, 246, 0.12)';
-          resultBox.style.border = '1px solid rgba(59, 130, 246, 0.3)';
-          resultBox.style.color = '#38BDF8';
-          resultBox.innerHTML = '<i data-lucide="refresh-cw" class="spin" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> Checking update server...';
+        if (statusHint) {
+          statusHint.style.color = '#38BDF8';
+          statusHint.innerHTML = '<i data-lucide="refresh-cw" class="spin" style="width:12px;height:12px;display:inline-block;vertical-align:middle;margin-right:4px;"></i> Checking update server...';
         }
       }
       
@@ -1144,38 +1143,33 @@ const App = {
       const latVer = info?.latest_version || '2.1.2';
 
       if (info && info.update_available) {
-        if (resultBox) {
-          resultBox.style.display = 'block';
-          resultBox.style.background = 'rgba(239, 68, 68, 0.12)';
-          resultBox.style.border = '1px solid rgba(239, 68, 68, 0.35)';
-          resultBox.style.color = '#F87171';
-          resultBox.innerHTML = `<b>⚠️ Update Available!</b><br><span style="color:#FCA5A5;">You are running <b>v${curVer}</b>, but latest version is <b style="color:#EF4444;">v${latVer}</b>.</span>`;
+        if (statusHint) {
+          statusHint.style.color = '#EF4444';
+          statusHint.style.fontWeight = '600';
+          statusHint.innerHTML = `⚠️ New version <b>v${latVer}</b> is available! Click here to update.`;
+          statusHint.style.cursor = 'pointer';
+          statusHint.onclick = () => this.showUpdateModal(info);
         }
-        if (statusHint) statusHint.innerHTML = `<span style="color: #EF4444; font-weight: 600;">⚠️ New version v${latVer} is available!</span>`;
         this.showUpdateModal(info);
       } else {
-        if (resultBox) {
-          resultBox.style.display = 'block';
-          resultBox.style.background = 'rgba(16, 185, 129, 0.12)';
-          resultBox.style.border = '1px solid rgba(16, 185, 129, 0.35)';
-          resultBox.style.color = '#10B981';
-          resultBox.innerHTML = `<b>✓ You are using the latest version!</b><br><span style="color:#6EE7B7;">EggDL <b>v${curVer}</b> is up to date. No updates required.</span>`;
+        if (statusHint) {
+          statusHint.style.color = '#10B981';
+          statusHint.style.fontWeight = '500';
+          statusHint.innerHTML = `✓ EggDL v${curVer} is up to date`;
+          statusHint.style.cursor = 'default';
+          statusHint.onclick = null;
         }
-        if (statusHint) statusHint.innerHTML = `<span style="color: #10B981; font-weight: 600;">✓ You are using the latest version (EggDL v${curVer})</span>`;
         if (manual && window.UI) {
-          UI.showToast(`✓ Up to date! You are using EggDL v${curVer}`, 'success');
+          UI.showToast(`✓ EggDL v${curVer} is the latest version.`, 'success');
         }
       }
     } catch (e) {
-      if (resultBox) {
-        resultBox.style.display = 'block';
-        resultBox.style.background = 'rgba(16, 185, 129, 0.12)';
-        resultBox.style.border = '1px solid rgba(16, 185, 129, 0.35)';
-        resultBox.style.color = '#10B981';
-        resultBox.innerHTML = `<b>✓ You are using the latest version!</b><br><span style="color:#6EE7B7;">EggDL <b>v2.1.2</b> is currently running.</span>`;
+      if (statusHint) {
+        statusHint.style.color = '#10B981';
+        statusHint.style.fontWeight = '500';
+        statusHint.innerHTML = `✓ EggDL v2.1.2 is up to date`;
       }
-      if (statusHint) statusHint.innerHTML = `<span style="color: #10B981; font-weight: 600;">✓ You are using the latest version (EggDL v2.1.2)</span>`;
-      if (manual && window.UI) UI.showToast('✓ You are using the latest version (EggDL v2.1.2)', 'info');
+      if (manual && window.UI) UI.showToast('✓ EggDL v2.1.2 is the latest version', 'info');
     } finally {
       if (checkBtn) {
         checkBtn.innerHTML = '<i data-lucide="refresh-cw"></i> Check for Updates';

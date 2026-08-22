@@ -557,10 +557,20 @@ const UI = {
 
     const user = (authData && authData.user) || {};
     const machine = (authData && authData.machine) || {};
-    let desktopName = machine.desktop_name || user.name || (typeof API !== 'undefined' ? API.getDeviceName() : 'My PC');
-    if (!desktopName || desktopName.toLowerCase().includes('guest')) {
-      desktopName = typeof API !== 'undefined' ? API.getDeviceName() : 'My PC';
+    
+    let desktopName = machine.desktop_name || user.name || '';
+    if (!desktopName || desktopName.toLowerCase().includes('guest') || desktopName === 'DESKTOP-PC' || desktopName === 'WEB-CLIENT') {
+      const stored = localStorage.getItem('eggdl_pc_name');
+      if (stored && !stored.toLowerCase().includes('guest') && stored !== 'DESKTOP-PC' && stored !== 'WEB-CLIENT') {
+        desktopName = stored;
+      } else {
+        desktopName = typeof API !== 'undefined' ? API.getDeviceName() : 'SRIMAN';
+      }
     }
+    if (desktopName.startsWith('DESKTOP-WIN-') && machine.desktop_name && !machine.desktop_name.startsWith('DESKTOP-WIN-')) {
+      desktopName = machine.desktop_name;
+    }
+
     const isPro = authData && authData.is_pro;
     const isTrial = authData && authData.is_trial;
     const trialDaysLeft = (authData && authData.trial_days_remaining) || 0;
@@ -569,13 +579,13 @@ const UI = {
     let badgeClass = 'user-plan-badge trial';
     let badgeText = `⏳ ${trialDaysLeft}d Trial Left`;
 
-    if (user.plan_type === 'lifetime' || (isPro && !daysLeft)) {
+    if (user.plan_type === 'lifetime' || (isPro && (!daysLeft || daysLeft >= 36500))) {
       badgeClass = 'user-plan-badge lifetime';
       badgeText = '👑 Pro Lifetime';
     } else if (isPro) {
       badgeClass = 'user-plan-badge pro';
       badgeText = `⚡ Pro (${daysLeft}d Left)`;
-    } else if (isTrial) {
+    } else if (isTrial && !authData.trial_expired) {
       badgeClass = 'user-plan-badge trial';
       badgeText = `⏳ 7-Day Trial (${trialDaysLeft}d Left)`;
     } else {

@@ -70,6 +70,9 @@ const API = {
         if (data.machine?.desktop_name && data.machine.desktop_name !== 'DESKTOP-PC' && data.machine.desktop_name !== 'WEB-CLIENT') {
           localStorage.setItem('eggdl_pc_name', data.machine.desktop_name);
         }
+        if (data.machine?.machine_id) {
+          localStorage.setItem('eggdl_hwid', data.machine.machine_id);
+        }
         return data;
       }
     } catch (_) {}
