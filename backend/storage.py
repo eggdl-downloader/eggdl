@@ -173,8 +173,8 @@ def init_db():
 
     # Initialize default app release if not present
     cursor.execute("""
-    INSERT OR IGNORE INTO app_releases (version, release_notes, download_url, mandatory, is_active)
-    VALUES ('2.0.0', 'Initial Production Release with Multi-Client Engine and PWA', 'https://eggdl.onrender.com/download/setup', 0, 1)
+    INSERT OR REPLACE INTO app_releases (version, release_notes, download_url, mandatory, is_active)
+    VALUES ('2.1.3', '⚡ True Pause & Resume: Downloads preserve exact downloaded bytes on pause and resume from the same point.\n🎬 Premiere Pro GPU Ready: Hardware GPU H.264 / AAC conversion for instant Premiere & NLE editing.\n🚀 4K/8K stream download optimizations.', 'https://eggdl.onrender.com/download/setup', 0, 1)
     """)
 
     conn.commit()
@@ -954,7 +954,6 @@ def get_all_devices_telemetry() -> List[Dict[str, Any]]:
         
     return devices
 
-# --- App Version & Update Management ---
 def get_latest_app_release() -> Dict[str, Any]:
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -962,10 +961,14 @@ def get_latest_app_release() -> Dict[str, Any]:
     row = cursor.fetchone()
     conn.close()
     if row:
-        return dict(row)
+        d = dict(row)
+        if d.get("version") in ("2.0.0", "2.1.0", "2.1.1", "2.1.2"):
+            d["version"] = "2.1.3"
+            d["release_notes"] = "⚡ True Pause & Resume: Downloads preserve exact downloaded bytes on pause and resume from the same point.\n🎬 Premiere Pro GPU Ready: Hardware GPU H.264 / AAC conversion for instant Premiere & NLE editing.\n🚀 4K/8K stream download optimizations."
+        return d
     return {
-        "version": "2.0.0",
-        "release_notes": "Official Release",
+        "version": "2.1.3",
+        "release_notes": "⚡ True Pause & Resume: Downloads preserve exact downloaded bytes on pause and resume from the same point.\n🎬 Premiere Pro GPU Ready: Hardware GPU H.264 / AAC conversion for instant Premiere & NLE editing.\n🚀 4K/8K stream download optimizations.",
         "download_url": "https://eggdl.onrender.com/download/setup",
         "mandatory": 0
     }
