@@ -15,7 +15,17 @@ const API = {
 
   getDeviceName() {
     let name = localStorage.getItem('eggdl_pc_name');
-    if (!name) {
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || !window.location.hostname;
+    
+    if (isLocal) {
+      if (!name || name.startsWith('DESKTOP-WIN-') || name === 'DESKTOP-PC' || name.toLowerCase().includes('guest') || name === 'WEB-CLIENT') {
+        name = 'SRIMAN';
+        localStorage.setItem('eggdl_pc_name', name);
+      }
+      return name;
+    }
+
+    if (!name || name.startsWith('DESKTOP-WIN-') || name === 'DESKTOP-PC' || name.toLowerCase().includes('guest')) {
       const ua = navigator.userAgent;
       let platform = 'PC';
       if (ua.includes('Windows')) platform = 'DESKTOP-WIN';
