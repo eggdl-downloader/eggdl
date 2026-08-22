@@ -22,6 +22,45 @@ const App = {
     setTimeout(() => this.cleanAutofillSearch(), 500);
     this.updateSystemStats();
     setInterval(() => this.updateSystemStats(), 8000);
+    this.initPWA();
+  },
+
+  initPWA() {
+    let deferredPrompt = null;
+    const installBtn = document.getElementById('install-pwa-btn');
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+    }
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      if (installBtn) {
+        installBtn.style.display = 'inline-flex';
+      }
+    });
+
+    if (installBtn) {
+      installBtn.addEventListener('click', async () => {
+        if (deferredPrompt) {
+          deferredPrompt.prompt();
+          const { outcome } = await deferredPrompt.userChoice;
+          if (outcome === 'accepted') {
+            installBtn.style.display = 'none';
+            UI.showToast('EggDL App installed successfully!', 'success');
+          }
+          deferredPrompt = null;
+        } else {
+          UI.showToast('Click the Install icon in your browser address bar (top right)', 'info');
+        }
+      });
+    }
+
+    window.addEventListener('appinstalled', () => {
+      if (installBtn) installBtn.style.display = 'none';
+      deferredPrompt = null;
+    });
   },
 
   async initAuth() {

@@ -1,0 +1,23 @@
+﻿{
+  "name": "EggDL - High Performance Universal Downloader",
+  "short_name": "EggDL",
+  "description": "Blazing fast universal video, stream, and file downloader with multithreaded acceleration.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0B0F19",
+  "theme_color": "#2563EB",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/static/images/egg-icon.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/images/favicon.png",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/png"
+    }
+  ]
+}
