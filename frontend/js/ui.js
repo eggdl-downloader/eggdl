@@ -557,7 +557,10 @@ const UI = {
 
     const user = (authData && authData.user) || {};
     const machine = (authData && authData.machine) || {};
-    const desktopName = machine.desktop_name || user.name || (typeof API !== 'undefined' ? API.getDeviceName() : 'DESKTOP-PC');
+    let desktopName = machine.desktop_name || user.name || (typeof API !== 'undefined' ? API.getDeviceName() : 'My PC');
+    if (!desktopName || desktopName.toLowerCase().includes('guest')) {
+      desktopName = typeof API !== 'undefined' ? API.getDeviceName() : 'My PC';
+    }
     const isPro = authData && authData.is_pro;
     const isTrial = authData && authData.is_trial;
     const trialDaysLeft = (authData && authData.trial_days_remaining) || 0;

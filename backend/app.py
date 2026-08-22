@@ -502,9 +502,10 @@ async def activate_machine_key(req: MachineKeyActivateRequest):
     if not key:
         raise HTTPException(status_code=400, detail="Please enter a valid product key.")
         
+    # 1. Try local activation first
     try:
         updated_status = activate_product_key_for_device(dev_id, key)
-        plan_type = updated_status["plan_type"]
+        plan_type = updated_status.get("plan_type", "lifetime")
         plan_info = PLAN_CONFIGS.get(plan_type, PLAN_CONFIGS["lifetime"])
         
         # Also sync activation to Cloud if local
@@ -525,12 +526,57 @@ async def activate_machine_key(req: MachineKeyActivateRequest):
             "success": True,
             "message": f"✨ Product key activated successfully for this PC ({updated_status.get('desktop_name')})!",
             "license": updated_status,
-            "plan": plan_info
+            "plan": plan_info,
+            "plan_type": plan_type
         }
-    except ValueError as val_err:
-        raise HTTPException(status_code=400, detail=str(val_err))
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Activation error: {str(e)}")
+    except Exception as local_err:
+        # 2. If not found locally and running on desktop app, query Cloud Render Server
+        if not os.environ.get("RENDER"):
+            try:
+                import urllib.request
+                import urllib.error
+                data_bytes = json.dumps({"device_id": dev_id, "license_key": key}).encode()
+                remote_req = urllib.request.Request(
+                    f"{CLOUD_API_URL}/api/license/activate-machine-key",
+                    data=data_bytes,
+                    headers={"Content-Type": "application/json", "User-Agent": "EggDL-Client"}
+                )
+                with urllib.request.urlopen(remote_req, timeout=6) as res:
+                    if res.status == 200:
+                        cloud_res = json.loads(res.read().decode())
+                        if cloud_res.get("success"):
+                            plan_t = cloud_res.get("plan_type") or cloud_res.get("license", {}).get("plan_type", "lifetime")
+                            duration = 36500 if plan_t == "lifetime" else 30
+                            if plan_t == "3month": duration = 90
+                            elif plan_t == "6month": duration = 180
+                            elif plan_t == "1year": duration = 365
+                            
+                            # Grant Pro locally so the desktop app is permanently activated
+                            updated_status = grant_device_pro(dev_id, plan_type=plan_t, duration_days=duration)
+                            create_license_key(key, plan_t, duration)
+                            plan_info = PLAN_CONFIGS.get(plan_t, PLAN_CONFIGS["lifetime"])
+                            return {
+                                "success": True,
+                                "message": f"✨ Product key activated successfully for this PC ({updated_status.get('desktop_name')})!",
+                                "license": updated_status,
+                                "plan": plan_info,
+                                "plan_type": plan_t
+                            }
+                        else:
+                            raise HTTPException(status_code=400, detail=cloud_res.get("detail") or "Invalid product key.")
+                    else:
+                        raise HTTPException(status_code=400, detail="Invalid product key. Please check and try again.")
+            except urllib.error.HTTPError as http_err:
+                try:
+                    err_json = json.loads(http_err.read().decode())
+                    detail_msg = err_json.get("detail") or "Invalid product key."
+                except Exception:
+                    detail_msg = "Invalid product key. Please check and try again."
+                raise HTTPException(status_code=400, detail=detail_msg)
+            except Exception:
+                raise HTTPException(status_code=400, detail=str(local_err))
+        else:
+            raise HTTPException(status_code=400, detail=str(local_err))
 
 @app.get("/api/auth/me")
 async def auth_me(request: Request):

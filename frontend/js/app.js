@@ -1122,25 +1122,65 @@ const App = {
   async checkVersion(manual = false) {
     const statusHint = document.getElementById('settings-update-status');
     const versionBadge = document.getElementById('settings-app-version');
+    const resultBox = document.getElementById('settings-update-result-box');
+    const checkBtn = document.getElementById('btn-check-updates');
+
     if (versionBadge) versionBadge.innerText = 'v2.1.2';
 
     try {
-      if (manual && statusHint) statusHint.innerText = 'Checking for updates on server...';
-      const info = await API.checkVersion();
+      if (manual) {
+        if (checkBtn) checkBtn.innerHTML = '<i data-lucide="loader-2" class="spin"></i> Checking...';
+        if (resultBox) {
+          resultBox.style.display = 'block';
+          resultBox.style.background = 'rgba(59, 130, 246, 0.12)';
+          resultBox.style.border = '1px solid rgba(59, 130, 246, 0.3)';
+          resultBox.style.color = '#38BDF8';
+          resultBox.innerHTML = '<i data-lucide="refresh-cw" class="spin" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> Checking update server...';
+        }
+      }
       
+      const info = await API.checkVersion();
+      const curVer = info?.current_version || '2.1.2';
+      const latVer = info?.latest_version || '2.1.2';
+
       if (info && info.update_available) {
-        if (statusHint) statusHint.innerText = `New version v${info.latest_version} available!`;
+        if (resultBox) {
+          resultBox.style.display = 'block';
+          resultBox.style.background = 'rgba(239, 68, 68, 0.12)';
+          resultBox.style.border = '1px solid rgba(239, 68, 68, 0.35)';
+          resultBox.style.color = '#F87171';
+          resultBox.innerHTML = `<b>⚠️ Update Available!</b><br><span style="color:#FCA5A5;">You are running <b>v${curVer}</b>, but latest version is <b style="color:#EF4444;">v${latVer}</b>.</span>`;
+        }
+        if (statusHint) statusHint.innerHTML = `<span style="color: #EF4444; font-weight: 600;">⚠️ New version v${latVer} is available!</span>`;
         this.showUpdateModal(info);
       } else {
-        const curVer = info?.current_version || '2.1.2';
-        if (statusHint) statusHint.innerText = `You are running the latest version (v${curVer}).`;
+        if (resultBox) {
+          resultBox.style.display = 'block';
+          resultBox.style.background = 'rgba(16, 185, 129, 0.12)';
+          resultBox.style.border = '1px solid rgba(16, 185, 129, 0.35)';
+          resultBox.style.color = '#10B981';
+          resultBox.innerHTML = `<b>✓ You are using the latest version!</b><br><span style="color:#6EE7B7;">EggDL <b>v${curVer}</b> is up to date. No updates required.</span>`;
+        }
+        if (statusHint) statusHint.innerHTML = `<span style="color: #10B981; font-weight: 600;">✓ You are using the latest version (EggDL v${curVer})</span>`;
         if (manual && window.UI) {
-          UI.showToast(`✓ You are up to date! EggDL v${curVer} is the latest version.`, 'success');
+          UI.showToast(`✓ Up to date! You are using EggDL v${curVer}`, 'success');
         }
       }
     } catch (e) {
-      if (statusHint) statusHint.innerText = 'You are running EggDL v2.1.2 (Latest)';
-      if (manual && window.UI) UI.showToast('✓ You are running the latest version of EggDL (v2.1.2)', 'info');
+      if (resultBox) {
+        resultBox.style.display = 'block';
+        resultBox.style.background = 'rgba(16, 185, 129, 0.12)';
+        resultBox.style.border = '1px solid rgba(16, 185, 129, 0.35)';
+        resultBox.style.color = '#10B981';
+        resultBox.innerHTML = `<b>✓ You are using the latest version!</b><br><span style="color:#6EE7B7;">EggDL <b>v2.1.2</b> is currently running.</span>`;
+      }
+      if (statusHint) statusHint.innerHTML = `<span style="color: #10B981; font-weight: 600;">✓ You are using the latest version (EggDL v2.1.2)</span>`;
+      if (manual && window.UI) UI.showToast('✓ You are using the latest version (EggDL v2.1.2)', 'info');
+    } finally {
+      if (checkBtn) {
+        checkBtn.innerHTML = '<i data-lucide="refresh-cw"></i> Check for Updates';
+      }
+      if (window.lucide) window.lucide.createIcons();
     }
   },
 
