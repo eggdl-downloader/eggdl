@@ -347,14 +347,37 @@ const API = {
       console.warn('Cloud update check error:', err);
     }
 
-    if (localData) return localData;
+  async getClipboard() {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/system/clipboard`, { headers: this.getHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        return data.text || '';
+      }
+    } catch (_) {}
+    return '';
+  },
 
-    return {
-      success: true,
-      current_version: currentVer,
-      latest_version: currentVer,
-      update_available: false
-    };
+  async startUpdateDownload(version, downloadUrl) {
+    const res = await fetch(`${this.baseUrl}/api/system/update/download`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ version, download_url: downloadUrl })
+    });
+    return res.json();
+  },
+
+  async getUpdateStatus() {
+    const res = await fetch(`${this.baseUrl}/api/system/update/status`, { headers: this.getHeaders() });
+    return res.json();
+  },
+
+  async installUpdate() {
+    const res = await fetch(`${this.baseUrl}/api/system/update/install`, {
+      method: 'POST',
+      headers: this.getHeaders()
+    });
+    return res.json();
   },
 
   async checkDeviceStatus(userEmail = null) {

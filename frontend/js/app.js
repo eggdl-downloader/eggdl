@@ -468,14 +468,14 @@ const App = {
     pasteBtn?.addEventListener('click', async () => {
       urlInput?.focus();
       try {
-        if (navigator.clipboard && navigator.clipboard.readText) {
-          const text = await navigator.clipboard.readText();
-          if (text && (text.startsWith('http://') || text.startsWith('https://'))) {
-            urlInput.value = text.trim();
-            if (clearBtn) clearBtn.style.display = 'flex';
+        let text = await API.getClipboard();
+        if (text && text.trim()) {
+          urlInput.value = text.trim();
+          if (clearBtn) clearBtn.style.display = 'flex';
+          if (text.startsWith('http://') || text.startsWith('https://')) {
             this.handleInspect();
-            return;
           }
+          return;
         }
       } catch (_) {}
       UI.showToast('📋 Press Ctrl + V to paste your link directly!', 'info', 3000);
@@ -1195,10 +1195,25 @@ const App = {
   showUpdateModal(info) {
     const modal = document.getElementById('update-modal');
     if (!modal) return;
+    
+    const detailsView = document.getElementById('update-modal-details-view');
+    const progressView = document.getElementById('update-modal-progress-view');
     const verBadge = document.getElementById('update-modal-version');
     const notesBox = document.getElementById('update-modal-notes');
     const nowBtn = document.getElementById('update-modal-now-btn');
     const laterBtn = document.getElementById('update-modal-later-btn');
+
+    const pTitle = document.getElementById('update-progress-title');
+    const pSub = document.getElementById('update-progress-sub');
+    const pBar = document.getElementById('update-progress-bar');
+    const pPercent = document.getElementById('update-progress-percent');
+    const pSpeed = document.getElementById('update-progress-speed');
+    const pSize = document.getElementById('update-progress-size');
+    const installBtn = document.getElementById('update-install-btn');
+
+    if (detailsView) detailsView.style.display = 'block';
+    if (progressView) progressView.style.display = 'none';
+    if (installBtn) installBtn.style.display = 'none';
 
     if (verBadge) verBadge.innerText = `v${info.latest_version || '2.1.3'} Available`;
     if (notesBox) {
@@ -1208,23 +1223,61 @@ const App = {
     
     if (nowBtn) {
       nowBtn.onclick = async () => {
-        modal.style.display = 'none';
-        const downloadUrl = info.download_url || 'https://eggdl.onrender.com/download/setup';
-        const targetFilename = `EggDL_Setup_v${info.latest_version || '2.1.3'}.exe`;
-        
-        UI.showToast(`⬇️ Starting in-app download for EggDL v${info.latest_version || '2.1.3'}...`, 'success');
-        
+        if (detailsView) detailsView.style.display = 'none';
+        if (progressView) progressView.style.display = 'block';
+        if (pTitle) pTitle.innerText = `Downloading EggDL v${info.latest_version}...`;
+        if (pSub) pSub.innerText = 'Preparing update package in the background...';
+        if (pBar) pBar.style.width = '0%';
+        if (pPercent) pPercent.innerText = '0%';
+        if (pSpeed) pSpeed.innerText = 'Connecting...';
+        if (pSize) pSize.innerText = '';
+        if (window.lucide) window.lucide.createIcons();
+
         try {
-          await this.startDownloadTask({
-            url: downloadUrl,
-            custom_filename: targetFilename,
-            category: 'program'
-          });
+          await API.startUpdateDownload(info.latest_version, info.download_url);
           
-          const allNav = document.querySelector('[data-category="all"]');
-          if (allNav) allNav.click();
+          let pollInterval = setInterval(async () => {
+            try {
+              const st = await API.getUpdateStatus();
+              if (st.status === 'downloading') {
+                const prog = Math.min(Math.max(st.progress || 0, 0), 99);
+                if (pBar) pBar.style.width = `${prog}%`;
+                if (pPercent) pPercent.innerText = `${prog}%`;
+                if (pSpeed) pSpeed.innerText = st.speed || 'Downloading...';
+                const mbDown = ((st.downloaded_bytes || 0) / 1048576).toFixed(1);
+                const mbTot = ((st.total_bytes || 0) / 1048576).toFixed(1);
+                if (pSize && st.total_bytes > 0) pSize.innerText = `${mbDown} MB / ${mbTot} MB`;
+              } else if (st.status === 'ready') {
+                clearInterval(pollInterval);
+                if (pBar) pBar.style.width = '100%';
+                if (pPercent) pPercent.innerText = '100%';
+                if (pSpeed) pSpeed.innerText = 'Ready';
+                if (pTitle) pTitle.innerHTML = '✅ Update Download Complete!';
+                if (pSub) pSub.innerText = 'EggDL is ready to install the new update.';
+                if (installBtn) {
+                  installBtn.style.display = 'inline-flex';
+                  installBtn.onclick = async () => {
+                    installBtn.disabled = true;
+                    installBtn.innerHTML = '<i data-lucide="loader-2" class="spin"></i> Restarting EggDL...';
+                    if (window.lucide) window.lucide.createIcons();
+                    UI.showToast('🚀 Launching update installer...', 'success', 5000);
+                    try {
+                      await API.installUpdate();
+                    } catch (_) {}
+                  };
+                }
+                if (window.lucide) window.lucide.createIcons();
+              } else if (st.status === 'error') {
+                clearInterval(pollInterval);
+                if (pTitle) pTitle.innerText = 'Update Download Failed';
+                if (pSub) pSub.innerText = st.error || 'Server error. Please try again.';
+                if (pSpeed) pSpeed.innerText = 'Error';
+              }
+            } catch (_) {}
+          }, 600);
         } catch (err) {
-          window.open(downloadUrl, '_blank');
+          if (pTitle) pTitle.innerText = 'Update Error';
+          if (pSub) pSub.innerText = err.message || 'Could not start update download';
         }
       };
     }

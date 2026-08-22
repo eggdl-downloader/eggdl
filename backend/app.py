@@ -25,7 +25,7 @@ if sys.platform == "win32":
     except Exception:
         pass
 
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, HTTPException, Query, Header, Depends
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, HTTPException, Query, Header, Depends, Body
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -1526,6 +1526,183 @@ async def check_device_status(req: DeviceCheckRequest):
         "block_reason": reg.get("block_reason") or "Access to this device has been revoked by the administrator."
     }
 
+# --- Native Windows Clipboard (Zero Browser Dialogs & Zero Localhost Prompts) ---
+def get_native_clipboard_text() -> str:
+    try:
+        import ctypes
+        CF_UNICODETEXT = 13
+        user32 = ctypes.windll.user32
+        kernel32 = ctypes.windll.kernel32
+        if user32.OpenClipboard(None):
+            try:
+                h_clip_mem = user32.GetClipboardData(CF_UNICODETEXT)
+                if h_clip_mem:
+                    p_clip_mem = kernel32.GlobalLock(h_clip_mem)
+                    if p_clip_mem:
+                        text = ctypes.c_wchar_p(p_clip_mem).value
+                        kernel32.GlobalUnlock(h_clip_mem)
+                        return text or ""
+            finally:
+                user32.CloseClipboard()
+    except Exception:
+        pass
+    return ""
+
+@app.get("/api/system/clipboard")
+async def get_clipboard_content():
+    return {"success": True, "text": get_native_clipboard_text()}
+
+# --- In-App Background Update Manager (Zero Download List Clutter & Silent Auto-Install) ---
+class UpdateDownloadManager:
+    def __init__(self):
+        self.status = "idle"  # "idle", "downloading", "ready", "error"
+        self.version = ""
+        self.downloaded_bytes = 0
+        self.total_bytes = 0
+        self.progress = 0.0
+        self.speed_str = "0.0 KB/s"
+        self.error_msg = ""
+        self.target_file = ""
+        self.thread = None
+        self._cancel_flag = False
+
+    def start_download(self, version: str, download_url: str):
+        if self.status == "downloading":
+            return
+        self.status = "downloading"
+        self.version = version
+        self.downloaded_bytes = 0
+        self.total_bytes = 0
+        self.progress = 0.0
+        self.speed_str = "0.0 KB/s"
+        self.error_msg = ""
+        self._cancel_flag = False
+
+        import tempfile
+        temp_dir = tempfile.gettempdir()
+        self.target_file = os.path.join(temp_dir, f"EggDL_Update_v{version}.exe")
+
+        def _worker():
+            try:
+                import urllib.request
+                import time
+                import threading
+
+                urls_to_try = []
+                if download_url:
+                    urls_to_try.append(download_url)
+                urls_to_try.append(f"{CLOUD_API_URL}/download/setup")
+                urls_to_try.append("https://github.com/eggdl-downloader/eggdl/releases/latest/download/EggDL_Setup.exe")
+
+                success = False
+                for target_url in urls_to_try:
+                    try:
+                        req = urllib.request.Request(target_url, headers={"User-Agent": "EggDL-Desktop-Updater"})
+                        with urllib.request.urlopen(req, timeout=25) as res:
+                            content_len = res.headers.get("Content-Length")
+                            total = int(content_len) if content_len and content_len.isdigit() else 0
+                            self.total_bytes = total
+                            
+                            start_time = time.time()
+                            last_time = start_time
+                            last_bytes = 0
+                            downloaded = 0
+                            
+                            with open(self.target_file, "wb") as f_out:
+                                while not self._cancel_flag:
+                                    chunk = res.read(65536)
+                                    if not chunk:
+                                        break
+                                    f_out.write(chunk)
+                                    downloaded += len(chunk)
+                                    self.downloaded_bytes = downloaded
+                                    
+                                    now = time.time()
+                                    if total > 0:
+                                        self.progress = round((downloaded / total) * 100, 1)
+                                    
+                                    if now - last_time >= 0.4:
+                                        speed_bps = (downloaded - last_bytes) / (now - last_time)
+                                        if speed_bps >= 1048576:
+                                            self.speed_str = f"{speed_bps / 1048576:.1f} MB/s"
+                                        else:
+                                            self.speed_str = f"{speed_bps / 1024:.1f} KB/s"
+                                        last_time = now
+                                        last_bytes = downloaded
+
+                            if downloaded > 1000000 and not self._cancel_flag:
+                                self.progress = 100.0
+                                self.status = "ready"
+                                success = True
+                                break
+                    except Exception as err:
+                        pass
+
+                if not success and not self._cancel_flag:
+                    # Fallback to locally built installer if available
+                    local_installer = os.path.join(os.path.dirname(__file__), "..", "dist", "EggDL_Setup.exe")
+                    if os.path.exists(local_installer) and os.path.getsize(local_installer) > 1000000:
+                        shutil.copy2(local_installer, self.target_file)
+                        self.total_bytes = os.path.getsize(self.target_file)
+                        self.downloaded_bytes = self.total_bytes
+                        self.progress = 100.0
+                        self.status = "ready"
+                    else:
+                        self.status = "error"
+                        self.error_msg = "Could not download installer from update server. Please try again."
+            except Exception as ex:
+                self.status = "error"
+                self.error_msg = str(ex)
+
+        import threading
+        self.thread = threading.Thread(target=_worker, daemon=True)
+        self.thread.start()
+
+    def get_status(self):
+        return {
+            "status": self.status,
+            "version": self.version,
+            "downloaded_bytes": self.downloaded_bytes,
+            "total_bytes": self.total_bytes,
+            "progress": self.progress,
+            "speed": self.speed_str,
+            "error": self.error_msg
+        }
+
+    def launch_installer(self):
+        if self.status != "ready" or not os.path.exists(self.target_file):
+            raise Exception("Update installer is not ready.")
+        
+        flags = subprocess.DETACHED_PROCESS if os.name == 'nt' else 0
+        subprocess.Popen([self.target_file], creationflags=flags, close_fds=True)
+        
+        import threading
+        def _terminate():
+            time.sleep(0.8)
+            os._exit(0)
+        threading.Thread(target=_terminate, daemon=True).start()
+
+update_mgr = UpdateDownloadManager()
+
+@app.post("/api/system/update/download")
+async def start_app_update_download(data: Dict[str, Any] = Body(...)):
+    version = data.get("version", "2.1.3")
+    download_url = data.get("download_url", "")
+    update_mgr.start_download(version, download_url)
+    return {"success": True, "message": "Update download started"}
+
+@app.get("/api/system/update/status")
+async def get_app_update_status():
+    return update_mgr.get_status()
+
+@app.post("/api/system/update/install")
+async def install_app_update():
+    try:
+        update_mgr.launch_installer()
+        return {"success": True, "message": "Installer launched. Restarting EggDL..."}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 # --- Setup Download Endpoint (1-Click Installer) ---
 @app.get("/download/setup")
 async def download_setup_installer():
@@ -1537,9 +1714,10 @@ async def download_setup_installer():
         os.path.join(os.path.dirname(sys.executable), "dist", "EggDL_Setup.exe"),
     ]
     for c in candidates:
-        if os.path.exists(c):
+        if os.path.exists(c) and os.path.getsize(c) > 1000000:
             return FileResponse(c, filename="EggDL_Setup.exe", media_type="application/octet-stream")
-    return {"message": "Setup installer available at: https://github.com/eggdl-downloader/eggdl"}
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="https://github.com/eggdl-downloader/eggdl/releases/latest/download/EggDL_Setup.exe", status_code=302)
 
 # --- Admin Remote Control API ---
 @app.get("/api/admin/overview")
