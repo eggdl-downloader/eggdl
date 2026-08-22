@@ -447,6 +447,16 @@ const App = {
       if (clearBtn) clearBtn.style.display = urlInput.value ? 'flex' : 'none';
     });
 
+    urlInput?.addEventListener('paste', () => {
+      setTimeout(() => {
+        if (clearBtn) clearBtn.style.display = urlInput.value ? 'flex' : 'none';
+        const val = urlInput.value.trim();
+        if (val.startsWith('http://') || val.startsWith('https://')) {
+          this.handleInspect();
+        }
+      }, 60);
+    });
+
     clearBtn?.addEventListener('click', () => {
       if (urlInput) {
         urlInput.value = '';
@@ -456,18 +466,19 @@ const App = {
     });
 
     pasteBtn?.addEventListener('click', async () => {
+      urlInput?.focus();
       try {
-        const text = await navigator.clipboard.readText();
-        if (text && (text.startsWith('http://') || text.startsWith('https://'))) {
-          urlInput.value = text.trim();
-          if (clearBtn) clearBtn.style.display = 'flex';
-          this.handleInspect();
-        } else {
-          UI.showToast('Clipboard does not contain a valid URL', 'info');
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          const text = await navigator.clipboard.readText();
+          if (text && (text.startsWith('http://') || text.startsWith('https://'))) {
+            urlInput.value = text.trim();
+            if (clearBtn) clearBtn.style.display = 'flex';
+            this.handleInspect();
+            return;
+          }
         }
-      } catch (err) {
-        UI.showToast('Please paste the URL directly into the input', 'info');
-      }
+      } catch (_) {}
+      UI.showToast('📋 Press Ctrl + V to paste your link directly!', 'info', 3000);
     });
 
     // Category navigation
@@ -1507,22 +1518,35 @@ const App = {
       };
     }
 
+    if (adminKeyInput) {
+      adminKeyInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          adminLoginBtn?.click();
+        }
+      });
+    }
+
     if (adminLoginBtn) {
       adminLoginBtn.onclick = async () => {
-        const key = adminKeyInput.value.trim();
+        const key = (adminKeyInput?.value || '').trim();
         if (!key) return UI.showToast('Please enter master key', 'error');
         try {
           adminLoginBtn.disabled = true;
+          adminLoginBtn.innerHTML = '<i data-lucide="loader-2" class="spin"></i> Verifying...';
+          lucide.createIcons();
           const data = await API.getAdminDevices(key);
           this.adminKey = key;
           loginView.style.display = 'none';
           dashView.style.display = 'block';
           UI.renderAdminDevices(data, this.adminKey);
-          UI.showToast('Master Control Center Unlocked', 'success');
+          UI.showToast('🛡️ Master Control Center Unlocked!', 'success');
         } catch (e) {
           UI.showToast(e.message || 'Invalid Master Key', 'error');
         } finally {
           adminLoginBtn.disabled = false;
+          adminLoginBtn.innerHTML = '<i data-lucide="shield-check"></i> <span>Unlock Master Center</span>';
+          lucide.createIcons();
         }
       };
     }

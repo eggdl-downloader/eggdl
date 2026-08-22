@@ -335,11 +335,19 @@ class MediaExtractor:
             "noplaylist": True,
             "socket_timeout": 20,
             "no_color": True,
+            "cachedir": False,
             "http_headers": {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                 "Accept-Language": "en-US,en;q=0.9",
             }
         }
+        if "youtube" in url.lower() or "youtu.be" in url.lower():
+            ydl_opts["extractor_args"] = {
+                "youtube": {
+                    "player_client": ["android", "web", "mweb", "ios"]
+                }
+            }
+
         if ffmpeg_dir:
             ydl_opts["ffmpeg_location"] = ffmpeg_dir
         if cookie_path:
@@ -353,7 +361,12 @@ class MediaExtractor:
         except Exception as e1:
             last_error = e1
             try:
-                fallback_opts = {"quiet": True, "skip_download": True, "noplaylist": True}
+                fallback_opts = {
+                    "quiet": True,
+                    "skip_download": True,
+                    "noplaylist": True,
+                    "extractor_args": {"youtube": {"player_client": ["android", "web"]}}
+                }
                 if cookie_path:
                     fallback_opts["cookiefile"] = cookie_path
                 with yt_dlp.YoutubeDL(fallback_opts) as ydl:
@@ -367,9 +380,14 @@ class MediaExtractor:
                 _INSPECT_CACHE[url] = {"data": res, "time": now}
                 return res
             except Exception:
-                if last_error and "Sign in to confirm you" in str(last_error):
-                    raise Exception("YouTube requires verification on cloud servers. Please add YouTube cookies or run EggDL on your PC.")
-                raise Exception(f"Video extraction failed: {str(last_error) if last_error else 'Unknown error'}")
+                err_str = str(last_error) if last_error else ""
+                if "unavailable" in err_str.lower():
+                    raise Exception("⚠️ This video is unavailable, private, or has been removed on YouTube.")
+                if "Sign in to confirm you" in err_str or "bot" in err_str.lower():
+                    raise Exception("⚠️ YouTube is requesting sign-in verification for this video.")
+                if "private" in err_str.lower():
+                    raise Exception("⚠️ This video is private or restricted.")
+                raise Exception(f"Video extraction failed: {err_str or 'Unknown error'}")
 
         title = info.get("title", "Untitled Video")
         thumbnail = info.get("thumbnail") or (info.get("thumbnails", [{}])[-1].get("url") if info.get("thumbnails") else "")
@@ -717,11 +735,19 @@ class StreamDownloadTask:
             "retries": 10,
             "fragment_retries": 10,
             "socket_timeout": 30,
+            "cachedir": False,
             "http_headers": {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                 "Accept-Language": "en-US,en;q=0.9",
             }
         }
+
+        if "youtube" in self.url.lower() or "youtu.be" in self.url.lower():
+            ydl_opts["extractor_args"] = {
+                "youtube": {
+                    "player_client": ["android", "web", "mweb", "ios"]
+                }
+            }
 
         if ffmpeg_dir:
             ydl_opts["ffmpeg_location"] = ffmpeg_dir

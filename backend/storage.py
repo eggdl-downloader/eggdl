@@ -981,4 +981,11 @@ def set_app_release(version: str, release_notes: str, download_url: str, mandato
     conn.commit()
     conn.close()
 
+def register_device(device_id: str, user_email: Optional[str] = None, app_version: str = "2.1.2") -> Dict[str, Any]:
+    info = get_machine_info()
+    return register_or_update_device(device_id, info["desktop_name"], info["user_name"], info["os_info"], app_version)
+
+def get_all_devices() -> List[Dict[str, Any]]:
+    return get_all_devices_telemetry()
+
 init_db()

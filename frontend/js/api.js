@@ -379,73 +379,80 @@ const API = {
   },
 
   async getAdminDevices(adminKey) {
-    let res = null;
+    let localErr = null;
     try {
-      res = await fetch(`${this.baseUrl}/api/admin/devices?admin_key=${encodeURIComponent(adminKey)}`);
-    } catch (_) {}
-
-    if (!res || !res.ok) {
-      res = await fetch(`https://eggdl.onrender.com/api/admin/devices?admin_key=${encodeURIComponent(adminKey)}`);
+      const res = await fetch(`${this.baseUrl}/api/admin/devices?admin_key=${encodeURIComponent(adminKey)}`);
+      if (res.ok) return await res.json();
+      const err = await res.json().catch(() => null);
+      if (res.status === 403) {
+        throw new Error((err && err.detail) || 'Invalid Master Admin Key');
+      }
+      localErr = (err && err.detail) || 'Failed to fetch connected devices';
+    } catch (e) {
+      if (e.message && e.message.includes('Invalid Master Admin Key')) throw e;
+      localErr = e.message;
     }
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Failed to fetch devices' }));
-      throw new Error(err.detail || 'Failed to fetch connected devices');
+    // Cloud fallback
+    try {
+      const cloudRes = await fetch(`https://eggdl.onrender.com/api/admin/devices?admin_key=${encodeURIComponent(adminKey)}`);
+      if (cloudRes.ok) return await cloudRes.json();
+      const err = await cloudRes.json().catch(() => null);
+      throw new Error((err && err.detail) || 'Invalid Master Admin Key');
+    } catch (e) {
+      throw new Error(e.message || localErr || 'Invalid Master Admin Key');
     }
-    return res.json();
   },
 
   async adminDeviceAction(adminKey, deviceId, action, planType = 'lifetime', reason = '') {
-    let res = null;
     try {
-      res = await fetch(`${this.baseUrl}/api/admin/device-action`, {
+      const res = await fetch(`${this.baseUrl}/api/admin/device-action`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ admin_key: adminKey, device_id: deviceId, action, plan_type: planType, reason })
       });
-    } catch (_) {}
-
-    if (!res || !res.ok) {
-      res = await fetch(`https://eggdl.onrender.com/api/admin/device-action`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ admin_key: adminKey, device_id: deviceId, action, plan_type: planType, reason })
-      });
+      if (res.ok) return await res.json();
+      const err = await res.json().catch(() => null);
+      if (res.status === 403) throw new Error((err && err.detail) || 'Invalid Master Admin Key');
+    } catch (e) {
+      if (e.message && e.message.includes('Invalid Master Admin Key')) throw e;
     }
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Action failed' }));
+    const cloudRes = await fetch(`https://eggdl.onrender.com/api/admin/device-action`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_key: adminKey, device_id: deviceId, action, plan_type: planType, reason })
+    });
+    if (!cloudRes.ok) {
+      const err = await cloudRes.json().catch(() => ({ detail: 'Action failed' }));
       throw new Error(err.detail || 'Failed to perform device action');
     }
-    return res.json();
+    return cloudRes.json();
   },
 
-  async adminBlockDevice(adminKey, deviceId, blocked, reason) {
-    return this.adminDeviceAction(adminKey, deviceId, blocked ? 'block' : 'unblock', 'lifetime', reason);
+  async adminBlockDevice(adminKey, deviceId, shouldBlock, reason = null) {
+    return this.adminDeviceAction(adminKey, deviceId, shouldBlock ? 'block' : 'unblock', 'lifetime', reason);
   },
 
-  async adminPushRelease(adminKey, version, notes, downloadUrl, mandatory = false) {
-    let res = null;
+  async adminPushRelease(adminKey, version, releaseNotes, downloadUrl, mandatory = false) {
     try {
-      res = await fetch(`${this.baseUrl}/api/admin/push-release`, {
+      const res = await fetch(`${this.baseUrl}/api/admin/push-release`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ admin_key: adminKey, version, release_notes: notes, download_url: downloadUrl, mandatory })
+        body: JSON.stringify({ admin_key: adminKey, version, release_notes: releaseNotes, download_url: downloadUrl, mandatory })
       });
+      if (res.ok) return await res.json();
     } catch (_) {}
 
-    if (!res || !res.ok) {
-      res = await fetch(`https://eggdl.onrender.com/api/admin/push-release`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ admin_key: adminKey, version, release_notes: notes, download_url: downloadUrl, mandatory })
-      });
+    const cloudRes = await fetch(`https://eggdl.onrender.com/api/admin/push-release`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_key: adminKey, version, release_notes: releaseNotes, download_url: downloadUrl, mandatory })
+    });
+    if (!cloudRes.ok) {
+      const err = await cloudRes.json().catch(() => ({ detail: 'Push release failed' }));
+      throw new Error(err.detail || 'Push release failed');
     }
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Failed to push release' }));
-      throw new Error(err.detail || 'Failed to push release');
-    }
-    return res.json();
+    return cloudRes.json();
   }
 };
