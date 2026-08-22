@@ -687,7 +687,7 @@ const App = {
   async openFolder(taskId = null, filePath = null) {
     try {
       const res = await API.openFolder(taskId, filePath);
-      UI.showToast(`Opened: ${res.folder_path || 'Downloads\\ProDownloader'} in Windows Explorer`, 'success');
+      UI.showToast(`Opened: ${res.folder_path || 'Downloads\\EggDL'} in Windows Explorer`, 'success');
     } catch (e) {
       UI.showToast(e.message || 'Could not open folder', 'error');
     }

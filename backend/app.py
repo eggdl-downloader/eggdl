@@ -614,7 +614,7 @@ async def inspect_url(req: InspectRequest):
 
     # 2. Try inspecting as direct file
     settings = get_settings()
-    target_dir = settings.get("download_dir", str(Path.home() / "Downloads" / "ProDownloader"))
+    target_dir = settings.get("download_dir", str(Path.home() / "Downloads" / "EggDL"))
     temp_task = DownloadTask(task_id="inspect", url=url, target_dir=target_dir)
     
     try:
@@ -1065,7 +1065,7 @@ async def stream_media(task_id: str):
 
     file_path = task.get("file_path")
     settings = get_settings()
-    dl_dir = settings.get("download_dir", str(Path.home() / "Downloads" / "ProDownloader"))
+    dl_dir = settings.get("download_dir", str(Path.home() / "Downloads" / "EggDL"))
 
     if not file_path or not os.path.exists(file_path):
         if task.get("title") and os.path.exists(dl_dir):
@@ -1091,7 +1091,7 @@ async def stream_media(task_id: str):
 @app.post("/api/system/open-file")
 async def open_file(req: FileActionRequest):
     settings = get_settings()
-    dl_dir = settings.get("download_dir", str(Path.home() / "Downloads" / "ProDownloader"))
+    dl_dir = settings.get("download_dir", str(Path.home() / "Downloads" / "EggDL"))
 
     file_path = req.file_path
     if not file_path and req.task_id:
