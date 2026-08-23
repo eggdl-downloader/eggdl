@@ -782,11 +782,14 @@ class StreamDownloadTask:
         else:
             fmt = self.format_id or "bestvideo+bestaudio/best"
             if fmt.isdigit() or (not "+" in fmt and not "/" in fmt and "best" not in fmt):
-                fmt = f"{fmt}+bestaudio/bestvideo+bestaudio/best"
+                fmt = f"{fmt}+bestaudio[acodec^=mp4a]/{fmt}+bestaudio/best"
             elif not "/" in fmt and "+" in fmt:
-                fmt = f"{fmt}/bestvideo+bestaudio/best"
+                fmt = f"{fmt}/bestvideo[vcodec^=avc]+bestaudio[acodec^=mp4a]/bestvideo+bestaudio/best"
+            elif fmt == "bestvideo+bestaudio/best" or fmt == "best":
+                fmt = "bestvideo[vcodec^=avc]+bestaudio[acodec^=mp4a]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best"
 
             ydl_opts["format"] = fmt
+            ydl_opts["format_sort"] = ["vcodec:h264", "acodec:aac", "ext:mp4:m4a"]
             if ffmpeg_dir:
                 ydl_opts["postprocessors"] = [{
                     "key": "FFmpegVideoRemuxer",
@@ -871,6 +874,11 @@ class StreamDownloadTask:
                             final_path = base_prep
 
                     if final_path and os.path.exists(final_path):
+                        if not self.is_audio_only:
+                            self.progress = 99.5
+                            self.speed = 0.0
+                            self._report_progress()
+                            final_path = ensure_premiere_compatible_mp4(final_path)
                         self.file_path = os.path.abspath(final_path)
                         self.filename = os.path.basename(final_path)
                         self.file_size = os.path.getsize(final_path)
@@ -946,6 +954,8 @@ class StreamDownloadTask:
                                             self.eta = int((self.file_size - dl) / self.speed)
                                     self._report_progress()
 
+                        if os.path.exists(target_file) and not self.is_audio_only:
+                            target_file = ensure_premiere_compatible_mp4(target_file)
                         self.file_path = os.path.abspath(target_file)
                         self.filename = os.path.basename(target_file)
                         self.file_size = os.path.getsize(target_file)
