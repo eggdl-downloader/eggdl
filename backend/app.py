@@ -27,7 +27,7 @@ if sys.platform == "win32":
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, HTTPException, Query, Header, Depends, Body
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -80,19 +80,21 @@ CLOUD_API_URL = os.environ.get("CLOUD_API_URL", "https://eggdl.onrender.com")
 
 @app.middleware("http")
 async def add_pna_and_cors_headers(request: Request, call_next):
+    origin = request.headers.get("origin") or "*"
     if request.method == "OPTIONS":
         response = Response(status_code=204)
     else:
         response = await call_next(request)
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, HEAD"
+    response.headers["Access-Control-Allow-Origin"] = origin
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH"
     response.headers["Access-Control-Allow-Headers"] = "*"
     response.headers["Access-Control-Allow-Private-Network"] = "true"
     return response
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origin_regex=".*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
