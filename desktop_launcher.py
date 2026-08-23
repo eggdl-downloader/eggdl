@@ -43,7 +43,9 @@ if sys.stderr is None:
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if getattr(sys, 'frozen', False):
-    BUNDLE_DIR = getattr(sys, '_MEIPASS', BASE_DIR)
+    exe_dir = os.path.dirname(sys.executable)
+    internal_dir = os.path.join(exe_dir, "_internal")
+    BUNDLE_DIR = internal_dir if os.path.exists(internal_dir) else getattr(sys, '_MEIPASS', exe_dir)
 else:
     BUNDLE_DIR = BASE_DIR
 
@@ -53,13 +55,46 @@ if BACKEND_DIR not in sys.path:
 if BUNDLE_DIR not in sys.path:
     sys.path.insert(0, BUNDLE_DIR)
 
-try:
-    from backend.app import app
-except ImportError:
-    from app import app
+# Dynamically import backend.app from disk file if available so disk updates take immediate effect
+app_file = os.path.join(BACKEND_DIR, "app.py")
+if os.path.exists(app_file):
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("backend.app", app_file)
+        backend_app_mod = importlib.util.module_from_spec(spec)
+        sys.modules["backend.app"] = backend_app_mod
+        spec.loader.exec_module(backend_app_mod)
+        app = backend_app_mod.app
+    except Exception as import_err:
+        sys.stderr.write(f"[Dynamic Import Warning] {import_err}\n")
+        try:
+            from backend.app import app
+        except ImportError:
+            from app import app
+else:
+    try:
+        from backend.app import app
+    except ImportError:
+        from app import app
+
 import uvicorn
 
+def free_port_8000():
+    if sys.platform == "win32":
+        try:
+            import subprocess
+            out = subprocess.check_output("netstat -ano -p tcp", shell=True, text=True, stderr=subprocess.DEVNULL)
+            for line in out.splitlines():
+                if ":8000" in line and "LISTENING" in line:
+                    parts = line.strip().split()
+                    pid = parts[-1]
+                    if pid and pid.isdigit() and int(pid) != os.getpid():
+                        subprocess.run(f"taskkill /F /PID {pid}", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
+
 def find_available_port(start_port: int = 8000, max_attempts: int = 50) -> int:
+    free_port_8000()
     for port in range(start_port, start_port + max_attempts):
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:

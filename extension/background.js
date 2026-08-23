@@ -419,37 +419,67 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   }
 });
 
-const CANDIDATE_SERVERS = [
-  "http://127.0.0.1:8000",
-  "http://localhost:8000",
-  "http://127.0.0.1:8001",
-  "http://localhost:8001"
-];
+const CANDIDATE_PORTS = [8000, 8001, 8002, 8003, 8004, 8005, 8006, 8007, 8008];
 let activeBackendUrl = "http://127.0.0.1:8000";
 
-async function fetchFromBackend(endpoint, options = {}) {
-  const urlsToTry = [activeBackendUrl, ...CANDIDATE_SERVERS.filter(u => u !== activeBackendUrl)];
-  let lastError = null;
-
-  for (const base of urlsToTry) {
-    try {
-      const res = await fetch(`${base}${endpoint}`, {
-        ...options,
-        headers: {
-          "Content-Type": "application/json",
-          ...(options.headers || {})
+async function discoverActiveBackend() {
+  for (const p of CANDIDATE_PORTS) {
+    for (const host of ["127.0.0.1", "localhost"]) {
+      const url = `http://${host}:${p}`;
+      try {
+        const res = await fetch(`${url}/api/system/version`, {
+          signal: AbortSignal.timeout(1000)
+        });
+        if (res.ok) {
+          activeBackendUrl = url;
+          return url;
         }
-      });
-      if (res.ok) {
-        activeBackendUrl = base;
-        return await res.json();
-      }
-    } catch (err) {
-      lastError = err;
+      } catch (e) {}
     }
   }
-  console.error("EggDL backend connection error:", lastError);
-  return { success: false, detail: lastError ? String(lastError) : "Cannot connect to EggDL application" };
+  return activeBackendUrl;
+}
+
+// Initial discovery on service worker load
+discoverActiveBackend();
+
+async function fetchFromBackend(endpoint, options = {}) {
+  // First try active URL
+  try {
+    const res = await fetch(`${activeBackendUrl}${endpoint}`, {
+      ...options,
+      signal: options.signal || AbortSignal.timeout(4000),
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {})
+      }
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (e) {}
+
+  // If active URL failed, auto-discover live server across all candidate ports
+  const liveBase = await discoverActiveBackend();
+  try {
+    const res = await fetch(`${liveBase}${endpoint}`, {
+      ...options,
+      signal: options.signal || AbortSignal.timeout(8000),
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {})
+      }
+    });
+    if (res.ok) {
+      return await res.json();
+    } else {
+      const errJson = await res.json().catch(() => null);
+      return { success: false, detail: errJson?.detail || `HTTP ${res.status}` };
+    }
+  } catch (err) {
+    console.warn("EggDL backend connection error:", err);
+    return { success: false, detail: "Cannot connect to EggDL application. Please ensure EggDL app is open." };
+  }
 }
 
 // Handle extension messaging
