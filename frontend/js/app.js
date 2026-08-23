@@ -107,6 +107,23 @@ const App = {
     });
   },
 
+  async loadDownloads() {
+    try {
+      const res = await fetch('/api/downloads');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.downloads) {
+          this.downloads = data.downloads;
+          this.updateCategoryCounts();
+          this.renderDownloads();
+          this.updateDashboardStats();
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to sync downloads:', e);
+    }
+  },
+
   initWebSocket() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws`;
@@ -115,6 +132,7 @@ const App = {
 
     this.ws.onopen = () => {
       console.log('WebSocket connected');
+      this.loadDownloads();
     };
 
     this.ws.onmessage = (event) => {
@@ -130,6 +148,10 @@ const App = {
       console.warn('WebSocket closed, reconnecting in 3s...');
       setTimeout(() => this.initWebSocket(), 3000);
     };
+
+    if (!this._syncInterval) {
+      this._syncInterval = setInterval(() => this.loadDownloads(), 4000);
+    }
   },
 
   handleWsMessage(msg) {
