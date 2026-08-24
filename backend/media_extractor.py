@@ -11,7 +11,12 @@ from pathlib import Path
 # Check if yt_dlp is installed, or import gracefully
 try:
     import yt_dlp
-except ImportError:
+    import yt_dlp.postprocessor.ffmpeg as yt_ffmpeg
+    yt_ffmpeg.os.rename = os.replace
+    import yt_dlp.postprocessor.common as yt_common
+    if hasattr(yt_common, 'os'):
+        yt_common.os.rename = os.replace
+except Exception:
     yt_dlp = None
 
 def format_duration(seconds: Optional[float]) -> str:
@@ -927,6 +932,20 @@ class StreamDownloadTask:
                         self.filename = os.path.basename(final_path)
                         self.file_size = os.path.getsize(final_path)
                         self.downloaded_bytes = self.file_size
+
+                        # Automatically clean up raw fragmented stream files (.f401.mp4, .f251.webm, .temp.mp4)
+                        try:
+                            parent_d = os.path.dirname(final_path)
+                            base_n = os.path.splitext(os.path.basename(final_path))[0]
+                            for sibling in os.listdir(parent_d):
+                                if sibling.startswith(base_n[:15]) and (".f" in sibling or ".temp." in sibling) and sibling != os.path.basename(final_path):
+                                    sib_path = os.path.join(parent_d, sibling)
+                                    try:
+                                        os.remove(sib_path)
+                                    except Exception:
+                                        pass
+                        except Exception:
+                            pass
 
             self.status = "completed"
             self.progress = 100.0
