@@ -37,8 +37,15 @@ const App = {
           if (card) {
             const fillEl = card.querySelector('.active-progress-fill');
             const pctEl = card.querySelector('.active-progress-pct');
+            const valEl = card.querySelector('.stat-value');
+            const labelEl = card.querySelector('.stat-label');
             if (fillEl) fillEl.style.width = `${task.progress}%`;
             if (pctEl) pctEl.innerText = `${task.progress.toFixed(1)}%`;
+            if (labelEl) labelEl.innerText = 'Optimizing';
+            if (valEl && !task.speed_str) {
+              valEl.innerText = task.progress >= 98 ? 'Finalizing...' : 'Optimizing & Finalizing...';
+              valEl.style.color = 'var(--accent-cyan)';
+            }
           }
         }
       });

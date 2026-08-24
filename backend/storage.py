@@ -1008,13 +1008,13 @@ def get_latest_app_release() -> Dict[str, Any]:
     conn.close()
     if row:
         d = dict(row)
-        if d.get("version") in ("2.0.0", "2.1.0", "2.1.1", "2.1.2"):
-            d["version"] = "2.1.3"
-            d["release_notes"] = "⚡ True Pause & Resume: Downloads preserve exact downloaded bytes on pause and resume from the same point.\n🎬 Premiere Pro GPU Ready: Hardware GPU H.264 / AAC conversion for instant Premiere & NLE editing.\n🚀 4K/8K stream download optimizations."
+        if d.get("version") in ("2.0.0", "2.1.0", "2.1.1", "2.1.2", "2.1.3"):
+            d["version"] = "2.1.4"
+            d["release_notes"] = "⚡ True Pause & Resume: Downloads preserve exact downloaded bytes on pause and resume from the same point.\n🎬 Ultra HD GPU Engine: Hardware accelerated H.264 / AAC encoding for maximum video compatibility.\n🚀 4K/8K stream download optimizations and smooth progress tracking."
         return d
     return {
-        "version": "2.1.3",
-        "release_notes": "⚡ True Pause & Resume: Downloads preserve exact downloaded bytes on pause and resume from the same point.\n🎬 Premiere Pro GPU Ready: Hardware GPU H.264 / AAC conversion for instant Premiere & NLE editing.\n🚀 4K/8K stream download optimizations.",
+        "version": "2.1.4",
+        "release_notes": "⚡ True Pause & Resume: Downloads preserve exact downloaded bytes on pause and resume from the same point.\n🎬 Ultra HD GPU Engine: Hardware accelerated H.264 / AAC encoding for maximum video compatibility.\n🚀 4K/8K stream download optimizations and smooth progress tracking.",
         "download_url": "https://eggdl.onrender.com/download/setup",
         "mandatory": 0
     }

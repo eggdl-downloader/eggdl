@@ -138,7 +138,7 @@ const UI = {
         const isProcessing = !isPaused && (task.progress >= 90 || Boolean(task.speed_str));
         const speedStr = isPaused 
           ? 'Paused' 
-          : (task.speed_str || (task.progress >= 90 ? 'Optimizing for Premiere Pro...' : UI.formatSpeed(task.speed)));
+          : (task.speed_str || (task.progress >= 98 ? 'Finalizing...' : (task.progress >= 90 ? 'Optimizing & Finalizing...' : UI.formatSpeed(task.speed))));
         const etaStr = isPaused ? '--:--' : (isProcessing ? 'Finalizing...' : UI.formatEta(task.eta));
         const sizeStr = task.file_size > 0 
           ? `${UI.formatBytes(task.downloaded_bytes)} / ${UI.formatBytes(task.file_size)}` 
@@ -156,7 +156,7 @@ const UI = {
         }
 
         const labelEl = card.querySelector('.stat-label');
-        if (labelEl) labelEl.innerText = isPaused ? 'Status' : (isProcessing ? 'Process' : 'Download Speed');
+        if (labelEl) labelEl.innerText = isPaused ? 'Status' : (isProcessing ? 'Optimizing' : 'Download Speed');
 
         const fillEl = card.querySelector('.active-progress-fill');
         if (fillEl) {
@@ -190,7 +190,7 @@ const UI = {
       const isProcessing = !isPaused && (task.progress >= 90 || Boolean(task.speed_str));
       const speedStr = isPaused 
         ? 'Paused' 
-        : (task.speed_str || (task.progress >= 90 ? 'Optimizing for Premiere Pro...' : UI.formatSpeed(task.speed)));
+        : (task.speed_str || (task.progress >= 98 ? 'Finalizing...' : (task.progress >= 90 ? 'Optimizing & Finalizing...' : UI.formatSpeed(task.speed))));
       const etaStr = isPaused ? '--:--' : (isProcessing ? 'Finalizing...' : UI.formatEta(task.eta));
       const sizeStr = task.file_size > 0 
         ? `${UI.formatBytes(task.downloaded_bytes)} / ${UI.formatBytes(task.file_size)}` 
@@ -217,7 +217,7 @@ const UI = {
             <div class="active-card-stats">
               <div class="stat-group">
                 <div class="stat-value" style="${isPaused ? 'color: var(--accent-amber);' : (isProcessing ? 'color: var(--accent-cyan);' : '')}">${speedStr}</div>
-                <div class="stat-label">${isPaused ? 'Status' : (isProcessing ? 'Process' : 'Download Speed')}</div>
+                <div class="stat-label">${isPaused ? 'Status' : (isProcessing ? 'Optimizing' : 'Download Speed')}</div>
               </div>
 
               <div class="active-actions">
