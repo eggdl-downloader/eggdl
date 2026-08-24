@@ -98,175 +98,8 @@ def get_ffmpeg_location() -> Optional[str]:
 # Ensure FFmpeg is on PATH if found
 get_ffmpeg_location()
 
-_CACHED_H264_ENCODER = None
+# Direct Fast Merging Engine - Zero Lag & High-Speed Native Multiplexing
 
-def get_best_hardware_h264_encoder(ffmpeg_bin: str):
-    """
-    Auto-detects the fastest hardware GPU encoder available (NVENC / QSV / AMF / MediaFoundation)
-    with ultra-fast multithreaded CPU fallback.
-    """
-    global _CACHED_H264_ENCODER
-    if _CACHED_H264_ENCODER:
-        return _CACHED_H264_ENCODER
-
-    cflags = 0x08000000 if sys.platform == "win32" else 0
-    candidate_configs = [
-        ("h264_nvenc", ["-c:v", "h264_nvenc", "-preset", "p4", "-cq", "19"]),
-        ("h264_qsv", ["-c:v", "h264_qsv", "-preset", "veryfast", "-global_quality", "20"]),
-        ("h264_amf", ["-c:v", "h264_amf", "-quality", "speed", "-rc", "cqp", "-qp_p", "20", "-qp_i", "20"]),
-        ("h264_mf", ["-c:v", "h264_mf", "-b:v", "28M"]),
-        ("libx264", ["-c:v", "libx264", "-preset", "ultrafast", "-threads", "0", "-crf", "20"]),
-    ]
-
-    for enc_name, enc_args in candidate_configs:
-        try:
-            cmd = [
-                ffmpeg_bin, "-y",
-                "-f", "lavfi", "-i", "color=c=black:s=256x256:d=0.05",
-                *enc_args,
-                "-pix_fmt", "yuv420p",
-                "-f", "null", "-"
-            ]
-            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=cflags, timeout=4)
-            if res.returncode == 0:
-                print(f"[FFmpeg] Selected Hardware GPU Encoder: {enc_name}")
-                _CACHED_H264_ENCODER = (enc_name, enc_args)
-                return _CACHED_H264_ENCODER
-        except Exception:
-            continue
-
-    _CACHED_H264_ENCODER = ("libx264", ["-c:v", "libx264", "-preset", "ultrafast", "-threads", "0", "-crf", "20"])
-    return _CACHED_H264_ENCODER
-
-def ensure_premiere_compatible_mp4(file_path: str, progress_callback: Optional[Any] = None) -> str:
-    """
-    Ensures downloaded video is 100% compatible with Adobe Premiere Pro, DaVinci Resolve,
-    Final Cut Pro, Sony Vegas, and all editing suites.
-    Premiere Pro standard requirements:
-      - Video Codec: H.264 / AVC (avc1)
-      - Audio Codec: AAC (mp4a)
-      - Pixel Format: yuv420p (8-bit standard)
-      - Container: MP4 (with +faststart moov atom header)
-    """
-    if not file_path or not os.path.exists(file_path):
-        return file_path
-
-    ffmpeg_dir = get_ffmpeg_location()
-    ffmpeg_bin = shutil.which("ffmpeg") or (os.path.join(ffmpeg_dir, "ffmpeg.exe") if ffmpeg_dir else None)
-    if not ffmpeg_bin or not os.path.exists(ffmpeg_bin):
-        return file_path
-
-    cflags = 0x08000000 if sys.platform == "win32" else 0
-    try:
-        probe = subprocess.run(
-            [ffmpeg_bin, "-i", file_path],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=20,
-            creationflags=cflags
-        )
-        output = probe.stderr or probe.stdout or ""
-        
-        is_h264 = ("Video: h264" in output or "Video: avc" in output)
-        is_aac = ("Audio: aac" in output)
-        is_mp4 = file_path.lower().endswith(".mp4")
-        is_yuv420p = ("yuv420p" in output)
-
-        if is_h264 and is_aac and is_mp4 and is_yuv420p:
-            # Already 100% Premiere Pro ready!
-            return file_path
-
-        # Parse total duration in seconds for accurate progress calculation
-        total_duration = 0.0
-        dur_match = re.search(r"Duration:\s*(\d+):(\d+):(\d+\.\d+)", output)
-        if dur_match:
-            try:
-                dh, dm, ds = map(float, dur_match.groups())
-                total_duration = dh * 3600 + dm * 60 + ds
-            except Exception:
-                total_duration = 0.0
-
-        # Need remux / transcode to Premiere Pro standard
-        base, _ = os.path.splitext(file_path)
-        temp_out = f"{base}_premiere_h264.mp4"
-        final_out = f"{base}.mp4"
-
-        # If already H.264 with yuv420p, stream copy video (instant 0s), otherwise use GPU hardware encoder
-        if is_h264 and is_yuv420p:
-            vcodec_args = ["-c:v", "copy"]
-        else:
-            _, enc_args = get_best_hardware_h264_encoder(ffmpeg_bin)
-            vcodec_args = [*enc_args, "-pix_fmt", "yuv420p"]
-
-        # If already AAC audio, stream copy audio (instant 0s), otherwise transcode audio to AAC 320k
-        acodec_args = ["-c:a", "copy"] if is_aac else ["-c:a", "aac", "-b:a", "320k"]
-
-        cmd = [
-            ffmpeg_bin, "-y",
-            "-i", file_path,
-            *vcodec_args,
-            *acodec_args,
-            "-movflags", "+faststart",
-            temp_out
-        ]
-
-        if progress_callback:
-            progress_callback(speed_str=None, progress=99.0)
-
-        proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1,
-            creationflags=cflags
-        )
-
-        # Monitor conversion progress in real-time
-        if proc.stderr:
-            for line in proc.stderr:
-                if total_duration > 0 and "time=" in line:
-                    t_match = re.search(r"time=(\d+):(\d+):(\d+\.\d+)", line)
-                    if t_match:
-                        try:
-                            th, tm, ts = map(float, t_match.groups())
-                            cur_time = th * 3600 + tm * 60 + ts
-                            pct = min(99.0, max(1.0, (cur_time / total_duration) * 100.0))
-                            report_pct = round(99.0 + (pct / 100.0) * 0.8, 1)
-                            if progress_callback:
-                                progress_callback(speed_str=None, progress=report_pct)
-                        except Exception:
-                            pass
-
-        proc.wait(timeout=300)
-
-        if proc.returncode == 0 and os.path.exists(temp_out) and os.path.getsize(temp_out) > 1000:
-            if os.path.exists(file_path):
-                try:
-                    os.remove(file_path)
-                except Exception:
-                    pass
-            if os.path.exists(final_out) and final_out != temp_out:
-                try:
-                    os.remove(final_out)
-                except Exception:
-                    pass
-            try:
-                os.replace(temp_out, final_out)
-            except Exception:
-                shutil.move(temp_out, final_out)
-            return final_out
-        else:
-            if os.path.exists(temp_out):
-                try:
-                    os.remove(temp_out)
-                except Exception:
-                    pass
-    except Exception as err:
-        print(f"[FFmpeg] Premiere Pro converter note: {err}")
-
-    return file_path
 
 def _fallback_scrape_video_page(url: str) -> Dict[str, Any]:
     try:
@@ -505,7 +338,7 @@ class MediaExtractor:
             "format_id": "bestvideo+bestaudio/best",
             "label": "Best Video Quality (Auto)",
             "resolution": "Best",
-            "codec": "H.264 / AAC",
+            "codec": "MP4 / AAC",
             "ext": "mp4",
             "filesize": None,
             "filesize_str": "Auto (Highest Available)",
@@ -583,7 +416,7 @@ class MediaExtractor:
                 "format_id": format_spec,
                 "label": label,
                 "resolution": clean_res,
-                "codec": "H.264 / AAC",
+                "codec": "MP4 / AAC",
                 "ext": ext,
                 "filesize": comb_size,
                 "filesize_str": format_bytes(comb_size) if comb_size else "High Quality",
@@ -827,22 +660,8 @@ class StreamDownloadTask:
                 }]
         else:
             fmt = self.format_id or "bestvideo+bestaudio/best"
-            if fmt.isdigit() or (not "+" in fmt and not "/" in fmt and "best" not in fmt):
-                fmt = f"{fmt}+bestaudio[acodec^=mp4a]/{fmt}+bestaudio/best"
-            elif not "/" in fmt and "+" in fmt:
-                fmt = f"{fmt}/bestvideo[vcodec^=avc]+bestaudio[acodec^=mp4a]/bestvideo+bestaudio/best"
-            elif fmt == "bestvideo+bestaudio/best" or fmt == "best":
-                fmt = "bestvideo[vcodec^=avc]+bestaudio[acodec^=mp4a]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best"
-
             ydl_opts["format"] = fmt
-            ydl_opts["format_sort"] = ["vcodec:h264", "acodec:aac", "ext:mp4:m4a"]
-            if ffmpeg_dir:
-                ydl_opts["postprocessors"] = [{
-                    "key": "FFmpegVideoRemuxer",
-                    "preferedformat": "mp4"
-                }]
-            else:
-                ydl_opts["format"] = "best[ext=mp4]/best"
+            ydl_opts["merge_output_format"] = "mp4"
 
         # Emit initial downloading event immediately
         self.status = "downloading"
@@ -920,30 +739,26 @@ class StreamDownloadTask:
                             final_path = base_prep
 
                     if final_path and os.path.exists(final_path):
-                        if not self.is_audio_only:
-                            def on_transcode_prog(speed_str=None, progress=None):
-                                if progress is not None:
-                                    self.progress = progress
-                                if speed_str is not None:
-                                    self.speed_str = speed_str
-                                self._report_progress()
-                            final_path = ensure_premiere_compatible_mp4(final_path, progress_callback=on_transcode_prog)
                         self.file_path = os.path.abspath(final_path)
                         self.filename = os.path.basename(final_path)
                         self.file_size = os.path.getsize(final_path)
                         self.downloaded_bytes = self.file_size
 
-                        # Automatically clean up raw fragmented stream files (.f401.mp4, .f251.webm, .temp.mp4)
+                        # Automatically clean up any leftover fragmented temp stream files (.f401.mp4, .f251.webm, .temp.mp4, .part, .ytdl, _premiere_h264)
                         try:
                             parent_d = os.path.dirname(final_path)
                             base_n = os.path.splitext(os.path.basename(final_path))[0]
                             for sibling in os.listdir(parent_d):
-                                if sibling.startswith(base_n[:15]) and (".f" in sibling or ".temp." in sibling) and sibling != os.path.basename(final_path):
-                                    sib_path = os.path.join(parent_d, sibling)
-                                    try:
-                                        os.remove(sib_path)
-                                    except Exception:
-                                        pass
+                                if sibling != os.path.basename(final_path) and (
+                                    sibling.startswith(base_n[:12]) or
+                                    any(tag in sibling for tag in [".f", ".temp.", ".part", ".ytdl", "_premiere_h264"])
+                                ):
+                                    if any(tag in sibling for tag in [".f", ".temp.", ".part", ".ytdl", "_premiere_h264"]):
+                                        sib_path = os.path.join(parent_d, sibling)
+                                        try:
+                                            os.remove(sib_path)
+                                        except Exception:
+                                            pass
                         except Exception:
                             pass
 
