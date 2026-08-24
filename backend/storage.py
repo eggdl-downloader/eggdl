@@ -579,7 +579,7 @@ def register_or_update_device(
     desktop_name: Optional[str] = None,
     user_name: Optional[str] = None,
     os_info: Optional[str] = None,
-    app_version: str = "2.1.4",
+    app_version: str = "2.1.5",
     ip_address: Optional[str] = None,
     total_downloads: Optional[int] = None,
     data_downloaded_mb: Optional[float] = None
@@ -1008,12 +1008,12 @@ def get_latest_app_release() -> Dict[str, Any]:
     conn.close()
     if row:
         d = dict(row)
-        if d.get("version") in ("2.0.0", "2.1.0", "2.1.1", "2.1.2", "2.1.3"):
-            d["version"] = "2.1.4"
+        if d.get("version") in ("2.0.0", "2.1.0", "2.1.1", "2.1.2", "2.1.3", "2.1.4"):
+            d["version"] = "2.1.5"
             d["release_notes"] = "⚡ True Pause & Resume: Downloads preserve exact downloaded bytes on pause and resume from the same point.\n🎬 Ultra HD GPU Engine: Hardware accelerated H.264 / AAC encoding for maximum video compatibility.\n🚀 4K/8K stream download optimizations and smooth progress tracking."
         return d
     return {
-        "version": "2.1.4",
+        "version": "2.1.5",
         "release_notes": "⚡ True Pause & Resume: Downloads preserve exact downloaded bytes on pause and resume from the same point.\n🎬 Ultra HD GPU Engine: Hardware accelerated H.264 / AAC encoding for maximum video compatibility.\n🚀 4K/8K stream download optimizations and smooth progress tracking.",
         "download_url": "https://eggdl.onrender.com/download/setup",
         "mandatory": 0
@@ -1030,7 +1030,7 @@ def set_app_release(version: str, release_notes: str, download_url: str, mandato
     conn.commit()
     conn.close()
 
-def register_device(device_id: str, user_email: Optional[str] = None, app_version: str = "2.1.2") -> Dict[str, Any]:
+def register_device(device_id: str, user_email: Optional[str] = None, app_version: str = "2.1.5") -> Dict[str, Any]:
     info = get_machine_info()
     return register_or_update_device(device_id, info["desktop_name"], info["user_name"], info["os_info"], app_version)
 

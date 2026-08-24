@@ -277,7 +277,7 @@ const API = {
   },
 
   async checkVersion() {
-    let currentVer = '2.1.3';
+    let currentVer = '2.1.5';
     let localData = null;
 
     // 1. Try local server
@@ -285,7 +285,7 @@ const API = {
       const res = await fetch(`${this.baseUrl}/api/system/version`, { headers: this.getHeaders() });
       if (res.ok) {
         localData = await res.json();
-        currentVer = localData.current_version || '2.1.3';
+        currentVer = localData.current_version || '2.1.5';
         if (localData.update_available) {
           return localData;
         }
@@ -297,7 +297,7 @@ const API = {
       const cloudRes = await fetch('https://eggdl.onrender.com/api/system/version');
       if (cloudRes.ok) {
         const cloudData = await cloudRes.json();
-        const latestVer = cloudData.latest_version || cloudData.latest_release?.version || '2.1.3';
+        const latestVer = cloudData.latest_version || cloudData.latest_release?.version || '2.1.5';
         const hasUpdate = this.isNewerVersion(latestVer, currentVer);
         return {
           success: true,

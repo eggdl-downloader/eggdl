@@ -135,11 +135,9 @@ const UI = {
         if (!card) return;
 
         const isPaused = task.status === 'paused';
-        const isProcessing = !isPaused && (task.progress >= 90 || Boolean(task.speed_str));
-        const speedStr = isPaused 
-          ? 'Paused' 
-          : (task.speed_str || (task.progress >= 98 ? 'Finalizing...' : (task.progress >= 90 ? 'Optimizing & Finalizing...' : UI.formatSpeed(task.speed))));
-        const etaStr = isPaused ? '--:--' : (isProcessing ? 'Finalizing...' : UI.formatEta(task.eta));
+        const isFinalizing = !isPaused && task.progress >= 99.0;
+        const speedStr = isPaused ? 'Paused' : (isFinalizing ? 'Finalizing...' : UI.formatSpeed(task.speed));
+        const etaStr = isPaused ? '--:--' : (isFinalizing ? '--:--' : UI.formatEta(task.eta));
         const sizeStr = task.file_size > 0 
           ? `${UI.formatBytes(task.downloaded_bytes)} / ${UI.formatBytes(task.file_size)}` 
           : UI.formatBytes(task.downloaded_bytes);
@@ -152,16 +150,16 @@ const UI = {
         const valEl = card.querySelector('.stat-value');
         if (valEl) {
           valEl.innerText = speedStr;
-          valEl.style.color = isPaused ? 'var(--accent-amber)' : (isProcessing ? 'var(--accent-cyan)' : '');
+          valEl.style.color = isPaused ? 'var(--accent-amber)' : (isFinalizing ? 'var(--accent-cyan)' : '');
         }
 
         const labelEl = card.querySelector('.stat-label');
-        if (labelEl) labelEl.innerText = isPaused ? 'Status' : (isProcessing ? 'Optimizing' : 'Download Speed');
+        if (labelEl) labelEl.innerText = (isPaused || isFinalizing) ? 'Status' : 'Download Speed';
 
         const fillEl = card.querySelector('.active-progress-fill');
         if (fillEl) {
           fillEl.style.width = `${task.progress}%`;
-          fillEl.className = `active-progress-fill ${isPaused ? 'paused' : ''} ${isProcessing ? 'processing' : ''}`;
+          fillEl.className = `active-progress-fill ${isPaused ? 'paused' : ''} ${isFinalizing ? 'processing' : ''}`;
         }
 
         const pctEl = card.querySelector('.active-progress-pct');
@@ -187,11 +185,9 @@ const UI = {
 
     container.innerHTML = activeList.map(task => {
       const isPaused = task.status === 'paused';
-      const isProcessing = !isPaused && (task.progress >= 90 || Boolean(task.speed_str));
-      const speedStr = isPaused 
-        ? 'Paused' 
-        : (task.speed_str || (task.progress >= 98 ? 'Finalizing...' : (task.progress >= 90 ? 'Optimizing & Finalizing...' : UI.formatSpeed(task.speed))));
-      const etaStr = isPaused ? '--:--' : (isProcessing ? 'Finalizing...' : UI.formatEta(task.eta));
+      const isFinalizing = !isPaused && task.progress >= 99.0;
+      const speedStr = isPaused ? 'Paused' : (isFinalizing ? 'Finalizing...' : UI.formatSpeed(task.speed));
+      const etaStr = isPaused ? '--:--' : (isFinalizing ? '--:--' : UI.formatEta(task.eta));
       const sizeStr = task.file_size > 0 
         ? `${UI.formatBytes(task.downloaded_bytes)} / ${UI.formatBytes(task.file_size)}` 
         : UI.formatBytes(task.downloaded_bytes);
@@ -216,8 +212,8 @@ const UI = {
 
             <div class="active-card-stats">
               <div class="stat-group">
-                <div class="stat-value" style="${isPaused ? 'color: var(--accent-amber);' : (isProcessing ? 'color: var(--accent-cyan);' : '')}">${speedStr}</div>
-                <div class="stat-label">${isPaused ? 'Status' : (isProcessing ? 'Optimizing' : 'Download Speed')}</div>
+                <div class="stat-value" style="${isPaused ? 'color: var(--accent-amber);' : (isFinalizing ? 'color: var(--accent-cyan);' : '')}">${speedStr}</div>
+                <div class="stat-label">${(isPaused || isFinalizing) ? 'Status' : 'Download Speed'}</div>
               </div>
 
               <div class="active-actions">
@@ -233,7 +229,7 @@ const UI = {
 
           <div style="display: flex; align-items: center; gap: 14px; margin-top: 10px;">
             <div class="active-progress-bar" style="flex: 1; margin-top: 0;">
-              <div class="active-progress-fill ${isPaused ? 'paused' : ''} ${isProcessing ? 'processing' : ''}" style="width: ${task.progress}%;"></div>
+              <div class="active-progress-fill ${isPaused ? 'paused' : ''} ${isFinalizing ? 'processing' : ''}" style="width: ${task.progress}%;"></div>
             </div>
             <span class="active-progress-pct" style="font-size: 0.9rem; font-family: var(--font-mono); font-weight: 700; color: ${isPaused ? 'var(--accent-amber)' : 'var(--accent-cyan)'}; min-width: 45px; text-align: right;">${task.progress}%</span>
           </div>
@@ -386,7 +382,7 @@ const UI = {
                   <span class="res-tag ${tag.class}">${tag.text}</span>
                   <span>${opt.label}</span>
                 </div>
-                <div class="format-meta">${opt.ext.toUpperCase()} • ${opt.codec ? `<span style="color: var(--accent-cyan); font-weight: 500;">${opt.codec}</span> • ` : ''}${opt.filesize_str}</div>
+                <div class="format-meta">${opt.ext.toUpperCase()} • <span style="color: var(--accent-cyan); font-weight: 500;">${String(opt.codec || 'H.264 / AAC').replace(/\s*\(Premiere Ready\)/gi, '').trim()}</span> • ${opt.filesize_str}</div>
               </div>
             `;
           }).join('')}

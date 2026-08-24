@@ -368,14 +368,14 @@
         <div class="form-group" style="border-top: 1px solid var(--border-color); padding-top: 14px; margin-top: 14px;">
           <label style="display: flex; justify-content: space-between; align-items: center;">
             <span>App Version & Updates</span>
-            <span class="badge" style="font-size: 0.76rem; font-weight: 700; padding: 3px 10px; background: rgba(59, 130, 246, 0.18); color: #38BDF8; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.3);" id="settings-app-version">v2.1.3</span>
+            <span class="badge" style="font-size: 0.76rem; font-weight: 700; padding: 3px 10px; background: rgba(59, 130, 246, 0.18); color: #38BDF8; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.3);" id="settings-app-version">v2.1.5</span>
           </label>
           <div style="margin-top: 8px;">
             <button type="button" class="btn btn-secondary btn-sm" id="btn-check-updates" style="width: 100%; justify-content: center;">
               <i data-lucide="refresh-cw"></i> Check for Updates
             </button>
           </div>
-          <small class="form-hint" id="settings-update-status" style="margin-top: 8px; display: block; font-size: 0.8rem; color: #10B981; font-weight: 500;">✓ EggDL v2.1.3 is up to date</small>
+          <small class="form-hint" id="settings-update-status" style="margin-top: 8px; display: block; font-size: 0.8rem; color: #10B981; font-weight: 500;">✓ EggDL v2.1.5 is up to date</small>
         </div>
       </div>
 
@@ -398,7 +398,7 @@
           <i data-lucide="sparkles" style="width: 28px; height: 28px;"></i>
         </div>
         <h3 style="font-size: 1.2rem; font-weight: 800; color: var(--text-main); margin-bottom: 6px;">New Update Available!</h3>
-        <div class="badge" style="display: inline-block; margin-bottom: 12px; font-size: 0.82rem; font-weight: 700; padding: 4px 12px; background: rgba(16, 185, 129, 0.15); color: #10B981; border-radius: 20px;" id="update-modal-version">v2.1.3 Available</div>
+        <div class="badge" style="display: inline-block; margin-bottom: 12px; font-size: 0.82rem; font-weight: 700; padding: 4px 12px; background: rgba(16, 185, 129, 0.15); color: #10B981; border-radius: 20px;" id="update-modal-version">v2.1.5 Available</div>
         <div id="update-modal-notes" style="font-size: 0.84rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 20px; background: var(--bg-tertiary); padding: 12px 14px; border-radius: 8px; text-align: left; max-height: 140px; overflow-y: auto;">
           ⚡ True Byte Pause &amp; Resume<br>🚀 Hardware GPU H.264 / AAC Engine
         </div>
@@ -565,7 +565,7 @@
           <div id="admin-view-releases" style="display: none;">
             <div class="form-group">
               <label>New App Version</label>
-              <input type="text" id="admin-release-ver" class="form-control font-mono" placeholder="e.g. 2.1.3" value="2.1.3">
+              <input type="text" id="admin-release-ver" class="form-control font-mono" placeholder="e.g. 2.1.5" value="2.1.5">
             </div>
             <div class="form-group">
               <label>Release Notes / What's New</label>
@@ -573,10 +573,16 @@
             </div>
             <div class="form-group">
               <label>Download Setup URL</label>
-              <input type="text" id="admin-release-url" class="form-control font-mono" placeholder="https://eggdl.onrender.com/download/setup" value="https://eggdl.onrender.com/download/setup">
+              <input type="text" id="admin-release-url" class="form-control font-mono" placeholder="https://..." value="https://eggdl.onrender.com/download/setup">
             </div>
-            <button class="btn btn-primary btn-glow" id="btn-admin-push-release" style="width: 100%; justify-content: center;">
-              <i data-lucide="send"></i> Broadcast Update to All Devices
+            <div class="form-group">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="admin-release-mandatory" style="width: 16px; height: 16px;">
+                <span>Mandatory / Critical Update</span>
+              </label>
+            </div>
+            <button class="btn btn-primary btn-glow" style="width: 100%;" onclick="App.handleAdminPublishRelease()">
+              <i data-lucide="upload-cloud"></i> Publish App Update
             </button>
           </div>
         </div>
@@ -609,15 +615,20 @@
     </div>
   </div>
 
-  <!-- Hardware License & Registration Modal -->
-  <div class="modal-backdrop" id="account-modal" style="display: none;">
-    <div class="modal-card modal-xl">
+  <!-- Account / Licensing Modal -->
+  <div class="modal-backdrop" id="account-modal" style="display: none; z-index: 10000;">
+    <div class="modal-card modal-lg">
       <div class="modal-header">
-        <div class="modal-title">
-          <i data-lucide="shield-check" style="color: #38BDF8;"></i>
-          <span>EggDL Hardware License & Registration</span>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div class="modal-header-icon" style="background: rgba(59, 130, 246, 0.15); color: #3B82F6;">
+            <i data-lucide="shield-check"></i>
+          </div>
+          <div>
+            <h3>EggDL Pro Account & License</h3>
+            <p>Manage your license key and device subscription</p>
+          </div>
         </div>
-        <button class="modal-close" id="close-account-modal-btn">
+        <button class="modal-close" onclick="UI.closeModal('account-modal')">
           <i data-lucide="x"></i>
         </button>
       </div>
@@ -634,7 +645,6 @@
                 <span id="acc-name-display">DESKTOP-PC</span>
                 <span id="acc-machine-id" class="font-mono" style="font-size: 0.72rem; background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px; color: var(--text-dim);">EGG-HWID</span>
               </h3>
-              <p id="acc-email-display" style="font-size: 0.82rem; color: var(--text-muted); margin: 0;">Hardware Machine License • Zero Login Required</p>
             </div>
           </div>
           <div class="user-summary-badge">

@@ -212,7 +212,7 @@ def ensure_premiere_compatible_mp4(file_path: str, progress_callback: Optional[A
         ]
 
         if progress_callback:
-            progress_callback(speed_str="Boosting Media Quality...", progress=90.5)
+            progress_callback(speed_str=None, progress=99.0)
 
         proc = subprocess.Popen(
             cmd,
@@ -233,9 +233,9 @@ def ensure_premiere_compatible_mp4(file_path: str, progress_callback: Optional[A
                             th, tm, ts = map(float, t_match.groups())
                             cur_time = th * 3600 + tm * 60 + ts
                             pct = min(99.0, max(1.0, (cur_time / total_duration) * 100.0))
-                            report_pct = round(90.0 + (pct / 100.0) * 9.5, 1)
+                            report_pct = round(99.0 + (pct / 100.0) * 0.8, 1)
                             if progress_callback:
-                                progress_callback(speed_str=f"Optimizing & Finalizing ({int(pct)}%)", progress=report_pct)
+                                progress_callback(speed_str=None, progress=report_pct)
                         except Exception:
                             pass
 

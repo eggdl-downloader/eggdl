@@ -31,7 +31,7 @@ const App = {
     setInterval(() => {
       if (!this.activeTasks) return;
       Object.values(this.activeTasks).forEach(task => {
-        if (task && task.status === 'downloading' && task.progress >= 90.0 && task.progress < 99.5) {
+        if (task && task.status === 'downloading' && task.progress >= 99.0 && task.progress < 99.9) {
           task.progress = Math.round((task.progress + 0.05) * 100) / 100;
           const card = document.getElementById(`card-${task.id}`);
           if (card) {
@@ -41,9 +41,9 @@ const App = {
             const labelEl = card.querySelector('.stat-label');
             if (fillEl) fillEl.style.width = `${task.progress}%`;
             if (pctEl) pctEl.innerText = `${task.progress.toFixed(1)}%`;
-            if (labelEl) labelEl.innerText = 'Optimizing';
-            if (valEl && !task.speed_str) {
-              valEl.innerText = task.progress >= 98 ? 'Finalizing...' : 'Optimizing & Finalizing...';
+            if (labelEl) labelEl.innerText = 'Status';
+            if (valEl) {
+              valEl.innerText = 'Finalizing...';
               valEl.style.color = 'var(--accent-cyan)';
             }
           }
@@ -1076,7 +1076,7 @@ const App = {
           desktop_name: machine.desktop_name,
           user_name: machine.user_name,
           os_info: machine.os_info,
-          app_version: '2.1.3',
+          app_version: '2.1.5',
           total_downloads: this.downloads?.length || 0,
           data_downloaded_mb: 0
         });
@@ -1186,7 +1186,7 @@ const App = {
 
     try {
       const info = await API.checkVersion();
-      const curVer = info?.current_version || '2.1.4';
+      const curVer = info?.current_version || '2.1.5';
       const latVer = info?.latest_version || curVer;
 
       if (versionBadge) versionBadge.innerText = `v${curVer}`;
@@ -1263,7 +1263,7 @@ const App = {
     if (progressView) progressView.style.display = 'none';
     if (installBtn) installBtn.style.display = 'none';
 
-    if (verBadge) verBadge.innerText = `v${info.latest_version || '2.1.4'} Available`;
+    if (verBadge) verBadge.innerText = `v${info.latest_version || '2.1.5'} Available`;
     if (notesBox) {
       const rawNotes = info.release_notes || '⚡ True Pause & Resume support\n🚀 Hardware GPU H.264 / AAC Engine\n🎬 4K/8K stream download optimizations';
       notesBox.innerHTML = rawNotes.split('\n').map(l => `<div style="margin-bottom: 4px;">${l}</div>`).join('');
