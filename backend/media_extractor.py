@@ -684,7 +684,7 @@ class StreamDownloadTask:
             "merge_output_format": "mp4",
             "overwrites": True,
             "continuedl": True,
-            "nopart": False,
+            "nopart": True,
             "nocheckcertificate": True,
             "retries": 10,
             "fragment_retries": 10,
@@ -809,17 +809,16 @@ class StreamDownloadTask:
                         self.file_size = os.path.getsize(final_path)
                         self.downloaded_bytes = self.file_size
 
-                        # Automatically clean up any leftover fragmented temp stream files (.f401.mp4, .f251.webm, .temp.mp4, .part, .ytdl, _premiere_h264)
+                        # Automatically clean up any leftover fragmented temp stream files and 0-byte orphan duplicates
                         try:
                             parent_d = os.path.dirname(final_path)
                             base_n = os.path.splitext(os.path.basename(final_path))[0]
                             for sibling in os.listdir(parent_d):
-                                if sibling != os.path.basename(final_path) and (
-                                    sibling.startswith(base_n[:12]) or
-                                    any(tag in sibling for tag in [".f", ".temp.", ".part", ".ytdl", "_premiere_h264"])
-                                ):
-                                    if any(tag in sibling for tag in [".f", ".temp.", ".part", ".ytdl", "_premiere_h264"]):
-                                        sib_path = os.path.join(parent_d, sibling)
+                                if sibling != os.path.basename(final_path):
+                                    sib_path = os.path.join(parent_d, sibling)
+                                    is_temp_tag = any(tag in sibling for tag in [".f", ".temp.", ".part", ".ytdl", "_premiere_h264", "_temp"])
+                                    is_empty_duplicate = (sibling.startswith(base_n[:10]) or base_n.startswith(sibling[:10])) and os.path.isfile(sib_path) and os.path.getsize(sib_path) == 0
+                                    if is_temp_tag or is_empty_duplicate:
                                         try:
                                             os.remove(sib_path)
                                         except Exception:
