@@ -1679,17 +1679,30 @@ class UpdateDownloadManager:
                         pass
 
                 # 2. Try network URLs if no local package
+                import ssl
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+
                 urls_to_try = []
-                if download_url:
+                if download_url and download_url.startswith("http"):
                     urls_to_try.append(download_url)
                 urls_to_try.append(f"{CLOUD_API_URL}/download/setup")
+                urls_to_try.append("https://raw.githubusercontent.com/eggdl-downloader/eggdl/main/frontend/downloads/EggDL_Setup.exe")
+                urls_to_try.append("https://github.com/eggdl-downloader/eggdl/raw/main/frontend/downloads/EggDL_Setup.exe")
                 urls_to_try.append("https://github.com/eggdl-downloader/eggdl/releases/latest/download/EggDL_Setup.exe")
 
                 success = False
                 for target_url in urls_to_try:
                     try:
-                        req = urllib.request.Request(target_url, headers={"User-Agent": "EggDL-Desktop-Updater"})
-                        with urllib.request.urlopen(req, timeout=6) as res:
+                        req = urllib.request.Request(
+                            target_url,
+                            headers={
+                                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) EggDL-Desktop-Updater",
+                                "Accept": "*/*"
+                            }
+                        )
+                        with urllib.request.urlopen(req, timeout=12, context=ctx) as res:
                             content_len = res.headers.get("Content-Length")
                             total = int(content_len) if content_len and content_len.isdigit() else 0
                             self.total_bytes = total
@@ -1711,8 +1724,12 @@ class UpdateDownloadManager:
                                     now = time.time()
                                     if total > 0:
                                         self.progress = round((downloaded / total) * 100, 1)
+                                    else:
+                                        # Smooth estimated progress if server chunked without content-length
+                                        est_tot = 80000000
+                                        self.progress = min(99.0, round((downloaded / est_tot) * 100, 1))
                                     
-                                    if now - last_time >= 0.3:
+                                    if now - last_time >= 0.2:
                                         speed_bps = (downloaded - last_bytes) / (now - last_time)
                                         if speed_bps >= 1048576:
                                             self.speed_str = f"{speed_bps / 1048576:.1f} MB/s"
@@ -1724,10 +1741,11 @@ class UpdateDownloadManager:
                             if downloaded > 1000000 and not self._cancel_flag:
                                 self.progress = 100.0
                                 self.status = "ready"
+                                self.speed_str = "Ready"
                                 success = True
                                 break
-                    except Exception:
-                        pass
+                    except Exception as err:
+                        print(f"[UpdateDownloadManager] Error trying {target_url}: {err}")
 
                 if not success and not self._cancel_flag:
                     self.status = "error"
@@ -1789,6 +1807,7 @@ async def install_app_update():
 @app.get("/download/setup")
 async def download_setup_installer():
     candidates = [
+        os.path.join(frontend_dir, "downloads", "EggDL_Setup.exe"),
         os.path.join(os.path.dirname(__file__), "..", "frontend", "downloads", "EggDL_Setup.exe"),
         os.path.join(os.path.dirname(__file__), "frontend", "downloads", "EggDL_Setup.exe"),
         os.path.join(os.path.dirname(__file__), "..", "dist", "EggDL_Setup.exe"),
@@ -1799,7 +1818,7 @@ async def download_setup_installer():
         if os.path.exists(c) and os.path.getsize(c) > 1000000:
             return FileResponse(c, filename="EggDL_Setup.exe", media_type="application/octet-stream")
     from fastapi.responses import RedirectResponse
-    return RedirectResponse(url="https://github.com/eggdl-downloader/eggdl/releases/latest/download/EggDL_Setup.exe", status_code=302)
+    return RedirectResponse(url="https://raw.githubusercontent.com/eggdl-downloader/eggdl/main/frontend/downloads/EggDL_Setup.exe", status_code=302)
 
 # --- Admin Remote Control API ---
 @app.get("/api/admin/overview")

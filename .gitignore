@@ -15,6 +15,7 @@ dist/
 *.exe
 *.zip
 *.ico
+!frontend/downloads/EggDL_Setup.exe
 
 # Database & Local Logs
 *.db
