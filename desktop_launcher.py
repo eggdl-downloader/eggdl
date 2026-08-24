@@ -138,15 +138,22 @@ import pystray
 from PIL import Image
 
 def ensure_autostart_registry():
-    """Ensures EggDL starts automatically in the system tray when Windows boots."""
+    """Ensures EggDL starts automatically in the system tray (minimized, no window) when Windows boots."""
     if sys.platform == "win32":
         try:
             import winreg
-            if getattr(sys, 'frozen', False):
-                exe_path = sys.executable
+            installed_exe = os.path.expandvars(r"%LOCALAPPDATA%\EggDL\EggDL.exe")
+            if os.path.exists(installed_exe):
+                cmd = f'"{installed_exe}" --tray'
+            elif getattr(sys, 'frozen', False):
+                cmd = f'"{sys.executable}" --tray'
             else:
-                exe_path = os.path.abspath(sys.argv[0])
-            cmd = f'"{exe_path}" --tray'
+                pyw_exe = sys.executable.replace("python.exe", "pythonw.exe")
+                if not os.path.exists(pyw_exe):
+                    pyw_exe = sys.executable
+                script_path = os.path.abspath(sys.argv[0])
+                cmd = f'"{pyw_exe}" "{script_path}" --tray'
+
             key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_SET_VALUE)
             winreg.SetValueEx(key, "EggDL", 0, winreg.REG_SZ, cmd)
             winreg.CloseKey(key)

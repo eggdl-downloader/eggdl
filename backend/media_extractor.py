@@ -247,7 +247,10 @@ def ensure_premiere_compatible_mp4(file_path: str, progress_callback: Optional[A
                     os.remove(final_out)
                 except Exception:
                     pass
-            shutil.move(temp_out, final_out)
+            try:
+                os.replace(temp_out, final_out)
+            except Exception:
+                shutil.move(temp_out, final_out)
             return final_out
         else:
             if os.path.exists(temp_out):
@@ -719,15 +722,15 @@ class StreamDownloadTask:
             except Exception:
                 native_prog = 0.0
 
-            # Calculate true total progress across all streams
+            # Calculate true total progress across all streams and never drop progress on resume
+            calculated_prog = 0.0
             if self.file_size > 0 and self.downloaded_bytes > 0:
-                self.progress = round(min(99.0, (self.downloaded_bytes / self.file_size) * 100.0), 1)
-            else:
-                pct_str = d.get("_percent_str", "0%").replace("%", "").strip()
-                try:
-                    self.progress = round(min(99.0, float(pct_str)), 1)
-                except Exception:
-                    pass
+                calculated_prog = (self.downloaded_bytes / self.file_size) * 100.0
+            elif native_prog > 0:
+                calculated_prog = native_prog
+
+            self._max_progress = max(self._max_progress, calculated_prog)
+            self.progress = round(min(99.0, max(self.progress, self._max_progress)), 1)
 
             self.speed = d.get("speed") or 0.0
             self.eta = d.get("eta") or 0
@@ -790,8 +793,7 @@ class StreamDownloadTask:
             "no_warnings": True,
             "noplaylist": True,
             "merge_output_format": "mp4",
-            "overwrites": False,
-            "nooverwrites": True,
+            "overwrites": True,
             "continuedl": True,
             "nopart": False,
             "nocheckcertificate": True,
