@@ -440,10 +440,55 @@ async def auth_firebase(req: FirebaseAuthRequest):
         }
     }
 
+def sync_license_from_cloud(dev_id: str) -> Optional[Dict[str, Any]]:
+    """Contacts Cloud Render database, syncs license, plan, duration, and blocks to local SQLite."""
+    if os.environ.get("RENDER"):
+        return None
+    try:
+        import urllib.request
+        info = get_machine_info()
+        payload = {
+            "device_id": dev_id,
+            "desktop_name": info.get("desktop_name", "SRIMAN"),
+            "user_name": info.get("user_name", "User"),
+            "os_info": info.get("os_info", "Windows"),
+            "app_version": APP_CURRENT_VERSION,
+        }
+        data_bytes = json.dumps(payload).encode()
+        remote_req = urllib.request.Request(
+            f"{CLOUD_API_URL}/api/telemetry/heartbeat",
+            data=data_bytes,
+            headers={"Content-Type": "application/json", "User-Agent": "EggDL-Client"}
+        )
+        with urllib.request.urlopen(remote_req, timeout=3.0) as res:
+            if res.status == 200:
+                cloud_res = json.loads(res.read().decode())
+                
+                # PERSIST CLOUD STATE TO LOCAL SQLITE DB IMMEDIATELY
+                if cloud_res.get("is_blocked"):
+                    set_device_blocked(dev_id, blocked=True, reason=cloud_res.get("block_reason") or "Suspended by Admin")
+                else:
+                    set_device_blocked(dev_id, blocked=False)
+                    if cloud_res.get("is_pro"):
+                        plan_t = cloud_res.get("plan_type", "lifetime")
+                        days_left = cloud_res.get("days_remaining", 36500)
+                        grant_device_pro(dev_id, plan_type=plan_t, duration_days=days_left)
+                    elif cloud_res.get("plan_type") == "trial":
+                        reset_device_trial(dev_id)
+                    elif cloud_res.get("plan_type") == "free" or cloud_res.get("trial_expired"):
+                        revoke_device_pro(dev_id)
+
+                return cloud_res
+    except Exception:
+        pass
+    return None
+
 @app.get("/api/system/machine-info")
 async def get_system_machine_info():
     machine = get_machine_info()
-    license_status = get_device_license_status(machine["machine_id"])
+    dev_id = machine["machine_id"]
+    sync_license_from_cloud(dev_id)
+    license_status = get_device_license_status(dev_id)
     return {
         "success": True,
         "machine": machine,
@@ -456,7 +501,8 @@ async def telemetry_heartbeat(req: HeartbeatRequest):
     dev_id = req.device_id or get_device_id()
     app_ver = req.app_version or APP_CURRENT_VERSION
     
-    # Update device in local database
+    # Sync with cloud and update local DB
+    sync_license_from_cloud(dev_id)
     dev_status = register_or_update_device(
         device_id=dev_id,
         desktop_name=req.desktop_name,
@@ -466,37 +512,6 @@ async def telemetry_heartbeat(req: HeartbeatRequest):
         total_downloads=req.total_downloads,
         data_downloaded_mb=req.data_downloaded_mb
     )
-    
-    # Sync with cloud Render server in background if running locally
-    if not os.environ.get("RENDER"):
-        try:
-            import urllib.request
-            payload = {
-                "device_id": dev_id,
-                "desktop_name": req.desktop_name,
-                "user_name": req.user_name,
-                "os_info": req.os_info,
-                "app_version": app_ver,
-                "total_downloads": req.total_downloads,
-                "data_downloaded_mb": req.data_downloaded_mb
-            }
-            data_bytes = json.dumps(payload).encode()
-            remote_req = urllib.request.Request(
-                f"{CLOUD_API_URL}/api/telemetry/heartbeat",
-                data=data_bytes,
-                headers={"Content-Type": "application/json", "User-Agent": "EggDL-Client"}
-            )
-            with urllib.request.urlopen(remote_req, timeout=3) as res:
-                if res.status == 200:
-                    cloud_res = json.loads(res.read().decode())
-                    if cloud_res.get("is_blocked"):
-                        dev_status["is_blocked"] = True
-                        dev_status["block_reason"] = cloud_res.get("block_reason")
-                    if cloud_res.get("is_pro"):
-                        dev_status["is_pro"] = True
-                        dev_status["plan_type"] = cloud_res.get("plan_type", "lifetime")
-        except Exception:
-            pass
 
     return {
         "success": True,
@@ -627,6 +642,7 @@ async def auth_me(request: Request):
             os_info=machine["os_info"]
         )
         
+    sync_license_from_cloud(dev_id)
     status = get_device_license_status(dev_id)
     plan_type = status.get("plan_type", "trial")
     plan_info = PLAN_CONFIGS.get(plan_type, PLAN_CONFIGS["trial" if status.get("is_trial") else "free"])
@@ -1769,6 +1785,20 @@ async def download_setup_installer():
 async def get_admin_overview(admin_key: str = Query(...)):
     if not is_valid_admin_key(admin_key):
         raise HTTPException(status_code=403, detail="Invalid Master Admin Key")
+    
+    if not os.environ.get("RENDER"):
+        try:
+            import urllib.request
+            req = urllib.request.Request(
+                f"{CLOUD_API_URL}/api/admin/overview?admin_key={admin_key}",
+                headers={"User-Agent": "EggDL-Client"}
+            )
+            with urllib.request.urlopen(req, timeout=4.0) as res:
+                if res.status == 200:
+                    return json.loads(res.read().decode())
+        except Exception:
+            pass
+
     devices = get_all_devices_telemetry()
     latest_release = get_latest_app_release()
     return {
@@ -1786,6 +1816,20 @@ async def get_admin_overview(admin_key: str = Query(...)):
 async def get_admin_devices(admin_key: str = Query(...)):
     if not is_valid_admin_key(admin_key):
         raise HTTPException(status_code=403, detail="Invalid Master Admin Key")
+        
+    if not os.environ.get("RENDER"):
+        try:
+            import urllib.request
+            req = urllib.request.Request(
+                f"{CLOUD_API_URL}/api/admin/devices?admin_key={admin_key}",
+                headers={"User-Agent": "EggDL-Client"}
+            )
+            with urllib.request.urlopen(req, timeout=4.0) as res:
+                if res.status == 200:
+                    return json.loads(res.read().decode())
+        except Exception:
+            pass
+
     devices = get_all_devices_telemetry()
     return {
         "success": True,
@@ -1804,6 +1848,27 @@ async def admin_device_action(req: DeviceActionRequest):
     action = req.action.lower().strip()
     device_id = req.device_id
     
+    # Forward action to Cloud Render if running locally
+    if not os.environ.get("RENDER"):
+        try:
+            import urllib.request
+            data_bytes = json.dumps({
+                "admin_key": req.admin_key,
+                "device_id": device_id,
+                "action": action,
+                "plan_type": req.plan_type,
+                "reason": req.reason
+            }).encode()
+            remote_req = urllib.request.Request(
+                f"{CLOUD_API_URL}/api/admin/device-action",
+                data=data_bytes,
+                headers={"Content-Type": "application/json", "User-Agent": "EggDL-Client"}
+            )
+            with urllib.request.urlopen(remote_req, timeout=4.0) as res:
+                pass
+        except Exception:
+            pass
+
     if action == "block":
         set_device_blocked(device_id, blocked=True, reason=req.reason or "Suspended by Administrator")
         msg = f"🚨 Machine {device_id} has been blocked and killed."
@@ -1821,6 +1886,9 @@ async def admin_device_action(req: DeviceActionRequest):
     elif action == "reset_trial":
         reset_device_trial(device_id)
         msg = f"⏳ 7-Day Free Trial has been reset for machine {device_id}."
+    elif action == "delete":
+        delete_device(device_id)
+        msg = f"🗑️ Device {device_id} removed."
     else:
         raise HTTPException(status_code=400, detail=f"Unknown action: {action}")
         

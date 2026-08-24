@@ -3,42 +3,11 @@ const API = {
   tokenKey: 'eggdl_auth_token',
 
   getOrCreateDeviceId() {
-    let devId = localStorage.getItem('eggdl_hwid');
-    if (!devId) {
-      const randHex = Array.from(crypto.getRandomValues(new Uint8Array(8)))
-        .map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
-      devId = 'EGG-' + randHex;
-      localStorage.setItem('eggdl_hwid', devId);
-    }
-    return devId;
+    return localStorage.getItem('eggdl_hwid') || '';
   },
 
   getDeviceName() {
-    let name = localStorage.getItem('eggdl_pc_name');
-    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || !window.location.hostname;
-    
-    if (isLocal) {
-      if (!name || name.startsWith('DESKTOP-WIN-') || name === 'DESKTOP-PC' || name.toLowerCase().includes('guest') || name === 'WEB-CLIENT') {
-        name = 'SRIMAN';
-        localStorage.setItem('eggdl_pc_name', name);
-      }
-      return name;
-    }
-
-    if (!name || name.startsWith('DESKTOP-WIN-') || name === 'DESKTOP-PC' || name.toLowerCase().includes('guest')) {
-      const ua = navigator.userAgent;
-      let platform = 'PC';
-      if (ua.includes('Windows')) platform = 'DESKTOP-WIN';
-      else if (ua.includes('Macintosh')) platform = 'MACBOOK';
-      else if (ua.includes('Android')) platform = 'ANDROID-DEVICE';
-      else if (ua.includes('iPhone') || ua.includes('iPad')) platform = 'IPHONE';
-      else if (ua.includes('Linux')) platform = 'LINUX-PC';
-      
-      const randNum = Math.floor(1000 + Math.random() * 9000);
-      name = `${platform}-${randNum}`;
-      localStorage.setItem('eggdl_pc_name', name);
-    }
-    return name;
+    return localStorage.getItem('eggdl_pc_name') || 'SRIMAN';
   },
 
   getToken() {

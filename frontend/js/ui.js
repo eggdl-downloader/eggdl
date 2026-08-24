@@ -981,6 +981,9 @@ const UI = {
                   <i data-lucide="shield-alert" style="width:13px;height:13px;"></i> Kill
                 </button>
               `}
+              <button class="btn btn-sm btn-secondary" onclick="if(confirm('Remove device ${dev.device_id}?')) App.handleAdminDeviceAction('${dev.device_id}', 'delete')" title="Delete Device Entry" style="padding: 4px 8px;">
+                <i data-lucide="trash-2" style="width:13px;height:13px;color:#EF4444;"></i>
+              </button>
             </div>
           </div>
         </div>

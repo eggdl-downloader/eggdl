@@ -542,28 +542,26 @@ def get_windows_machine_guid() -> Optional[str]:
     return None
 
 def get_machine_info() -> Dict[str, str]:
-    """Extracts hardware fingerprints: HWID, Desktop PC Name, Username, and OS."""
+    """Extracts permanent hardware fingerprints: HWID, Desktop PC Name, Username, and OS."""
     try:
-        desktop_name = os.environ.get("COMPUTERNAME") or platform.node() or "DESKTOP-PC"
+        desktop_name = os.environ.get("COMPUTERNAME") or platform.node() or "SRIMAN"
     except Exception:
-        desktop_name = "DESKTOP-PC"
+        desktop_name = "SRIMAN"
     
     try:
-        user_name = os.environ.get("USERNAME") or os.environ.get("USER") or "User"
+        user_name = os.environ.get("USERNAME") or os.environ.get("USER") or "Sriman"
     except Exception:
-        user_name = "User"
+        user_name = "Sriman"
         
     os_info = f"{platform.system()} {platform.release()}"
     guid = get_windows_machine_guid()
     
-    # Secure Permanent Hardware Fingerprint
-    components = [
-        guid or desktop_name,
-        platform.machine(),
-        str(uuid.getnode()),
-        os_info
-    ]
-    raw = ":".join(components)
+    if guid:
+        raw = f"EGGDL_WIN_HWID_{guid.strip().lower()}"
+    else:
+        components = [desktop_name, platform.machine(), os_info]
+        raw = ":".join(components)
+        
     hwid = "EGG-" + hashlib.sha256(raw.encode()).hexdigest()[:16].upper()
     
     return {
@@ -844,6 +842,15 @@ def reset_device_trial(device_id: str) -> Dict[str, Any]:
     conn.commit()
     conn.close()
     return get_device_license_status(device_id)
+
+def delete_device(device_id: str) -> bool:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM devices WHERE device_id = ?", (device_id,))
+    conn.commit()
+    deleted = cursor.rowcount > 0
+    conn.close()
+    return deleted
 
 def activate_product_key_for_device(device_id: str, license_key: str) -> Dict[str, Any]:
     conn = get_db_connection()
