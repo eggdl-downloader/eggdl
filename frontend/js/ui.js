@@ -382,7 +382,7 @@ const UI = {
                   <span class="res-tag ${tag.class}">${tag.text}</span>
                   <span>${opt.label}</span>
                 </div>
-                <div class="format-meta">${opt.ext.toUpperCase()} • <span style="color: var(--accent-cyan); font-weight: 500;">${String(opt.codec || 'H.264 / AAC').replace(/\s*\(Premiere Ready\)/gi, '').trim()}</span> • ${opt.filesize_str}</div>
+                <div class="format-meta">${opt.ext.toUpperCase()} • ${opt.filesize_str}</div>
               </div>
             `;
           }).join('')}

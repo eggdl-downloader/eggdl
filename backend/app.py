@@ -51,7 +51,7 @@ try:
         generate_product_key, mask_license_key, PLAN_CONFIGS
     )
     from downloader_engine import DownloadTask, detect_category, sanitize_filename
-    from media_extractor import MediaExtractor, StreamDownloadTask
+    from media_extractor import MediaExtractor, StreamDownloadTask, clean_stream_url
     from page_sniffer import sniff_webpage
 except ImportError:
     from backend.storage import (
@@ -70,7 +70,7 @@ except ImportError:
         generate_product_key, mask_license_key, PLAN_CONFIGS
     )
     from backend.downloader_engine import DownloadTask, detect_category, sanitize_filename
-    from backend.media_extractor import MediaExtractor, StreamDownloadTask
+    from backend.media_extractor import MediaExtractor, StreamDownloadTask, clean_stream_url
     from backend.page_sniffer import sniff_webpage
 
 app = FastAPI(title="EggDL API", version="2.0.0")
@@ -1063,7 +1063,7 @@ async def start_download(req: StartDownloadRequest, user: Optional[Dict[str, Any
     if download_type == "stream":
         task = StreamDownloadTask(
             task_id=task_id,
-            url=url,
+            url=clean_stream_url(url),
             target_dir=target_dir,
             format_id=req.format_id or "bestvideo+bestaudio/best",
             is_audio_only=req.is_audio_only or False,
@@ -1177,7 +1177,7 @@ async def resume_download(task_id: str):
     if task_record["download_type"] == "stream":
         task = StreamDownloadTask(
             task_id=task_id,
-            url=task_record["url"],
+            url=clean_stream_url(task_record["url"]),
             target_dir=target_dir,
             format_id=task_record.get("format_id") or "bestvideo+bestaudio/best",
             is_audio_only=(task_record.get("category") == "audio"),

@@ -223,6 +223,52 @@ def get_cookie_file() -> Optional[str]:
             return candidate
     return None
 
+def clean_stream_url(url: str) -> str:
+    """Strips playlist, mix, and tracking parameters from YouTube URLs for clean video processing."""
+    if not url:
+        return url
+    if "youtube.com/watch" in url:
+        parsed = urllib.parse.urlparse(url)
+        qs = urllib.parse.parse_qs(parsed.query)
+        if "v" in qs and qs["v"]:
+            return f"https://www.youtube.com/watch?v={qs['v'][0]}"
+    elif "youtu.be/" in url:
+        parsed = urllib.parse.urlparse(url)
+        vid = parsed.path.strip("/")
+        if vid:
+            return f"https://www.youtube.com/watch?v={vid}"
+    return url
+
+def get_url_candidates(url: str) -> List[str]:
+    """Generates clean URL candidates and repairs optical/casing errors in video IDs."""
+    if not url:
+        return []
+    cleaned = clean_stream_url(url)
+    candidates = [cleaned]
+    
+    parsed = urllib.parse.urlparse(cleaned)
+    qs = urllib.parse.parse_qs(parsed.query)
+    vid = qs.get("v", [""])[0]
+    if not vid and "youtu.be/" in cleaned:
+        vid = parsed.path.strip("/")
+        
+    if vid and len(vid) == 11:
+        # Check single substitutions for O <-> 0 and l <-> 1
+        for idx, ch in enumerate(vid):
+            if ch == "O":
+                c_vid = vid[:idx] + "0" + vid[idx+1:]
+                candidates.append(f"https://www.youtube.com/watch?v={c_vid}")
+            elif ch == "0":
+                c_vid = vid[:idx] + "O" + vid[idx+1:]
+                candidates.append(f"https://www.youtube.com/watch?v={c_vid}")
+            elif ch == "l":
+                c_vid = vid[:idx] + "1" + vid[idx+1:]
+                candidates.append(f"https://www.youtube.com/watch?v={c_vid}")
+            elif ch == "1":
+                c_vid = vid[:idx] + "l" + vid[idx+1:]
+                candidates.append(f"https://www.youtube.com/watch?v={c_vid}")
+    return candidates
+
 class MediaExtractor:
     @staticmethod
     def is_supported_url(url: str) -> bool:
@@ -259,7 +305,6 @@ class MediaExtractor:
             "no_warnings": True,
             "skip_download": True,
             "extract_flat": False,
-            "lazy_playlist": True,
             "noplaylist": True,
             "socket_timeout": 20,
             "no_color": True,
@@ -276,23 +321,29 @@ class MediaExtractor:
 
         info = None
         last_error = None
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=False)
-        except Exception as e1:
-            last_error = e1
+        
+        for cand_url in get_url_candidates(url):
             try:
-                fallback_opts = {
-                    "quiet": True,
-                    "skip_download": True,
-                    "noplaylist": True,
-                }
-                if cookie_path:
-                    fallback_opts["cookiefile"] = cookie_path
-                with yt_dlp.YoutubeDL(fallback_opts) as ydl:
-                    info = ydl.extract_info(url, download=False)
-            except Exception as e2:
-                last_error = e2
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(cand_url, download=False)
+                    if info:
+                        break
+            except Exception as e1:
+                last_error = e1
+                try:
+                    fallback_opts = {
+                        "quiet": True,
+                        "skip_download": True,
+                        "noplaylist": True,
+                    }
+                    if cookie_path:
+                        fallback_opts["cookiefile"] = cookie_path
+                    with yt_dlp.YoutubeDL(fallback_opts) as ydl:
+                        info = ydl.extract_info(cand_url, download=False)
+                        if info:
+                            break
+                except Exception as e2:
+                    last_error = e2
 
         if not info:
             try:
@@ -667,11 +718,13 @@ class StreamDownloadTask:
         self.status = "downloading"
         self._report_progress()
 
+        clean_url = clean_stream_url(self.url)
+
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 # Pre-extract exact metadata and stable file size before downloading
                 try:
-                    meta = ydl.extract_info(self.url, download=False)
+                    meta = ydl.extract_info(clean_url, download=False)
                     if meta:
                         self.title = meta.get("title", self.title)
                         self.thumbnail = meta.get("thumbnail") or self.thumbnail
@@ -695,17 +748,26 @@ class StreamDownloadTask:
                     pass
 
                 info = None
-                try:
-                    info = ydl.extract_info(self.url, download=True)
-                except Exception as dl_err:
-                    err_msg = str(dl_err)
-                    if "Requested format is not available" in err_msg or "format" in err_msg.lower():
-                        # Retry with universal best fallback
-                        ydl_opts["format"] = "bestvideo+bestaudio/best"
-                        with yt_dlp.YoutubeDL(ydl_opts) as fallback_ydl:
-                            info = fallback_ydl.extract_info(self.url, download=True)
-                    elif ("unavailable" in err_msg.lower() or "not found" in err_msg.lower()) and (self.custom_title or self.title):
-                        # Try searching by title on YouTube if link casing was altered
+                dl_last_err = None
+                for cand_u in get_url_candidates(self.url):
+                    try:
+                        info = ydl.extract_info(cand_u, download=True)
+                        if info:
+                            break
+                    except Exception as cand_err:
+                        dl_last_err = cand_err
+                        if "Requested format is not available" in str(cand_err):
+                            ydl_opts["format"] = "bestvideo+bestaudio/best"
+                            try:
+                                with yt_dlp.YoutubeDL(ydl_opts) as fallback_ydl:
+                                    info = fallback_ydl.extract_info(cand_u, download=True)
+                                    if info:
+                                        break
+                            except Exception:
+                                pass
+
+                if not info and (self.custom_title or self.title):
+                    try:
                         search_query = self.custom_title or self.title
                         with yt_dlp.YoutubeDL(ydl_opts) as fallback_ydl:
                             search_res = fallback_ydl.extract_info(f"ytsearch1:{search_query}", download=True)
@@ -713,8 +775,11 @@ class StreamDownloadTask:
                                 info = search_res["entries"][0]
                             else:
                                 info = search_res
-                    else:
-                        raise dl_err
+                    except Exception:
+                        pass
+
+                if not info and dl_last_err:
+                    raise dl_last_err
                 if info:
                     self.title = info.get("title", self.title)
                     self.thumbnail = info.get("thumbnail") or ""
@@ -832,8 +897,6 @@ class StreamDownloadTask:
                                             self.eta = int((self.file_size - dl) / self.speed)
                                     self._report_progress()
 
-                        if os.path.exists(target_file) and not self.is_audio_only:
-                            target_file = ensure_premiere_compatible_mp4(target_file)
                         self.file_path = os.path.abspath(target_file)
                         self.filename = os.path.basename(target_file)
                         self.file_size = os.path.getsize(target_file)
