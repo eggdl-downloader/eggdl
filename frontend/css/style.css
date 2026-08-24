@@ -2065,6 +2065,47 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   padding: 6px 10px;
 }
 
+/* Compact Proportions for Account & Subscription Modal */
+#account-modal .modal-card {
+  max-width: 900px !important;
+  width: 92vw !important;
+}
+
+#account-modal .modal-body {
+  padding: 12px 18px !important;
+  gap: 10px !important;
+}
+
+#account-modal .user-summary-card {
+  padding: 10px 14px !important;
+  margin-bottom: 0 !important;
+  border-radius: 10px !important;
+}
+
+#account-modal .license-activation-card {
+  padding: 10px 14px !important;
+  margin-bottom: 0 !important;
+  border-radius: 10px !important;
+  gap: 6px !important;
+}
+
+#account-modal .plans-section {
+  gap: 8px !important;
+}
+
+#account-modal .plans-grid {
+  gap: 8px !important;
+}
+
+#account-modal .plan-card {
+  padding: 10px 8px !important;
+  gap: 5px !important;
+}
+
+#account-modal .modal-footer {
+  padding: 10px 18px !important;
+}
+
 /* Payment Checkout Modal */
 .checkout-summary-box {
   display: flex;

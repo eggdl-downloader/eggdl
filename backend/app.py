@@ -224,6 +224,10 @@ class HeartbeatRequest(BaseModel):
     app_version: Optional[str] = None
     total_downloads: Optional[int] = None
     data_downloaded_mb: Optional[float] = None
+    is_pro: Optional[bool] = None
+    plan_type: Optional[str] = None
+    plan_expires_at: Optional[str] = None
+    license_key: Optional[str] = None
 
 class DeviceActionRequest(BaseModel):
     admin_key: str
@@ -441,18 +445,23 @@ async def auth_firebase(req: FirebaseAuthRequest):
     }
 
 def sync_license_from_cloud(dev_id: str) -> Optional[Dict[str, Any]]:
-    """Contacts Cloud Render database, syncs license, plan, duration, and blocks to local SQLite."""
+    """Contacts Cloud Render database, syncs license, plan, duration, and blocks with two-way preservation."""
     if os.environ.get("RENDER"):
         return None
     try:
         import urllib.request
         info = get_machine_info()
+        local_status = get_device_license_status(dev_id)
         payload = {
             "device_id": dev_id,
             "desktop_name": info.get("desktop_name", "SRIMAN"),
             "user_name": info.get("user_name", "User"),
             "os_info": info.get("os_info", "Windows"),
             "app_version": APP_CURRENT_VERSION,
+            "is_pro": bool(local_status.get("is_pro")),
+            "plan_type": local_status.get("plan_type", "trial"),
+            "plan_expires_at": local_status.get("plan_expires_at"),
+            "license_key": local_status.get("license_key")
         }
         data_bytes = json.dumps(payload).encode()
         remote_req = urllib.request.Request(
@@ -464,7 +473,7 @@ def sync_license_from_cloud(dev_id: str) -> Optional[Dict[str, Any]]:
             if res.status == 200:
                 cloud_res = json.loads(res.read().decode())
                 
-                # PERSIST CLOUD STATE TO LOCAL SQLITE DB IMMEDIATELY
+                # PERSIST CLOUD STATE TO LOCAL SQLITE DB SAFELY
                 if cloud_res.get("is_blocked"):
                     set_device_blocked(dev_id, blocked=True, reason=cloud_res.get("block_reason") or "Suspended by Admin")
                 else:
@@ -474,10 +483,12 @@ def sync_license_from_cloud(dev_id: str) -> Optional[Dict[str, Any]]:
                         exp_at = cloud_res.get("plan_expires_at")
                         days_left = cloud_res.get("days_remaining", 36500)
                         grant_device_pro(dev_id, plan_type=plan_t, duration_days=days_left, expires_at=exp_at)
-                    elif cloud_res.get("plan_type") == "trial":
-                        reset_device_trial(dev_id)
-                    elif cloud_res.get("plan_type") == "free" or cloud_res.get("trial_expired"):
-                        revoke_device_pro(dev_id)
+                    elif not local_status.get("is_pro"):
+                        # Only reset/revoke if client does NOT have local Pro
+                        if cloud_res.get("plan_type") == "trial":
+                            reset_device_trial(dev_id)
+                        elif cloud_res.get("plan_type") == "free" or cloud_res.get("trial_expired"):
+                            revoke_device_pro(dev_id)
 
                 return cloud_res
     except Exception:
@@ -502,8 +513,10 @@ async def telemetry_heartbeat(req: HeartbeatRequest):
     dev_id = req.device_id or get_device_id()
     app_ver = req.app_version or APP_CURRENT_VERSION
     
-    # Sync with cloud and update local DB
-    sync_license_from_cloud(dev_id)
+    # Sync with cloud if running locally
+    if not os.environ.get("RENDER"):
+        sync_license_from_cloud(dev_id)
+        
     dev_status = register_or_update_device(
         device_id=dev_id,
         desktop_name=req.desktop_name,
@@ -513,6 +526,12 @@ async def telemetry_heartbeat(req: HeartbeatRequest):
         total_downloads=req.total_downloads,
         data_downloaded_mb=req.data_downloaded_mb
     )
+
+    # If running on Render cloud and client has active Pro, preserve Pro in cloud database
+    if os.environ.get("RENDER") and req.is_pro and not dev_status.get("is_pro"):
+        plan_t = req.plan_type or "1month"
+        grant_device_pro(dev_id, plan_type=plan_t, duration_days=30, expires_at=req.plan_expires_at)
+        dev_status = get_device_license_status(dev_id)
 
     return {
         "success": True,
@@ -525,7 +544,8 @@ async def telemetry_heartbeat(req: HeartbeatRequest):
         "trial_expired": dev_status.get("trial_expired", False),
         "trial_days_remaining": dev_status.get("trial_days_remaining", 0),
         "days_remaining": dev_status.get("days_remaining", 0),
-        "plan_type": dev_status.get("plan_type", "trial")
+        "plan_type": dev_status.get("plan_type", "trial"),
+        "plan_expires_at": dev_status.get("plan_expires_at")
     }
 
 @app.post("/api/license/activate-machine-key")

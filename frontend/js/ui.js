@@ -677,16 +677,16 @@ const UI = {
     if (pillEl) {
       if (user.plan_type === 'lifetime') {
         pillEl.className = 'plan-pill lifetime';
-        pillEl.innerHTML = '👑 Ultimate Pass • Lifetime VIP';
+        pillEl.innerHTML = '👑 Ultimate Pass • Lifetime VIP (Unlimited Downloads)';
       } else if (isPro) {
         pillEl.className = 'plan-pill pro';
-        pillEl.innerHTML = `⚡ ${plan.name || 'Pro'} (${daysLeft} days remaining)`;
+        pillEl.innerHTML = `⚡ ${plan.name || 'Pro'} • ${daysLeft} Days Remaining (Unlimited Downloads)`;
       } else if (authData?.is_trial) {
         pillEl.className = 'plan-pill trial';
         pillEl.innerHTML = `⏳ 7-Day Free Trial • ${authData.trial_days_remaining} Days Remaining (Unlimited Downloads)`;
       } else {
         pillEl.className = 'plan-pill expired';
-        pillEl.innerHTML = `⚠️ 7-Day Free Trial Ended • Enter Product Key or Purchase Plan Below`;
+        pillEl.innerHTML = `⚠️ Free Trial Expired • Enter Product Key or Purchase Plan Below`;
       }
     }
 
