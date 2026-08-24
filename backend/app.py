@@ -471,8 +471,9 @@ def sync_license_from_cloud(dev_id: str) -> Optional[Dict[str, Any]]:
                     set_device_blocked(dev_id, blocked=False)
                     if cloud_res.get("is_pro"):
                         plan_t = cloud_res.get("plan_type", "lifetime")
+                        exp_at = cloud_res.get("plan_expires_at")
                         days_left = cloud_res.get("days_remaining", 36500)
-                        grant_device_pro(dev_id, plan_type=plan_t, duration_days=days_left)
+                        grant_device_pro(dev_id, plan_type=plan_t, duration_days=days_left, expires_at=exp_at)
                     elif cloud_res.get("plan_type") == "trial":
                         reset_device_trial(dev_id)
                     elif cloud_res.get("plan_type") == "free" or cloud_res.get("trial_expired"):

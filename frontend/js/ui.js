@@ -135,8 +135,11 @@ const UI = {
         if (!card) return;
 
         const isPaused = task.status === 'paused';
-        const speedStr = isPaused ? 'Paused' : UI.formatSpeed(task.speed);
-        const etaStr = isPaused ? '--:--' : UI.formatEta(task.eta);
+        const isProcessing = !isPaused && (task.progress >= 90 || Boolean(task.speed_str));
+        const speedStr = isPaused 
+          ? 'Paused' 
+          : (task.speed_str || (task.progress >= 90 ? 'Optimizing for Premiere Pro...' : UI.formatSpeed(task.speed)));
+        const etaStr = isPaused ? '--:--' : (isProcessing ? 'Finalizing...' : UI.formatEta(task.eta));
         const sizeStr = task.file_size > 0 
           ? `${UI.formatBytes(task.downloaded_bytes)} / ${UI.formatBytes(task.file_size)}` 
           : UI.formatBytes(task.downloaded_bytes);
@@ -149,16 +152,16 @@ const UI = {
         const valEl = card.querySelector('.stat-value');
         if (valEl) {
           valEl.innerText = speedStr;
-          valEl.style.color = isPaused ? 'var(--accent-amber)' : '';
+          valEl.style.color = isPaused ? 'var(--accent-amber)' : (isProcessing ? 'var(--accent-cyan)' : '');
         }
 
         const labelEl = card.querySelector('.stat-label');
-        if (labelEl) labelEl.innerText = isPaused ? 'Status' : 'Download Speed';
+        if (labelEl) labelEl.innerText = isPaused ? 'Status' : (isProcessing ? 'Process' : 'Download Speed');
 
         const fillEl = card.querySelector('.active-progress-fill');
         if (fillEl) {
           fillEl.style.width = `${task.progress}%`;
-          fillEl.className = `active-progress-fill ${isPaused ? 'paused' : ''}`;
+          fillEl.className = `active-progress-fill ${isPaused ? 'paused' : ''} ${isProcessing ? 'processing' : ''}`;
         }
 
         const pctEl = card.querySelector('.active-progress-pct');
@@ -184,8 +187,11 @@ const UI = {
 
     container.innerHTML = activeList.map(task => {
       const isPaused = task.status === 'paused';
-      const speedStr = isPaused ? 'Paused' : UI.formatSpeed(task.speed);
-      const etaStr = isPaused ? '--:--' : UI.formatEta(task.eta);
+      const isProcessing = !isPaused && (task.progress >= 90 || Boolean(task.speed_str));
+      const speedStr = isPaused 
+        ? 'Paused' 
+        : (task.speed_str || (task.progress >= 90 ? 'Optimizing for Premiere Pro...' : UI.formatSpeed(task.speed)));
+      const etaStr = isPaused ? '--:--' : (isProcessing ? 'Finalizing...' : UI.formatEta(task.eta));
       const sizeStr = task.file_size > 0 
         ? `${UI.formatBytes(task.downloaded_bytes)} / ${UI.formatBytes(task.file_size)}` 
         : UI.formatBytes(task.downloaded_bytes);
@@ -210,8 +216,8 @@ const UI = {
 
             <div class="active-card-stats">
               <div class="stat-group">
-                <div class="stat-value" style="${isPaused ? 'color: var(--accent-amber);' : ''}">${speedStr}</div>
-                <div class="stat-label">${isPaused ? 'Status' : 'Download Speed'}</div>
+                <div class="stat-value" style="${isPaused ? 'color: var(--accent-amber);' : (isProcessing ? 'color: var(--accent-cyan);' : '')}">${speedStr}</div>
+                <div class="stat-label">${isPaused ? 'Status' : (isProcessing ? 'Process' : 'Download Speed')}</div>
               </div>
 
               <div class="active-actions">
@@ -227,7 +233,7 @@ const UI = {
 
           <div style="display: flex; align-items: center; gap: 14px; margin-top: 10px;">
             <div class="active-progress-bar" style="flex: 1; margin-top: 0;">
-              <div class="active-progress-fill ${isPaused ? 'paused' : ''}" style="width: ${task.progress}%;"></div>
+              <div class="active-progress-fill ${isPaused ? 'paused' : ''} ${isProcessing ? 'processing' : ''}" style="width: ${task.progress}%;"></div>
             </div>
             <span class="active-progress-pct" style="font-size: 0.9rem; font-family: var(--font-mono); font-weight: 700; color: ${isPaused ? 'var(--accent-amber)' : 'var(--accent-cyan)'}; min-width: 45px; text-align: right;">${task.progress}%</span>
           </div>
@@ -956,12 +962,12 @@ const UI = {
             </div>
 
             <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;">
-              <select class="form-control form-control-sm" id="plan-select-${dev.device_id}" style="padding:4px 8px;font-size:0.78rem;height:30px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:6px;color:#F8FAFC;">
-                <option value="1month">1 Month (30d)</option>
-                <option value="3month">3 Months (90d)</option>
-                <option value="6month">6 Months (180d)</option>
-                <option value="1year">1 Year (365d)</option>
-                <option value="lifetime" selected>Lifetime</option>
+              <select class="form-control form-control-sm plan-select-dropdown" id="plan-select-${dev.device_id}" style="padding:4px 8px;font-size:0.78rem;height:30px;background:#1E293B !important;border:1px solid rgba(255,255,255,0.25);border-radius:6px;color:#F8FAFC !important;cursor:pointer;font-weight:600;">
+                <option value="1month" style="background:#1E293B;color:#F8FAFC;">1 Month (30d)</option>
+                <option value="3month" style="background:#1E293B;color:#F8FAFC;">3 Months (90d)</option>
+                <option value="6month" style="background:#1E293B;color:#F8FAFC;">6 Months (180d)</option>
+                <option value="1year" style="background:#1E293B;color:#F8FAFC;">1 Year (365d)</option>
+                <option value="lifetime" selected style="background:#1E293B;color:#F8FAFC;">Lifetime</option>
               </select>
               <button class="btn btn-sm btn-primary" onclick="App.handleAdminGrantPlan('${dev.device_id}')" title="Grant Selected Subscription">
                 <i data-lucide="crown" style="width:13px;height:13px;"></i> Set Plan

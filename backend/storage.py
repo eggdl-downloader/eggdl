@@ -690,7 +690,8 @@ def get_device_license_status(device_id: str) -> Dict[str, Any]:
             try:
                 exp_dt = datetime.fromisoformat(str(plan_expires_at))
                 if exp_dt > now:
-                    days_left = max(1, (exp_dt - now).days)
+                    seconds_left = (exp_dt - now).total_seconds()
+                    days_left = max(1, math.ceil(seconds_left / 86400))
                     return {
                         "device_id": device_id,
                         "desktop_name": dev.get("machine_name") or "DESKTOP-PC",
@@ -763,11 +764,15 @@ def get_trial_and_subscription_status(user_id: Optional[str] = None, device_id: 
     dev_id = device_id or get_device_id()
     return get_device_license_status(dev_id)
 
-def grant_device_pro(device_id: str, plan_type: str = "lifetime", duration_days: Optional[int] = None) -> Dict[str, Any]:
+def grant_device_pro(device_id: str, plan_type: str = "lifetime", duration_days: Optional[int] = None, expires_at: Optional[str] = None) -> Dict[str, Any]:
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    if duration_days is None:
+    if expires_at:
+        exp_dt = expires_at
+    elif duration_days is not None:
+        exp_dt = (datetime.now() + timedelta(days=duration_days)).isoformat() if plan_type != "lifetime" else None
+    else:
         if plan_type == "1month":
             duration_days = 30
         elif plan_type == "3month":
@@ -778,8 +783,7 @@ def grant_device_pro(device_id: str, plan_type: str = "lifetime", duration_days:
             duration_days = 365
         else:
             duration_days = 36500
-
-    exp_dt = (datetime.now() + timedelta(days=duration_days)).isoformat() if plan_type != "lifetime" else None
+        exp_dt = (datetime.now() + timedelta(days=duration_days)).isoformat() if plan_type != "lifetime" else None
     
     cursor.execute("""
     UPDATE devices SET

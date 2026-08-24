@@ -24,6 +24,25 @@ const App = {
     this.initPWA();
     this.checkVersion(false);
     this.initAdminPanel();
+    this.startSmoothProgressTicker();
+  },
+
+  startSmoothProgressTicker() {
+    setInterval(() => {
+      if (!this.activeTasks) return;
+      Object.values(this.activeTasks).forEach(task => {
+        if (task && task.status === 'downloading' && task.progress >= 90.0 && task.progress < 99.5) {
+          task.progress = Math.round((task.progress + 0.05) * 100) / 100;
+          const card = document.getElementById(`card-${task.id}`);
+          if (card) {
+            const fillEl = card.querySelector('.active-progress-fill');
+            const pctEl = card.querySelector('.active-progress-pct');
+            if (fillEl) fillEl.style.width = `${task.progress}%`;
+            if (pctEl) pctEl.innerText = `${task.progress.toFixed(1)}%`;
+          }
+        }
+      });
+    }, 500);
   },
 
   initPWA() {

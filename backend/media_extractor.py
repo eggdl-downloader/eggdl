@@ -212,7 +212,7 @@ def ensure_premiere_compatible_mp4(file_path: str, progress_callback: Optional[A
         ]
 
         if progress_callback:
-            progress_callback(speed_str="Optimizing for Premiere Pro...", progress=99.1)
+            progress_callback(speed_str="Optimizing for Premiere Pro...", progress=90.5)
 
         proc = subprocess.Popen(
             cmd,
@@ -233,7 +233,7 @@ def ensure_premiere_compatible_mp4(file_path: str, progress_callback: Optional[A
                             th, tm, ts = map(float, t_match.groups())
                             cur_time = th * 3600 + tm * 60 + ts
                             pct = min(99.0, max(1.0, (cur_time / total_duration) * 100.0))
-                            report_pct = round(99.0 + (pct / 100.0) * 0.9, 2)
+                            report_pct = round(90.0 + (pct / 100.0) * 9.5, 1)
                             if progress_callback:
                                 progress_callback(speed_str=f"Premiere H.264 Encoding ({int(pct)}%)", progress=report_pct)
                         except Exception:

@@ -2452,3 +2452,34 @@ i.spin,
     grid-template-columns: 1fr;
   }
 }
+
+/* --- Form Select & Dropdown Visibility Fix --- */
+select, select option, .plan-select-dropdown, .plan-select-dropdown option {
+  background-color: #1E293B !important;
+  color: #F8FAFC !important;
+  font-family: var(--font-sans) !important;
+  font-weight: 600 !important;
+  border-radius: 6px !important;
+}
+
+select:focus, select option:hover, select option:checked {
+  background-color: #334155 !important;
+  color: #38BDF8 !important;
+}
+
+/* --- Smooth Continuous Progress Bar --- */
+.active-progress-fill {
+  transition: width 0.6s ease-out;
+}
+
+.active-progress-fill.processing {
+  background: linear-gradient(90deg, #3B82F6 0%, #38BDF8 50%, #818CF8 100%);
+  background-size: 200% 100%;
+  animation: progressPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes progressPulse {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
