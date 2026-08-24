@@ -134,17 +134,29 @@ def wait_for_server(port: int, timeout: float = 15.0) -> bool:
             time.sleep(0.15)
     return False
 
-def main():
-    port = find_available_port(8000)
-    server_thread = threading.Thread(target=run_server, args=(port,), daemon=True)
-    server_thread.start()
-    wait_for_server(port)
+import pystray
+from PIL import Image
 
-    target_url = f"http://localhost:{port}/"
-    icon_path = os.path.join(BUNDLE_DIR, "eggdl.ico")
-    if not os.path.exists(icon_path):
-        icon_path = os.path.join(BUNDLE_DIR, "frontend", "images", "egg-icon.png")
+def ensure_autostart_registry():
+    """Ensures EggDL starts automatically in the system tray when Windows boots."""
+    if sys.platform == "win32":
+        try:
+            import winreg
+            if getattr(sys, 'frozen', False):
+                exe_path = sys.executable
+            else:
+                exe_path = os.path.abspath(sys.argv[0])
+            cmd = f'"{exe_path}" --tray'
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_SET_VALUE)
+            winreg.SetValueEx(key, "EggDL", 0, winreg.REG_SZ, cmd)
+            winreg.CloseKey(key)
+        except Exception:
+            pass
 
+_WINDOW_PROC = None
+
+def launch_window(target_url: str, icon_path: str):
+    global _WINDOW_PROC
     # 1. Try native Edge WebView2 window
     try:
         import webview
@@ -159,7 +171,7 @@ def main():
             zoomable=True
         )
         webview.start(debug=False, icon=icon_path if os.path.exists(icon_path) else None)
-        sys.exit(0)
+        return
     except Exception as err:
         sys.stderr.write(f"[WebView Note] {err}\n")
 
@@ -189,20 +201,66 @@ def main():
                     "--disable-extensions",
                     "--disable-plugins"
                 ]
-                proc = subprocess.Popen(cmd)
-                proc.wait()
-                sys.exit(0)
+                _WINDOW_PROC = subprocess.Popen(cmd)
+                _WINDOW_PROC.wait()
+                return
             except Exception as e:
                 sys.stderr.write(f"[App Mode Note] {e}\n")
 
     # 3. Final Fallback if no Chromium browser found
     import webbrowser
     webbrowser.open(target_url)
+
+def main():
+    ensure_autostart_registry()
+    is_tray_start = any(arg in sys.argv for arg in ["--tray", "--minimized", "--startup", "-t", "-m"])
+
+    port = find_available_port(8000)
+    server_thread = threading.Thread(target=run_server, args=(port,), daemon=True)
+    server_thread.start()
+    wait_for_server(port)
+
+    target_url = f"http://localhost:{port}/"
+    icon_path = os.path.join(BUNDLE_DIR, "eggdl.ico")
+    if not os.path.exists(icon_path):
+        icon_path = os.path.join(BUNDLE_DIR, "frontend", "images", "egg-icon.png")
+
+    # Setup System Tray Icon
+    tray_icon = None
     try:
-        while True:
-            time.sleep(1)
-    except (KeyboardInterrupt, SystemExit):
-        sys.exit(0)
+        if os.path.exists(icon_path):
+            img = Image.open(icon_path)
+        else:
+            img = Image.new('RGB', (64, 64), color=(59, 130, 246))
+
+        def on_open_app(icon=None, item=None):
+            threading.Thread(target=launch_window, args=(target_url, icon_path), daemon=True).start()
+
+        def on_exit_app(icon=None, item=None):
+            if tray_icon:
+                tray_icon.stop()
+            os._exit(0)
+
+        menu = pystray.Menu(
+            pystray.MenuItem("🥚 Open EggDL", on_open_app, default=True),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("✕ Exit EggDL", on_exit_app)
+        )
+        tray_icon = pystray.Icon("EggDL", img, "EggDL - Ultra Turbo Downloader (Active)", menu)
+    except Exception as tray_err:
+        sys.stderr.write(f"[Tray Init Note] {tray_err}\n")
+
+    if not is_tray_start:
+        threading.Thread(target=launch_window, args=(target_url, icon_path), daemon=True).start()
+
+    if tray_icon:
+        tray_icon.run()
+    else:
+        try:
+            while True:
+                time.sleep(1)
+        except (KeyboardInterrupt, SystemExit):
+            sys.exit(0)
 
 if __name__ == "__main__":
     import multiprocessing

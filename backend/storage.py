@@ -528,6 +528,19 @@ import uuid
 import math
 from datetime import datetime, timedelta
 
+def get_windows_machine_guid() -> Optional[str]:
+    if sys.platform == "win32":
+        try:
+            import winreg
+            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Cryptography", 0, winreg.KEY_READ | winreg.KEY_WOW64_64KEY)
+            guid, _ = winreg.QueryValueEx(key, "MachineGuid")
+            winreg.CloseKey(key)
+            if guid:
+                return str(guid).strip()
+        except Exception:
+            pass
+    return None
+
 def get_machine_info() -> Dict[str, str]:
     """Extracts hardware fingerprints: HWID, Desktop PC Name, Username, and OS."""
     try:
@@ -541,10 +554,11 @@ def get_machine_info() -> Dict[str, str]:
         user_name = "User"
         
     os_info = f"{platform.system()} {platform.release()}"
+    guid = get_windows_machine_guid()
     
-    # Secure Hardware Fingerprint
+    # Secure Permanent Hardware Fingerprint
     components = [
-        desktop_name,
+        guid or desktop_name,
         platform.machine(),
         str(uuid.getnode()),
         os_info
@@ -567,7 +581,7 @@ def register_or_update_device(
     desktop_name: Optional[str] = None,
     user_name: Optional[str] = None,
     os_info: Optional[str] = None,
-    app_version: str = "2.1.2",
+    app_version: str = "2.1.4",
     ip_address: Optional[str] = None,
     total_downloads: Optional[int] = None,
     data_downloaded_mb: Optional[float] = None
@@ -583,7 +597,6 @@ def register_or_update_device(
     
     cursor.execute("SELECT * FROM devices WHERE device_id = ?", (device_id,))
     row = cursor.fetchone()
-    
     if row:
         cursor.execute("""
         UPDATE devices SET
@@ -752,9 +765,22 @@ def get_trial_and_subscription_status(user_id: Optional[str] = None, device_id: 
     dev_id = device_id or get_device_id()
     return get_device_license_status(dev_id)
 
-def grant_device_pro(device_id: str, plan_type: str = "lifetime", duration_days: int = 36500) -> Dict[str, Any]:
+def grant_device_pro(device_id: str, plan_type: str = "lifetime", duration_days: Optional[int] = None) -> Dict[str, Any]:
     conn = get_db_connection()
     cursor = conn.cursor()
+    
+    if duration_days is None:
+        if plan_type == "1month":
+            duration_days = 30
+        elif plan_type == "3month":
+            duration_days = 90
+        elif plan_type == "6month":
+            duration_days = 180
+        elif plan_type == "1year":
+            duration_days = 365
+        else:
+            duration_days = 36500
+
     exp_dt = (datetime.now() + timedelta(days=duration_days)).isoformat() if plan_type != "lifetime" else None
     
     cursor.execute("""
@@ -801,11 +827,20 @@ def reset_device_trial(device_id: str) -> Dict[str, Any]:
     cursor.execute("""
     UPDATE devices SET
         created_at = ?,
+        is_pro = 0,
+        plan_type = 'trial',
+        plan_expires_at = NULL,
+        license_key = NULL,
         is_blocked = 0,
-        block_reason = NULL,
-        plan_type = 'trial'
+        block_reason = NULL
     WHERE device_id = ?
     """, (now, device_id))
+    if cursor.rowcount == 0:
+        info = get_machine_info()
+        cursor.execute("""
+        INSERT INTO devices (device_id, machine_name, user_name, os_info, plan_type, plan_expires_at, is_pro, is_blocked, last_seen, created_at)
+        VALUES (?, ?, ?, ?, 'trial', NULL, 0, 0, ?, ?)
+        """, (device_id, info["desktop_name"], info["user_name"], info["os_info"], now, now))
     conn.commit()
     conn.close()
     return get_device_license_status(device_id)

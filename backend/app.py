@@ -75,7 +75,7 @@ except ImportError:
 
 app = FastAPI(title="EggDL API", version="2.0.0")
 
-APP_CURRENT_VERSION = "2.1.3"
+APP_CURRENT_VERSION = "2.1.4"
 CLOUD_API_URL = os.environ.get("CLOUD_API_URL", "https://eggdl.onrender.com")
 
 @app.middleware("http")
@@ -1436,7 +1436,7 @@ async def system_stats():
         "download_dir": dl_dir
     }
 
-APP_CURRENT_VERSION = "2.1.3"
+APP_CURRENT_VERSION = "2.1.4"
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "eggdl_admin_2026")
 CLOUD_API_URL = os.environ.get("CLOUD_API_URL", "https://eggdl.onrender.com")
 
@@ -1731,7 +1731,7 @@ update_mgr = UpdateDownloadManager()
 
 @app.post("/api/system/update/download")
 async def start_app_update_download(data: Dict[str, Any] = Body(...)):
-    version = data.get("version", "2.1.3")
+    version = data.get("version", "2.1.4")
     download_url = data.get("download_url", "")
     update_mgr.start_download(version, download_url)
     return {"success": True, "message": "Update download started"}
@@ -1811,8 +1811,10 @@ async def admin_device_action(req: DeviceActionRequest):
         set_device_blocked(device_id, blocked=False)
         msg = f"✅ Machine {device_id} has been unblocked."
     elif action == "grant_pro":
-        grant_device_pro(device_id, plan_type=req.plan_type or "lifetime")
-        msg = f"⭐ Granted Pro ({req.plan_type or 'lifetime'}) to machine {device_id}."
+        plan_type = req.plan_type or "lifetime"
+        duration_days = 30 if plan_type == "1month" else (90 if plan_type == "3month" else (180 if plan_type == "6month" else (365 if plan_type == "1year" else 36500)))
+        grant_device_pro(device_id, plan_type=plan_type, duration_days=duration_days)
+        msg = f"⭐ Granted Pro ({plan_type}) to machine {device_id}."
     elif action == "revoke_pro":
         revoke_device_pro(device_id)
         msg = f"Revoked Pro from machine {device_id}."

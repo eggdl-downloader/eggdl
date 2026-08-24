@@ -1160,7 +1160,7 @@ const App = {
 
     try {
       const info = await API.checkVersion();
-      const curVer = info?.current_version || '2.1.3';
+      const curVer = info?.current_version || '2.1.4';
       const latVer = info?.latest_version || curVer;
 
       if (versionBadge) versionBadge.innerText = `v${curVer}`;
@@ -1237,7 +1237,7 @@ const App = {
     if (progressView) progressView.style.display = 'none';
     if (installBtn) installBtn.style.display = 'none';
 
-    if (verBadge) verBadge.innerText = `v${info.latest_version || '2.1.3'} Available`;
+    if (verBadge) verBadge.innerText = `v${info.latest_version || '2.1.4'} Available`;
     if (notesBox) {
       const rawNotes = info.release_notes || '⚡ True Pause & Resume support\n🚀 Hardware GPU H.264 / AAC Engine\n🎬 4K/8K stream download optimizations';
       notesBox.innerHTML = rawNotes.split('\n').map(l => `<div style="margin-bottom: 4px;">${l}</div>`).join('');
@@ -1471,12 +1471,21 @@ const App = {
     }
   },
 
+  async handleAdminGrantPlan(deviceId) {
+    const select = document.getElementById(`plan-select-${deviceId}`);
+    const planType = select ? select.value : 'lifetime';
+    await this.handleAdminDeviceAction(deviceId, 'grant_pro', planType);
+  },
+
   async handleAdminDeviceAction(deviceId, action, planType = 'lifetime', reason = '') {
     if (!this.adminKey) return;
     try {
       const res = await API.adminDeviceAction(this.adminKey, deviceId, action, planType, reason);
       UI.showToast(res.message || 'Action executed successfully', 'success');
-      this.refreshAdminDevices();
+      await this.refreshAdminDevices();
+      // Re-sync local machine status immediately if current PC was targeted
+      await this.initAuth();
+      if (typeof this.updateStats === 'function') this.updateStats();
     } catch (e) {
       UI.showToast(e.message || 'Device action failed', 'error');
     }

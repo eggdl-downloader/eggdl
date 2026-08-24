@@ -133,7 +133,7 @@ def get_best_hardware_h264_encoder(ffmpeg_bin: str):
     _CACHED_H264_ENCODER = ("libx264", ["-c:v", "libx264", "-preset", "ultrafast", "-threads", "0", "-crf", "20"])
     return _CACHED_H264_ENCODER
 
-def ensure_premiere_compatible_mp4(file_path: str) -> str:
+def ensure_premiere_compatible_mp4(file_path: str, progress_callback: Optional[Any] = None) -> str:
     """
     Ensures downloaded video is 100% compatible with Adobe Premiere Pro, DaVinci Resolve,
     Final Cut Pro, Sony Vegas, and all editing suites.
@@ -172,6 +172,16 @@ def ensure_premiere_compatible_mp4(file_path: str) -> str:
             # Already 100% Premiere Pro ready!
             return file_path
 
+        # Parse total duration in seconds for accurate progress calculation
+        total_duration = 0.0
+        dur_match = re.search(r"Duration:\s*(\d+):(\d+):(\d+\.\d+)", output)
+        if dur_match:
+            try:
+                dh, dm, ds = map(float, dur_match.groups())
+                total_duration = dh * 3600 + dm * 60 + ds
+            except Exception:
+                total_duration = 0.0
+
         # Need remux / transcode to Premiere Pro standard
         base, _ = os.path.splitext(file_path)
         temp_out = f"{base}_premiere_h264.mp4"
@@ -196,8 +206,37 @@ def ensure_premiere_compatible_mp4(file_path: str) -> str:
             temp_out
         ]
 
-        conv = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=300, creationflags=cflags)
-        if conv.returncode == 0 and os.path.exists(temp_out) and os.path.getsize(temp_out) > 1000:
+        if progress_callback:
+            progress_callback(speed_str="Optimizing for Premiere Pro...", progress=99.1)
+
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+            creationflags=cflags
+        )
+
+        # Monitor conversion progress in real-time
+        if proc.stderr:
+            for line in proc.stderr:
+                if total_duration > 0 and "time=" in line:
+                    t_match = re.search(r"time=(\d+):(\d+):(\d+\.\d+)", line)
+                    if t_match:
+                        try:
+                            th, tm, ts = map(float, t_match.groups())
+                            cur_time = th * 3600 + tm * 60 + ts
+                            pct = min(99.0, max(1.0, (cur_time / total_duration) * 100.0))
+                            report_pct = round(99.0 + (pct / 100.0) * 0.9, 2)
+                            if progress_callback:
+                                progress_callback(speed_str=f"Premiere H.264 Encoding ({int(pct)}%)", progress=report_pct)
+                        except Exception:
+                            pass
+
+        proc.wait(timeout=300)
+
+        if proc.returncode == 0 and os.path.exists(temp_out) and os.path.getsize(temp_out) > 1000:
             if os.path.exists(file_path):
                 try:
                     os.remove(file_path)
@@ -875,10 +914,13 @@ class StreamDownloadTask:
 
                     if final_path and os.path.exists(final_path):
                         if not self.is_audio_only:
-                            self.progress = 99.5
-                            self.speed = 0.0
-                            self._report_progress()
-                            final_path = ensure_premiere_compatible_mp4(final_path)
+                            def on_transcode_prog(speed_str=None, progress=None):
+                                if progress is not None:
+                                    self.progress = progress
+                                if speed_str is not None:
+                                    self.speed_str = speed_str
+                                self._report_progress()
+                            final_path = ensure_premiere_compatible_mp4(final_path, progress_callback=on_transcode_prog)
                         self.file_path = os.path.abspath(final_path)
                         self.filename = os.path.basename(final_path)
                         self.file_size = os.path.getsize(final_path)

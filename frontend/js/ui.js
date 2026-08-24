@@ -955,22 +955,32 @@ const UI = {
               </div>
             </div>
 
-            <div style="display:flex;gap:6px;">
+            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;">
+              <select class="form-control form-control-sm" id="plan-select-${dev.device_id}" style="padding:4px 8px;font-size:0.78rem;height:30px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:6px;color:#F8FAFC;">
+                <option value="1month">1 Month (30d)</option>
+                <option value="3month">3 Months (90d)</option>
+                <option value="6month">6 Months (180d)</option>
+                <option value="1year">1 Year (365d)</option>
+                <option value="lifetime" selected>Lifetime</option>
+              </select>
+              <button class="btn btn-sm btn-primary" onclick="App.handleAdminGrantPlan('${dev.device_id}')" title="Grant Selected Subscription">
+                <i data-lucide="crown" style="width:13px;height:13px;"></i> Set Plan
+              </button>
+              <button class="btn btn-sm btn-secondary" onclick="App.handleAdminDeviceAction('${dev.device_id}', 'reset_trial')" title="Reset 7-Day Free Trial">
+                <i data-lucide="rotate-ccw" style="width:13px;height:13px;"></i> Reset 7D
+              </button>
+              <button class="btn btn-sm btn-secondary" onclick="App.handleAdminDeviceAction('${dev.device_id}', 'revoke_pro')" title="Revoke Pro">
+                <i data-lucide="x-circle" style="width:13px;height:13px;"></i> Revoke
+              </button>
               ${isBlocked ? `
                 <button class="btn btn-sm btn-secondary" onclick="App.handleAdminDeviceAction('${dev.device_id}', 'unblock')" title="Unblock Machine">
                   <i data-lucide="check-circle" style="width:13px;height:13px;"></i> Unblock
                 </button>
               ` : `
                 <button class="btn btn-sm btn-danger" onclick="App.handleAdminDeviceAction('${dev.device_id}', 'block')" title="Kill & Block Machine">
-                  <i data-lucide="shield-alert" style="width:13px;height:13px;"></i> Kill Machine
+                  <i data-lucide="shield-alert" style="width:13px;height:13px;"></i> Kill
                 </button>
               `}
-              <button class="btn btn-sm btn-primary" onclick="App.handleAdminDeviceAction('${dev.device_id}', 'grant_pro', 'lifetime')" title="Grant Pro Lifetime">
-                <i data-lucide="crown" style="width:13px;height:13px;"></i> Grant Pro
-              </button>
-              <button class="btn btn-sm btn-secondary" onclick="App.handleAdminDeviceAction('${dev.device_id}', 'reset_trial')" title="Reset 7-Day Trial">
-                <i data-lucide="rotate-ccw" style="width:13px;height:13px;"></i> Reset 7D
-              </button>
             </div>
           </div>
         </div>
