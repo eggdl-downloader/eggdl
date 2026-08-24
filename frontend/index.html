@@ -256,7 +256,6 @@
               <i data-lucide="inbox" style="width: 48px; height: 48px; color: var(--text-dim);"></i>
             </div>
             <h3 style="margin-top: 14px;">No Downloads Yet</h3>
-            <p>Paste a link above or use the browser extension to start downloading files.</p>
           </div>
         </div>
       </section>
@@ -616,7 +615,7 @@
   </div>
 
   <!-- Account / Licensing Modal -->
-  <div class="modal-backdrop" id="account-modal" style="display: none; z-index: 10000;">
+  <div class="modal-backdrop" id="account-modal" style="display: none; z-index: 10000;" onclick="if(event.target === this) UI.closeAccountModal()">
     <div class="modal-card modal-lg">
       <div class="modal-header">
         <div style="display: flex; align-items: center; gap: 10px;">
@@ -628,9 +627,6 @@
             <p>Manage your license key and device subscription</p>
           </div>
         </div>
-        <button class="modal-close" onclick="UI.closeModal('account-modal')">
-          <i data-lucide="x"></i>
-        </button>
       </div>
 
       <div class="modal-body">
