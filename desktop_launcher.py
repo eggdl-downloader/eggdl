@@ -298,6 +298,14 @@ def main():
         if not is_tray_start:
             launch_browser_fallback(target_url)
 
+    # Keep background server and tray running until user explicitly exits
+    if not _IS_EXITING:
+        try:
+            while not _IS_EXITING:
+                time.sleep(1)
+        except (KeyboardInterrupt, SystemExit):
+            sys.exit(0)
+
 if __name__ == "__main__":
     import multiprocessing
     multiprocessing.freeze_support()
