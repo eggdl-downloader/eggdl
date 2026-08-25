@@ -274,7 +274,7 @@ const UI = {
       
       return `
         <tr id="row-${item.id}">
-          <td>
+          <td style="padding-left: 16px;">
             <div class="type-icon ${item.category || 'other'}">
               <i data-lucide="${UI.getCategoryIcon(item.category)}"></i>
             </div>
@@ -302,7 +302,7 @@ const UI = {
             </span>
           </td>
           <td style="font-size: 0.8rem; color: var(--text-dim); white-space: nowrap;">${UI.formatDate(item.created_at)}</td>
-          <td>
+          <td style="text-align: right; padding-right: 18px;">
             <div class="action-buttons">
               ${isDownloading ? `
                 <button class="btn btn-secondary btn-sm" onclick="App.pauseTask('${item.id}')" title="Pause Download">

@@ -338,11 +338,13 @@ i.spin,
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 24px 36px;
-  overflow-y: auto;
+  padding: 20px 32px;
+  overflow: hidden;
   width: 100%;
   max-width: 100%;
-  gap: 22px;
+  height: 100vh;
+  gap: 16px;
+  box-sizing: border-box;
 }
 
 /* Top Bar */
@@ -351,9 +353,10 @@ i.spin,
   justify-content: space-between;
   align-items: center;
   gap: 16px;
-  padding: 4px 0 16px 0;
+  padding: 2px 0 14px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   width: 100%;
+  flex-shrink: 0;
 }
 
 .topbar-search-status {
@@ -594,14 +597,15 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
+  gap: 14px;
+  flex-shrink: 0;
 }
 
 .stat-card {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 18px 22px;
+  gap: 14px;
+  padding: 14px 18px;
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
@@ -614,8 +618,8 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
 }
 
 .stat-icon-wrapper {
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border-radius: var(--radius-md);
   display: flex;
   align-items: center;
@@ -624,8 +628,8 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
 }
 
 .stat-icon-wrapper i {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
 }
 
 .stat-icon-wrapper.speed { background: var(--accent-cyan-bg); color: #06B6D4; }
@@ -640,14 +644,14 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
 }
 
 .stat-card-label {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 600;
   color: var(--text-muted);
 }
 
 .stat-card-val {
   font-family: var(--font-heading);
-  font-size: 1.45rem;
+  font-size: 1.30rem;
   font-weight: 800;
   color: var(--text-main);
   letter-spacing: -0.3px;
@@ -660,11 +664,12 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   background: var(--bg-card);
   border: 1px solid var(--border-medium);
   border-radius: var(--radius-xl);
-  padding: 18px 22px;
+  padding: 14px 18px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
   box-shadow: var(--shadow-sm);
+  flex-shrink: 0;
 }
 
 .url-input-wrapper {
@@ -734,7 +739,10 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
 .active-downloads-section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+  flex-shrink: 0;
+  max-height: 200px;
+  overflow-y: auto;
 }
 
 .section-header {
@@ -899,8 +907,14 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
 .history-section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.history-section .section-header {
+  flex-shrink: 0;
 }
 
 .search-box {
@@ -931,21 +945,49 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: auto;
   box-shadow: var(--shadow-sm);
   width: 100%;
+  flex: 1;
+  min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) rgba(15, 23, 42, 0.6);
+}
+
+.table-container::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.table-container::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.5);
+  border-radius: 4px;
+}
+
+.table-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 4px;
+}
+
+.table-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.32);
 }
 
 .downloads-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   text-align: left;
 }
 
 .downloads-table th {
-  background: rgba(255, 255, 255, 0.02);
-  padding: 14px 18px;
-  font-size: 0.78rem;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #0e1628;
+  padding: 11px 14px;
+  font-size: 0.74rem;
   font-weight: 700;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -954,9 +996,9 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
 }
 
 .downloads-table td {
-  padding: 16px 18px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--border-subtle);
-  font-size: 0.90rem;
+  font-size: 0.88rem;
   color: var(--text-secondary);
   vertical-align: middle;
 }
@@ -1063,6 +1105,26 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   align-items: center;
   justify-content: flex-end;
   gap: 4px;
+}
+
+.action-buttons .btn {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.action-buttons .btn i {
+  width: 13px;
+  height: 13px;
 }
 
 /* Empty State */
