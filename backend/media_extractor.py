@@ -1,6 +1,8 @@
 import os
 import sys
 import time
+import uuid
+import shutil
 import asyncio
 import subprocess
 import re
@@ -115,24 +117,27 @@ def ensure_premiere_compatibility(target_file: str, ffmpeg_exe: str = None) -> b
     if not ffmpeg_exe or not os.path.exists(ffmpeg_exe):
         return False
 
+    safe_tmp = None
     try:
         cmd = [ffmpeg_exe, "-i", target_file]
-        res = subprocess.run(cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+        res = subprocess.run(
+            cmd,
+            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            encoding="utf-8",
+            errors="replace"
+        )
         stderr = res.stderr or ""
 
         # Check for non-standard Premiere formats
         needs_audio_fix = any(aud in stderr for aud in ["Audio: opus", "Audio: vorbis", "Audio: flac"])
-        needs_video_fix = any(vid in stderr for vid in ["Video: av1", "av01", "Video: vp9", "vp09", "yuv420p10le", "yuv420p12le"])
+        needs_video_fix = any(vid in stderr for vid in ["Video: av1", "av01", "Video: vp9", "vp09", "yuv420p10le", "yuv420p12le", "yuv444p10le"])
 
         if not needs_audio_fix and not needs_video_fix:
             return True
 
-        tmp_out = target_file + ".compat.mp4"
-        if os.path.exists(tmp_out):
-            try:
-                os.remove(tmp_out)
-            except Exception:
-                pass
+        parent_d = os.path.dirname(target_file)
+        safe_tmp = os.path.join(parent_d, f"eggdl_tmp_{uuid.uuid4().hex[:8]}.mp4")
 
         if needs_video_fix:
             # Universal 8-bit YUV H.264 + AAC conversion
@@ -146,7 +151,7 @@ def ensure_premiere_compatibility(target_file: str, ffmpeg_exe: str = None) -> b
                 "-threads", "0",
                 "-c:a", "aac",
                 "-b:a", "192k",
-                tmp_out
+                safe_tmp
             ]
         else:
             # Fast stream copy video (0ms) and transcode audio to AAC (< 1 sec)
@@ -156,22 +161,26 @@ def ensure_premiere_compatibility(target_file: str, ffmpeg_exe: str = None) -> b
                 "-c:v", "copy",
                 "-c:a", "aac",
                 "-b:a", "192k",
-                tmp_out
+                safe_tmp
             ]
 
         c_res = subprocess.run(convert_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if c_res.returncode == 0 and os.path.exists(tmp_out) and os.path.getsize(tmp_out) > 1024:
-            os.replace(tmp_out, target_file)
+        if c_res.returncode == 0 and os.path.exists(safe_tmp) and os.path.getsize(safe_tmp) > 1024:
+            os.replace(safe_tmp, target_file)
             return True
     except Exception as e:
-        sys.stderr.write(f"[Premiere Standardizer Warning] {e}\n")
+        try:
+            sys.stderr.write(f"[Premiere Standardizer Warning] {e}\n")
+        except Exception:
+            pass
     finally:
-        if os.path.exists(target_file + ".compat.mp4"):
+        if safe_tmp and os.path.exists(safe_tmp):
             try:
-                os.remove(target_file + ".compat.mp4")
+                os.remove(safe_tmp)
             except Exception:
                 pass
     return False
+
 
 
 def _fallback_scrape_video_page(url: str) -> Dict[str, Any]:
