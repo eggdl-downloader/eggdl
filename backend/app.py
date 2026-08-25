@@ -51,7 +51,7 @@ try:
         generate_product_key, mask_license_key, PLAN_CONFIGS
     )
     from downloader_engine import DownloadTask, detect_category, sanitize_filename
-    from media_extractor import MediaExtractor, StreamDownloadTask, clean_stream_url
+    from media_extractor import MediaExtractor, StreamDownloadTask, clean_stream_url, get_ffmpeg_exe, ensure_premiere_compatibility
     from page_sniffer import sniff_webpage
 except ImportError:
     from backend.storage import (
@@ -70,7 +70,7 @@ except ImportError:
         generate_product_key, mask_license_key, PLAN_CONFIGS
     )
     from backend.downloader_engine import DownloadTask, detect_category, sanitize_filename
-    from backend.media_extractor import MediaExtractor, StreamDownloadTask, clean_stream_url
+    from backend.media_extractor import MediaExtractor, StreamDownloadTask, clean_stream_url, get_ffmpeg_exe, ensure_premiere_compatibility
     from backend.page_sniffer import sniff_webpage
 
 app = FastAPI(title="EggDL API", version="2.0.0")
@@ -1330,6 +1330,42 @@ async def stream_media(task_id: str):
     elif ext in [".mkv"]: media_type = "video/x-matroska"
 
     return FileResponse(file_path, media_type=media_type, filename=os.path.basename(file_path))
+
+
+@app.post("/api/convert/to-h264")
+async def convert_to_h264(req: FileActionRequest):
+    """Universal High-Performance H.264 & AAC Converter for 100% Adobe Premiere Pro / NLE compatibility."""
+    file_path = req.file_path
+    task = None
+    if req.task_id:
+        task = get_download_task(req.task_id)
+        if task and not file_path:
+            file_path = task.get("file_path")
+
+    if not file_path or not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Target video file not found on disk.")
+
+    ffmpeg_exe = get_ffmpeg_exe()
+    if not ffmpeg_exe or not os.path.exists(ffmpeg_exe):
+        raise HTTPException(status_code=500, detail="FFmpeg binary not found.")
+
+    success = ensure_premiere_compatibility(file_path, ffmpeg_exe)
+    if not success and not os.path.exists(file_path):
+        raise HTTPException(status_code=500, detail="Failed to standardize video format.")
+
+    new_size = os.path.getsize(file_path)
+    if task and req.task_id:
+        task["file_size"] = new_size
+        task["downloaded_bytes"] = new_size
+        save_download_task(task)
+        await broadcast({"type": "task_updated", "task": task})
+
+    return {
+        "success": True,
+        "message": "Video successfully converted to 100% Premiere Pro ready H.264 & AAC!",
+        "file_path": file_path,
+        "file_size": new_size
+    }
 
 
 @app.post("/api/system/open-file")

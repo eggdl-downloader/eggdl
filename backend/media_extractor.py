@@ -106,25 +106,26 @@ def get_ffmpeg_exe() -> Optional[str]:
         pass
     return shutil.which("ffmpeg")
 
-def ensure_premiere_compatibility(target_file: str, ffmpeg_exe: str = None):
-    """Ensures video is encoded in H.264 (AVC1) video and AAC audio for 100% Adobe Premiere Pro / NLE compatibility."""
+def ensure_premiere_compatibility(target_file: str, ffmpeg_exe: str = None) -> bool:
+    """Universal high-speed H.264 & AAC standardizer ensuring 100% Adobe Premiere Pro / NLE compatibility."""
     if not target_file or not os.path.exists(target_file) or not target_file.lower().endswith(".mp4"):
-        return
+        return False
     if not ffmpeg_exe or not os.path.exists(ffmpeg_exe):
         ffmpeg_exe = get_ffmpeg_exe()
     if not ffmpeg_exe or not os.path.exists(ffmpeg_exe):
-        return
+        return False
 
     try:
         cmd = [ffmpeg_exe, "-i", target_file]
         res = subprocess.run(cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
         stderr = res.stderr or ""
 
-        needs_audio_fix = "Audio: opus" in stderr
-        needs_video_fix = "Video: av1" in stderr or "av01" in stderr or "Video: vp9" in stderr
+        # Check for non-standard Premiere formats
+        needs_audio_fix = any(aud in stderr for aud in ["Audio: opus", "Audio: vorbis", "Audio: flac"])
+        needs_video_fix = any(vid in stderr for vid in ["Video: av1", "av01", "Video: vp9", "vp09", "yuv420p10le", "yuv420p12le"])
 
         if not needs_audio_fix and not needs_video_fix:
-            return
+            return True
 
         tmp_out = target_file + ".compat.mp4"
         if os.path.exists(tmp_out):
@@ -134,10 +135,11 @@ def ensure_premiere_compatibility(target_file: str, ffmpeg_exe: str = None):
                 pass
 
         if needs_video_fix:
-            # Transcode video to H.264 using ultrafast preset & AAC audio
+            # Universal 8-bit YUV H.264 + AAC conversion
             convert_cmd = [
                 ffmpeg_exe, "-y",
                 "-i", target_file,
+                "-pix_fmt", "yuv420p",
                 "-c:v", "libx264",
                 "-preset", "ultrafast",
                 "-crf", "22",
@@ -147,7 +149,7 @@ def ensure_premiere_compatibility(target_file: str, ffmpeg_exe: str = None):
                 tmp_out
             ]
         else:
-            # Stream copy video directly (0ms) and transcode audio to AAC (< 1 sec)
+            # Fast stream copy video (0ms) and transcode audio to AAC (< 1 sec)
             convert_cmd = [
                 ffmpeg_exe, "-y",
                 "-i", target_file,
@@ -160,14 +162,16 @@ def ensure_premiere_compatibility(target_file: str, ffmpeg_exe: str = None):
         c_res = subprocess.run(convert_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if c_res.returncode == 0 and os.path.exists(tmp_out) and os.path.getsize(tmp_out) > 1024:
             os.replace(tmp_out, target_file)
+            return True
     except Exception as e:
-        sys.stderr.write(f"[Premiere Compat Warning] {e}\n")
+        sys.stderr.write(f"[Premiere Standardizer Warning] {e}\n")
     finally:
         if os.path.exists(target_file + ".compat.mp4"):
             try:
                 os.remove(target_file + ".compat.mp4")
             except Exception:
                 pass
+    return False
 
 
 def _fallback_scrape_video_page(url: str) -> Dict[str, Any]:
@@ -453,12 +457,17 @@ class MediaExtractor:
         if not best_audio_size and duration:
             best_audio_size = int(duration * 16 * 1024) # ~128kbps audio
 
-        # Add "Best Quality" default preset
+        # Add "Best Quality" default preset (Prioritize native H.264 + AAC)
         video_options.append({
-            "format_id": "bestvideo+bestaudio/best",
-            "label": "Best Video Quality (Auto)",
+            "format_id": (
+                "bestvideo[vcodec^=avc1]+bestaudio[acodec^=mp4a]/"
+                "bestvideo[vcodec^=avc1]+bestaudio[ext=m4a]/"
+                "bestvideo[ext=mp4]+bestaudio[ext=m4a]/"
+                "bestvideo+bestaudio/best"
+            ),
+            "label": "Best Video Quality (Auto - Premiere Ready)",
             "resolution": "Best",
-            "codec": "MP4 / AAC",
+            "codec": "MP4 / H.264",
             "ext": "mp4",
             "filesize": None,
             "filesize_str": "Auto (Highest Available)",
