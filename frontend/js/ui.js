@@ -603,7 +603,7 @@ const UI = {
     }
 
     container.innerHTML = `
-      <button class="user-pill-btn" id="user-profile-btn" title="Click to view Hardware License & Registration">
+      <button class="user-pill-btn" id="user-profile-btn" title="Click to view License & Registration">
         <div class="user-avatar"><i data-lucide="monitor" style="width: 14px; height: 14px;"></i></div>
         <span class="user-name">${desktopName}</span>
         <span class="${badgeClass}">${badgeText}</span>

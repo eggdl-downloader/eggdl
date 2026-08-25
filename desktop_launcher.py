@@ -160,29 +160,54 @@ def ensure_autostart_registry():
         except Exception:
             pass
 
-_WINDOW_PROC = None
-
-def launch_window(target_url: str, icon_path: str):
-    global _WINDOW_PROC
-    # 1. Try native Edge WebView2 window
+if sys.platform == "win32":
     try:
-        import webview
-        window = webview.create_window(
-            title="EggDL - Ultra Turbo Downloader",
-            url=target_url,
-            width=1320,
-            height=840,
-            min_size=(980, 640),
-            background_color="#0B0F19",
-            easy_drag=False,
-            zoomable=True
-        )
-        webview.start(debug=False, icon=icon_path if os.path.exists(icon_path) else None)
-        return
-    except Exception as err:
-        sys.stderr.write(f"[WebView Note] {err}\n")
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("EggDL.Downloader.Desktop.v2")
+    except Exception:
+        pass
 
-    # 2. Standalone App Mode via Edge / Chrome (No URL bar, no tabs, pure desktop app window)
+_MAIN_WINDOW = None
+_TRAY_ICON = None
+_IS_EXITING = False
+
+def on_closing():
+    global _MAIN_WINDOW, _IS_EXITING
+    if _IS_EXITING:
+        return True
+    if _MAIN_WINDOW:
+        try:
+            _MAIN_WINDOW.hide()
+        except Exception:
+            pass
+        return False
+    return True
+
+def on_open_app(icon=None, item=None):
+    global _MAIN_WINDOW
+    if _MAIN_WINDOW:
+        try:
+            _MAIN_WINDOW.show()
+            _MAIN_WINDOW.restore()
+        except Exception:
+            pass
+
+def on_exit_app(icon=None, item=None):
+    global _IS_EXITING, _TRAY_ICON, _MAIN_WINDOW
+    _IS_EXITING = True
+    if _TRAY_ICON:
+        try:
+            _TRAY_ICON.stop()
+        except Exception:
+            pass
+    if _MAIN_WINDOW:
+        try:
+            _MAIN_WINDOW.destroy()
+        except Exception:
+            pass
+    os._exit(0)
+
+def launch_browser_fallback(target_url: str):
     import subprocess
     app_profile_dir = os.path.join(get_user_data_dir(), "BrowserAppProfile")
     os.makedirs(app_profile_dir, exist_ok=True)
@@ -208,17 +233,17 @@ def launch_window(target_url: str, icon_path: str):
                     "--disable-extensions",
                     "--disable-plugins"
                 ]
-                _WINDOW_PROC = subprocess.Popen(cmd)
-                _WINDOW_PROC.wait()
+                proc = subprocess.Popen(cmd)
+                proc.wait()
                 return
             except Exception as e:
                 sys.stderr.write(f"[App Mode Note] {e}\n")
 
-    # 3. Final Fallback if no Chromium browser found
     import webbrowser
     webbrowser.open(target_url)
 
 def main():
+    global _MAIN_WINDOW, _TRAY_ICON
     ensure_autostart_registry()
     is_tray_start = any(arg in sys.argv for arg in ["--tray", "--minimized", "--startup", "-t", "-m"])
 
@@ -230,44 +255,48 @@ def main():
     target_url = f"http://localhost:{port}/"
     icon_path = os.path.join(BUNDLE_DIR, "eggdl.ico")
     if not os.path.exists(icon_path):
+        exe_dir = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else BASE_DIR
+        icon_path = os.path.join(exe_dir, "eggdl.ico")
+    if not os.path.exists(icon_path):
         icon_path = os.path.join(BUNDLE_DIR, "frontend", "images", "egg-icon.png")
 
-    # Setup System Tray Icon
-    tray_icon = None
+    # Setup System Tray Icon (runs detached in background thread)
     try:
         if os.path.exists(icon_path):
             img = Image.open(icon_path)
         else:
             img = Image.new('RGB', (64, 64), color=(59, 130, 246))
 
-        def on_open_app(icon=None, item=None):
-            threading.Thread(target=launch_window, args=(target_url, icon_path), daemon=True).start()
-
-        def on_exit_app(icon=None, item=None):
-            if tray_icon:
-                tray_icon.stop()
-            os._exit(0)
-
         menu = pystray.Menu(
             pystray.MenuItem("🥚 Open EggDL", on_open_app, default=True),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("✕ Exit EggDL", on_exit_app)
         )
-        tray_icon = pystray.Icon("EggDL", img, "EggDL - Ultra Turbo Downloader (Active)", menu)
+        _TRAY_ICON = pystray.Icon("EggDL", img, "EggDL - Ultra Turbo Downloader (Active)", menu)
+        _TRAY_ICON.run_detached()
     except Exception as tray_err:
         sys.stderr.write(f"[Tray Init Note] {tray_err}\n")
 
-    if not is_tray_start:
-        threading.Thread(target=launch_window, args=(target_url, icon_path), daemon=True).start()
-
-    if tray_icon:
-        tray_icon.run()
-    else:
-        try:
-            while True:
-                time.sleep(1)
-        except (KeyboardInterrupt, SystemExit):
-            sys.exit(0)
+    # Launch native webview on the Main Thread
+    try:
+        import webview
+        _MAIN_WINDOW = webview.create_window(
+            title="EggDL - Ultra Turbo Downloader",
+            url=target_url,
+            width=1320,
+            height=840,
+            min_size=(980, 640),
+            background_color="#0B0F19",
+            easy_drag=False,
+            zoomable=True,
+            hidden=is_tray_start
+        )
+        _MAIN_WINDOW.events.closing += on_closing
+        webview.start(debug=False, icon=icon_path if os.path.exists(icon_path) else None)
+    except Exception as err:
+        sys.stderr.write(f"[WebView Note] {err}\n")
+        if not is_tray_start:
+            launch_browser_fallback(target_url)
 
 if __name__ == "__main__":
     import multiprocessing
