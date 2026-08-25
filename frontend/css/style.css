@@ -834,7 +834,9 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  flex: 1;
   min-width: 0;
+  max-width: calc(100% - 60px);
 }
 
 .active-file-title {
@@ -844,6 +846,8 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 100%;
+  display: block;
 }
 
 .active-file-sub {
@@ -859,6 +863,7 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   align-items: center;
   gap: 16px;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .stat-group {

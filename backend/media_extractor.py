@@ -108,6 +108,27 @@ def get_ffmpeg_exe() -> Optional[str]:
         pass
     return shutil.which("ffmpeg")
 
+_CACHED_H264_ENCODER = None
+
+def get_best_h264_encoder(ffmpeg_exe: str) -> str:
+    global _CACHED_H264_ENCODER
+    if _CACHED_H264_ENCODER:
+        return _CACHED_H264_ENCODER
+    
+    creationflags = 0x08000000 if sys.platform == "win32" else 0
+    candidates = ["h264_nvenc", "h264_qsv", "h264_mf", "libx264"]
+    for enc in candidates:
+        try:
+            cmd = [ffmpeg_exe, "-f", "lavfi", "-i", "color=c=black:s=640x360:d=1", "-c:v", enc, "-f", "null", "-"]
+            res = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=creationflags)
+            if res.returncode == 0:
+                _CACHED_H264_ENCODER = enc
+                return enc
+        except Exception:
+            continue
+    _CACHED_H264_ENCODER = "libx264"
+    return _CACHED_H264_ENCODER
+
 def ensure_premiere_compatibility(target_file: str, ffmpeg_exe: str = None) -> bool:
     """Universal high-speed H.264 & AAC standardizer ensuring 100% Adobe Premiere Pro / NLE compatibility."""
     if not target_file or not os.path.exists(target_file) or not target_file.lower().endswith(".mp4"):
@@ -117,6 +138,7 @@ def ensure_premiere_compatibility(target_file: str, ffmpeg_exe: str = None) -> b
     if not ffmpeg_exe or not os.path.exists(ffmpeg_exe):
         return False
 
+    creationflags = 0x08000000 if sys.platform == "win32" else 0
     safe_tmp = None
     try:
         cmd = [ffmpeg_exe, "-i", target_file]
@@ -125,7 +147,8 @@ def ensure_premiere_compatibility(target_file: str, ffmpeg_exe: str = None) -> b
             stderr=subprocess.PIPE,
             stdout=subprocess.PIPE,
             encoding="utf-8",
-            errors="replace"
+            errors="replace",
+            creationflags=creationflags
         )
         stderr = res.stderr or ""
 
@@ -140,19 +163,42 @@ def ensure_premiere_compatibility(target_file: str, ffmpeg_exe: str = None) -> b
         safe_tmp = os.path.join(parent_d, f"eggdl_tmp_{uuid.uuid4().hex[:8]}.mp4")
 
         if needs_video_fix:
-            # Universal 8-bit YUV H.264 + AAC conversion
+            best_enc = get_best_h264_encoder(ffmpeg_exe)
+            
+            enc_args = ["-c:v", best_enc]
+            if best_enc == "h264_nvenc":
+                enc_args.extend(["-preset", "p1", "-cq", "22"])
+            elif best_enc == "h264_qsv":
+                enc_args.extend(["-preset", "veryfast", "-global_quality", "22"])
+            elif best_enc == "libx264":
+                enc_args.extend(["-preset", "ultrafast", "-crf", "22", "-threads", "0"])
+
             convert_cmd = [
                 ffmpeg_exe, "-y",
                 "-i", target_file,
                 "-pix_fmt", "yuv420p",
-                "-c:v", "libx264",
-                "-preset", "ultrafast",
-                "-crf", "22",
-                "-threads", "0",
+                *enc_args,
                 "-c:a", "aac",
                 "-b:a", "192k",
                 safe_tmp
             ]
+            c_res = subprocess.run(convert_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=creationflags)
+            
+            # If GPU encoder encountered an unexpected issue, fallback immediately to CPU ultrafast
+            if (c_res.returncode != 0 or not os.path.exists(safe_tmp) or os.path.getsize(safe_tmp) <= 1024) and best_enc != "libx264":
+                fallback_cmd = [
+                    ffmpeg_exe, "-y",
+                    "-i", target_file,
+                    "-pix_fmt", "yuv420p",
+                    "-c:v", "libx264",
+                    "-preset", "ultrafast",
+                    "-crf", "22",
+                    "-threads", "0",
+                    "-c:a", "aac",
+                    "-b:a", "192k",
+                    safe_tmp
+                ]
+                c_res = subprocess.run(fallback_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=creationflags)
         else:
             # Fast stream copy video (0ms) and transcode audio to AAC (< 1 sec)
             convert_cmd = [
@@ -163,8 +209,8 @@ def ensure_premiere_compatibility(target_file: str, ffmpeg_exe: str = None) -> b
                 "-b:a", "192k",
                 safe_tmp
             ]
+            c_res = subprocess.run(convert_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=creationflags)
 
-        c_res = subprocess.run(convert_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if c_res.returncode == 0 and os.path.exists(safe_tmp) and os.path.getsize(safe_tmp) > 1024:
             os.replace(safe_tmp, target_file)
             return True
