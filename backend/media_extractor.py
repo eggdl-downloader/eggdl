@@ -466,14 +466,9 @@ class MediaExtractor:
         if not best_audio_size and duration:
             best_audio_size = int(duration * 16 * 1024) # ~128kbps audio
 
-        # Add "Best Quality" default preset (Prioritize native H.264 + AAC)
+        # Add "Best Quality" default preset (True highest available resolution, standardized to H.264 automatically)
         video_options.append({
-            "format_id": (
-                "bestvideo[vcodec^=avc1]+bestaudio[acodec^=mp4a]/"
-                "bestvideo[vcodec^=avc1]+bestaudio[ext=m4a]/"
-                "bestvideo[ext=mp4]+bestaudio[ext=m4a]/"
-                "bestvideo+bestaudio/best"
-            ),
+            "format_id": "bestvideo+bestaudio/best",
             "label": "Best Video Quality (Auto - Premiere Ready)",
             "resolution": "Best",
             "codec": "MP4 / H.264",
@@ -550,10 +545,9 @@ class MediaExtractor:
             comb_size = (v_size + best_audio_size) if v_size else None
 
             format_spec = (
-                f"bestvideo[height<={height}][vcodec^=avc1]+bestaudio[acodec^=mp4a]/"
-                f"bestvideo[height<={height}][vcodec^=avc1]+bestaudio[ext=m4a]/"
-                f"bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]/"
-                f"bestvideo[height<={height}]+bestaudio/best[height<={height}]"
+                f"bestvideo[height={height}]+bestaudio/"
+                f"bestvideo[height<={height}]+bestaudio/"
+                f"best[height<={height}]"
             )
             video_options.append({
                 "format_id": format_spec,
@@ -782,7 +776,7 @@ class StreamDownloadTask:
             "fragment_retries": 10,
             "socket_timeout": 30,
             "cachedir": False,
-            "format_sort": ["vcodec:h264", "acodec:m4a", "vcodec:avc", "acodec:aac", "res", "ext:mp4:m4a"],
+            "format_sort": ["res", "fps", "vcodec:h264", "acodec:m4a", "ext:mp4:m4a"],
             "http_headers": {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                 "Accept-Language": "en-US,en;q=0.9",
@@ -806,12 +800,7 @@ class StreamDownloadTask:
             if self.format_id and self.format_id not in ["best", "bestvideo", "auto"]:
                 ydl_opts["format"] = self.format_id
             else:
-                ydl_opts["format"] = (
-                    "bestvideo[vcodec^=avc1]+bestaudio[acodec^=mp4a]/"
-                    "bestvideo[vcodec^=avc1]+bestaudio[ext=m4a]/"
-                    "bestvideo[ext=mp4]+bestaudio[ext=m4a]/"
-                    "bestvideo+bestaudio/best"
-                )
+                ydl_opts["format"] = "bestvideo+bestaudio/best"
             ydl_opts["merge_output_format"] = "mp4"
 
         # Emit initial downloading event immediately
