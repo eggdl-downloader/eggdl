@@ -93,12 +93,81 @@ def get_ffmpeg_location() -> Optional[str]:
     for cp in common_paths:
         if os.path.exists(os.path.join(cp, "ffmpeg.exe")):
             return cp
-    return None
+def get_ffmpeg_exe() -> Optional[str]:
+    loc = get_ffmpeg_location()
+    if loc:
+        exe = os.path.join(loc, "ffmpeg.exe")
+        if os.path.exists(exe):
+            return exe
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        pass
+    return shutil.which("ffmpeg")
 
-# Ensure FFmpeg is on PATH if found
-get_ffmpeg_location()
+def ensure_premiere_compatibility(target_file: str, ffmpeg_exe: str = None):
+    """Ensures video is encoded in H.264 (AVC1) video and AAC audio for 100% Adobe Premiere Pro / NLE compatibility."""
+    if not target_file or not os.path.exists(target_file) or not target_file.lower().endswith(".mp4"):
+        return
+    if not ffmpeg_exe or not os.path.exists(ffmpeg_exe):
+        ffmpeg_exe = get_ffmpeg_exe()
+    if not ffmpeg_exe or not os.path.exists(ffmpeg_exe):
+        return
 
-# Direct Fast Merging Engine - Zero Lag & High-Speed Native Multiplexing
+    try:
+        cmd = [ffmpeg_exe, "-i", target_file]
+        res = subprocess.run(cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+        stderr = res.stderr or ""
+
+        needs_audio_fix = "Audio: opus" in stderr
+        needs_video_fix = "Video: av1" in stderr or "av01" in stderr or "Video: vp9" in stderr
+
+        if not needs_audio_fix and not needs_video_fix:
+            return
+
+        tmp_out = target_file + ".compat.mp4"
+        if os.path.exists(tmp_out):
+            try:
+                os.remove(tmp_out)
+            except Exception:
+                pass
+
+        if needs_video_fix:
+            # Transcode video to H.264 using ultrafast preset & AAC audio
+            convert_cmd = [
+                ffmpeg_exe, "-y",
+                "-i", target_file,
+                "-c:v", "libx264",
+                "-preset", "ultrafast",
+                "-crf", "22",
+                "-threads", "0",
+                "-c:a", "aac",
+                "-b:a", "192k",
+                tmp_out
+            ]
+        else:
+            # Stream copy video directly (0ms) and transcode audio to AAC (< 1 sec)
+            convert_cmd = [
+                ffmpeg_exe, "-y",
+                "-i", target_file,
+                "-c:v", "copy",
+                "-c:a", "aac",
+                "-b:a", "192k",
+                tmp_out
+            ]
+
+        c_res = subprocess.run(convert_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if c_res.returncode == 0 and os.path.exists(tmp_out) and os.path.getsize(tmp_out) > 1024:
+            os.replace(tmp_out, target_file)
+    except Exception as e:
+        sys.stderr.write(f"[Premiere Compat Warning] {e}\n")
+    finally:
+        if os.path.exists(target_file + ".compat.mp4"):
+            try:
+                os.remove(target_file + ".compat.mp4")
+            except Exception:
+                pass
 
 
 def _fallback_scrape_video_page(url: str) -> Dict[str, Any]:
@@ -462,7 +531,12 @@ class MediaExtractor:
 
             comb_size = (v_size + best_audio_size) if v_size else None
 
-            format_spec = f"bestvideo[height<={height}]+bestaudio/best[height<={height}]/bestvideo+bestaudio/best"
+            format_spec = (
+                f"bestvideo[height<={height}][vcodec^=avc1]+bestaudio[acodec^=mp4a]/"
+                f"bestvideo[height<={height}][vcodec^=avc1]+bestaudio[ext=m4a]/"
+                f"bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]/"
+                f"bestvideo[height<={height}]+bestaudio/best[height<={height}]"
+            )
             video_options.append({
                 "format_id": format_spec,
                 "label": label,
@@ -690,6 +764,7 @@ class StreamDownloadTask:
             "fragment_retries": 10,
             "socket_timeout": 30,
             "cachedir": False,
+            "format_sort": ["vcodec:h264", "acodec:m4a", "vcodec:avc", "acodec:aac", "res", "ext:mp4:m4a"],
             "http_headers": {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                 "Accept-Language": "en-US,en;q=0.9",
@@ -710,8 +785,15 @@ class StreamDownloadTask:
                     "preferredquality": "320",
                 }]
         else:
-            fmt = self.format_id or "bestvideo+bestaudio/best"
-            ydl_opts["format"] = fmt
+            if self.format_id and self.format_id not in ["best", "bestvideo", "auto"]:
+                ydl_opts["format"] = self.format_id
+            else:
+                ydl_opts["format"] = (
+                    "bestvideo[vcodec^=avc1]+bestaudio[acodec^=mp4a]/"
+                    "bestvideo[vcodec^=avc1]+bestaudio[ext=m4a]/"
+                    "bestvideo[ext=mp4]+bestaudio[ext=m4a]/"
+                    "bestvideo+bestaudio/best"
+                )
             ydl_opts["merge_output_format"] = "mp4"
 
         # Emit initial downloading event immediately
@@ -804,10 +886,17 @@ class StreamDownloadTask:
                             final_path = base_prep
 
                     if final_path and os.path.exists(final_path):
-                        self.file_path = os.path.abspath(final_path)
-                        self.filename = os.path.basename(final_path)
-                        self.file_size = os.path.getsize(final_path)
-                        self.downloaded_bytes = self.file_size
+                        # Ensure 100% Adobe Premiere Pro compatibility (H.264 + AAC)
+                        if not self.is_audio_only and final_path.lower().endswith(".mp4"):
+                            ffmpeg_bin = get_ffmpeg_exe()
+                            if ffmpeg_bin and os.path.exists(ffmpeg_bin):
+                                ensure_premiere_compatibility(final_path, ffmpeg_bin)
+
+                        if os.path.exists(final_path):
+                            self.file_path = os.path.abspath(final_path)
+                            self.filename = os.path.basename(final_path)
+                            self.file_size = os.path.getsize(final_path)
+                            self.downloaded_bytes = self.file_size
 
                         # Automatically clean up any leftover fragmented temp stream files and 0-byte orphan duplicates
                         try:
