@@ -55,22 +55,32 @@ if BACKEND_DIR not in sys.path:
 if BUNDLE_DIR not in sys.path:
     sys.path.insert(0, BUNDLE_DIR)
 
-# Dynamically import backend.app from disk file if available so disk updates take immediate effect
-app_file = os.path.join(BACKEND_DIR, "app.py")
-if os.path.exists(app_file):
-    try:
-        import importlib.util
-        spec = importlib.util.spec_from_file_location("backend.app", app_file)
-        backend_app_mod = importlib.util.module_from_spec(spec)
-        sys.modules["backend.app"] = backend_app_mod
-        spec.loader.exec_module(backend_app_mod)
-        app = backend_app_mod.app
-    except Exception as import_err:
-        sys.stderr.write(f"[Dynamic Import Warning] {import_err}\n")
+# Dynamically import all backend modules from disk if available so changes take immediate effect
+backend_mods = [
+    ("storage", "backend.storage"),
+    ("auth", "backend.auth"),
+    ("downloader_engine", "backend.downloader_engine"),
+    ("media_extractor", "backend.media_extractor"),
+    ("page_sniffer", "backend.page_sniffer"),
+    ("app", "backend.app")
+]
+import importlib.util
+for mod_name, full_name in backend_mods:
+    fpath = os.path.join(BACKEND_DIR, f"{mod_name}.py")
+    if os.path.exists(fpath):
         try:
-            from backend.app import app
-        except ImportError:
-            from app import app
+            spec = importlib.util.spec_from_file_location(mod_name, fpath)
+            mod = importlib.util.module_from_spec(spec)
+            sys.modules[mod_name] = mod
+            sys.modules[full_name] = mod
+            spec.loader.exec_module(mod)
+        except Exception as err:
+            sys.stderr.write(f"[Dynamic Import Warning for {mod_name}] {err}\n")
+
+if "backend.app" in sys.modules and hasattr(sys.modules["backend.app"], "app"):
+    app = sys.modules["backend.app"].app
+elif "app" in sys.modules and hasattr(sys.modules["app"], "app"):
+    app = sys.modules["app"].app
 else:
     try:
         from backend.app import app
