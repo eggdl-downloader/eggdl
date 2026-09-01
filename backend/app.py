@@ -1662,9 +1662,36 @@ _CLOUD_VERSION_CACHE = {
     "data": None
 }
 
+def fetch_github_manifest_version():
+    try:
+        import urllib.request
+        url = "https://raw.githubusercontent.com/eggdl-downloader/eggdl/main/extension/manifest.json"
+        req = urllib.request.Request(url, headers={"User-Agent": "EggDL-Client", "Cache-Control": "no-cache"})
+        with urllib.request.urlopen(req, timeout=3.5) as res:
+            if res.status == 200:
+                data = json.loads(res.read().decode())
+                remote_v = data.get("version")
+                if remote_v:
+                    return {
+                        "version": remote_v,
+                        "release_notes": "⚡ Ultra-Fast Native MP4 Engine\n🚀 Instant Single-File Output & Zero 99% Lag\n🎨 Glassmorphic Toast UI & Custom Filename Preservation\n🎬 4K/8K stream download optimizations.",
+                        "download_url": "https://raw.githubusercontent.com/eggdl-downloader/eggdl/main/frontend/downloads/EggDL_Setup.exe",
+                        "mandatory": 0,
+                        "is_active": 1
+                    }
+    except Exception:
+        pass
+    return None
+
 def _refresh_cloud_version_async():
     def _worker():
         try:
+            gh_data = fetch_github_manifest_version()
+            if gh_data:
+                _CLOUD_VERSION_CACHE["data"] = gh_data
+                _CLOUD_VERSION_CACHE["last_check"] = time.time()
+                return
+
             import urllib.request
             req = urllib.request.Request(f"{CLOUD_API_URL}/api/system/version", headers={"User-Agent": "EggDL-Client"})
             with urllib.request.urlopen(req, timeout=3.0) as res:
@@ -1685,13 +1712,19 @@ async def ping_system():
 async def get_version_info():
     latest = get_latest_app_release()
     
-    # If running locally on desktop, use background cached cloud release if available
+    # 1. Check live GitHub raw version if on desktop
     if not os.environ.get("RENDER"):
         now = time.time()
         if _CLOUD_VERSION_CACHE.get("data"):
             latest = _CLOUD_VERSION_CACHE["data"]
-        # Trigger background refresh if cache is older than 5 minutes without blocking event loop
-        if now - _CLOUD_VERSION_CACHE["last_check"] > 300:
+        else:
+            gh_data = fetch_github_manifest_version()
+            if gh_data:
+                _CLOUD_VERSION_CACHE["data"] = gh_data
+                latest = gh_data
+        
+        # Trigger background refresh if cache is older than 60 seconds
+        if now - _CLOUD_VERSION_CACHE["last_check"] > 60:
             _CLOUD_VERSION_CACHE["last_check"] = now
             _refresh_cloud_version_async()
 
@@ -1702,7 +1735,7 @@ async def get_version_info():
         "latest_version": latest.get("version", "2.0.0"),
         "update_available": has_update,
         "release_notes": latest.get("release_notes", "Performance and stability updates"),
-        "download_url": latest.get("download_url", "https://eggdl.onrender.com/download/setup"),
+        "download_url": latest.get("download_url", "https://raw.githubusercontent.com/eggdl-downloader/eggdl/main/frontend/downloads/EggDL_Setup.exe"),
         "mandatory": bool(latest.get("mandatory", 0)),
         "latest_release": latest
     }

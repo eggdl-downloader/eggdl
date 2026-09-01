@@ -174,7 +174,7 @@ def init_db():
     # Initialize default app release if not present
     cursor.execute("""
     INSERT OR REPLACE INTO app_releases (version, release_notes, download_url, mandatory, is_active)
-    VALUES ('2.1.5', '⚡ Ultra-Fast Native MP4 Engine\n🚀 Instant Single-File Output & Zero 99% Lag\n🎬 4K/8K stream download optimizations.', 'https://eggdl.onrender.com/download/setup', 0, 1)
+    VALUES ('2.1.6', '⚡ Ultra-Fast Native MP4 Engine\n🚀 Instant Single-File Output & Zero 99% Lag\n🎬 4K/8K stream download optimizations.', 'https://eggdl.onrender.com/download/setup', 0, 1)
     """)
 
     conn.commit()
@@ -1037,14 +1037,15 @@ def get_latest_app_release() -> Dict[str, Any]:
     conn.close()
     if row:
         d = dict(row)
-        if d.get("version") in ("2.0.0", "2.1.0", "2.1.1", "2.1.2", "2.1.3", "2.1.4"):
-            d["version"] = "2.1.5"
-            d["release_notes"] = "⚡ Ultra-Fast Native MP4 Engine\n🚀 Instant Single-File Output & Zero 99% Lag\n🎬 4K/8K stream download optimizations."
+        if d.get("version") in ("2.0.0", "2.1.0", "2.1.1", "2.1.2", "2.1.3", "2.1.4", "2.1.5"):
+            d["version"] = "2.1.6"
+            d["release_notes"] = "⚡ Ultra-Fast Native MP4 Engine\n🚀 Instant Single-File Output & Zero 99% Lag\n🎨 Glassmorphic Toast UI & Custom Filename Preservation\n🎬 4K/8K stream download optimizations."
+            d["download_url"] = "https://raw.githubusercontent.com/eggdl-downloader/eggdl/main/frontend/downloads/EggDL_Setup.exe"
         return d
     return {
-        "version": "2.1.5",
-        "release_notes": "⚡ Ultra-Fast Native MP4 Engine\n🚀 Instant Single-File Output & Zero 99% Lag\n🎬 4K/8K stream download optimizations.",
-        "download_url": "https://eggdl.onrender.com/download/setup",
+        "version": "2.1.6",
+        "release_notes": "⚡ Ultra-Fast Native MP4 Engine\n🚀 Instant Single-File Output & Zero 99% Lag\n🎨 Glassmorphic Toast UI & Custom Filename Preservation\n🎬 4K/8K stream download optimizations.",
+        "download_url": "https://raw.githubusercontent.com/eggdl-downloader/eggdl/main/frontend/downloads/EggDL_Setup.exe",
         "mandatory": 0
     }
 
