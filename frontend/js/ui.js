@@ -68,6 +68,32 @@ const UI = {
     return { class: 'hd', text: resolution };
   },
 
+  escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  },
+
+  playTechyCompletionSound() {
+    try {
+      if (window.DOWNLOAD_COMPLETE_AUDIO) {
+        const snd = new Audio(window.DOWNLOAD_COMPLETE_AUDIO);
+        snd.volume = 0.85;
+        snd.play().catch(() => {});
+        return;
+      }
+      const snd = new Audio('/static/audio/notification.mp3');
+      snd.volume = 0.85;
+      snd.play().catch(() => {});
+    } catch (e) {
+      console.warn('Audio playback note:', e);
+    }
+  },
+
   showToast(message, type = 'info', duration = 5000) {
     const container = document.getElementById('toast-container');
     if (!container) return;
@@ -93,6 +119,262 @@ const UI = {
       toast.style.transition = 'all 0.3s ease';
       setTimeout(() => toast.remove(), 300);
     }, duration);
+  },
+
+  showDownloadCompleteNotification(task) {
+    if (!task) return;
+    if (document.hasFocus()) {
+      this.playTechyCompletionSound();
+    }
+    let container = document.getElementById('download-notification-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'download-notification-container';
+      container.className = 'download-notification-container';
+      document.body.appendChild(container);
+    }
+
+    const notif = document.createElement('div');
+    notif.className = 'dl-complete-popup';
+    notif.dataset.taskId = task.id || '';
+
+    const title = task.title || task.filename || 'Downloaded File';
+    const rawFilePath = task.file_path || (task.filename ? `Downloads\\EggDL\\${task.filename}` : 'Downloads\\EggDL');
+    
+    // Extract directory path only (without filename) so it looks clean and concise
+    let dirPath = '';
+    const lastSlashIdx = Math.max(rawFilePath.lastIndexOf('\\'), rawFilePath.lastIndexOf('/'), rawFilePath.lastIndexOf('\\'));
+    if (lastSlashIdx !== -1) {
+      dirPath = rawFilePath.substring(0, lastSlashIdx + 1);
+    } else {
+      dirPath = 'Downloads\\EggDL\\';
+    }
+    if (!dirPath.endsWith('\\') && !dirPath.endsWith('/') && !dirPath.endsWith('\\')) {
+      dirPath += '\\';
+    }
+    const category = (task.category || 'file').toLowerCase();
+    
+    // Real File Size calculation: "Downloaded 414.94 KB (424902 Bytes)"
+    const rawBytes = (task.file_size && task.file_size > 0) ? task.file_size : (task.downloaded_bytes || 0);
+    let sizeStr = '';
+    if (rawBytes >= 1024 * 1024 * 1024) {
+      sizeStr = (rawBytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+    } else if (rawBytes >= 1024 * 1024) {
+      sizeStr = (rawBytes / (1024 * 1024)).toFixed(2) + ' MB';
+    } else if (rawBytes >= 1024) {
+      sizeStr = (rawBytes / 1024).toFixed(2) + ' KB';
+    } else if (rawBytes > 0) {
+      sizeStr = rawBytes + ' Bytes';
+    } else {
+      sizeStr = '0 Bytes';
+    }
+    const detailedSizeText = rawBytes > 0 ? `Downloaded ${sizeStr} (${rawBytes} Bytes)` : `Downloaded ${sizeStr}`;
+
+    // File format / extension detection
+    let fileExt = '';
+    if (task.filename && task.filename.includes('.')) {
+      fileExt = task.filename.split('.').pop().toUpperCase();
+    } else if (task.file_path && task.file_path.includes('.')) {
+      fileExt = task.file_path.split('.').pop().toUpperCase();
+    } else if (task.audio_format) {
+      fileExt = task.audio_format.toUpperCase();
+    } else {
+      fileExt = (task.category || 'FILE').toUpperCase();
+    }
+
+    let categoryIcon = 'file';
+    let catBadgeColor = 'var(--accent-cyan)';
+    let catBg = 'rgba(56, 189, 248, 0.12)';
+    let catBorder = 'rgba(56, 189, 248, 0.25)';
+
+    if (category === 'video') {
+      categoryIcon = 'video';
+      catBadgeColor = '#C084FC';
+      catBg = 'rgba(192, 132, 252, 0.12)';
+      catBorder = 'rgba(192, 132, 252, 0.25)';
+    } else if (category === 'audio') {
+      categoryIcon = 'music';
+      catBadgeColor = '#FBBF24';
+      catBg = 'rgba(251, 191, 36, 0.12)';
+      catBorder = 'rgba(251, 191, 36, 0.25)';
+    } else if (category === 'image') {
+      categoryIcon = 'image';
+      catBadgeColor = '#F472B6';
+      catBg = 'rgba(244, 114, 182, 0.12)';
+      catBorder = 'rgba(244, 114, 182, 0.25)';
+    } else if (category === 'document' || title.toLowerCase().endsWith('.pdf') || title.toLowerCase().endsWith('.doc') || title.toLowerCase().endsWith('.docx')) {
+      categoryIcon = 'file-text';
+      catBadgeColor = '#34D399';
+      catBg = 'rgba(52, 211, 153, 0.12)';
+      catBorder = 'rgba(52, 211, 153, 0.25)';
+    } else if (category === 'compressed' || title.toLowerCase().endsWith('.zip') || title.toLowerCase().endsWith('.rar') || title.toLowerCase().endsWith('.7z')) {
+      categoryIcon = 'archive';
+      catBadgeColor = '#FB7185';
+      catBg = 'rgba(251, 113, 133, 0.12)';
+      catBorder = 'rgba(251, 113, 133, 0.25)';
+    } else if (category === 'program' || title.toLowerCase().endsWith('.exe') || title.toLowerCase().endsWith('.msi')) {
+      categoryIcon = 'terminal';
+    }
+
+    notif.innerHTML = `
+      <div class="dl-complete-header">
+        <div class="dl-complete-brand">
+          <img src="/static/images/egg-icon.png" alt="EggDL" class="dl-complete-logo" onerror="this.src='/static/images/favicon.png'">
+          <span class="dl-complete-title">Download complete</span>
+        </div>
+        <button type="button" class="dl-complete-close-btn" title="Close notification">
+          <i data-lucide="x" style="width: 13px; height: 13px;"></i>
+        </button>
+      </div>
+
+      <div class="dl-complete-body">
+        <div class="dl-complete-file-row">
+          <div class="dl-complete-icon-box ${category}">
+            <i data-lucide="${categoryIcon}" style="width: 18px; height: 18px;"></i>
+          </div>
+          <div class="dl-complete-file-info">
+            <div class="dl-complete-filename" title="${UI.escapeHtml(title)}">${UI.escapeHtml(title)}</div>
+            <div class="dl-complete-filesize" style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 3px;">
+              <span style="color: #CBD5E1; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 10.5px;">${detailedSizeText}</span>
+              <span style="color: #64748B;">•</span>
+              <span style="color: ${catBadgeColor}; font-weight: 700; font-size: 10px; background: ${catBg}; border: 1px solid ${catBorder}; padding: 1px 5px; border-radius: 4px; letter-spacing: 0.3px;">${fileExt}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="dl-complete-path-container" style="background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 6px 8px 6px 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; transition: all 0.15s ease;">
+          <div class="dl-complete-path-text-area" style="display: flex; align-items: center; gap: 7px; min-width: 0; flex: 1; cursor: pointer;" title="Open containing folder">
+            <i data-lucide="folder" style="width: 13px; height: 13px; color: #60A5FA; flex-shrink: 0;"></i>
+            <span class="dl-complete-path-text" style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; color: #94A3B8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${UI.escapeHtml(dirPath)}</span>
+          </div>
+          <button type="button" class="dl-complete-copy-path-btn" title="Copy file path" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 4px 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #94A3B8; transition: all 0.15s ease; flex-shrink: 0;">
+            <i data-lucide="copy" class="dl-complete-copy-icon" style="width: 13px; height: 13px;"></i>
+            <span class="dl-complete-copied-text" style="display: none; font-size: 10px; font-weight: 700; color: #10B981; margin-left: 3px;">Copied!</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="dl-complete-footer">
+        <button type="button" class="dl-complete-open-btn">
+          <i data-lucide="external-link" style="width: 13px; height: 13px;"></i> Open
+        </button>
+        <button type="button" class="dl-complete-folder-btn" title="Open containing folder">
+          <i data-lucide="folder" style="width: 13px; height: 13px;"></i> Folder
+        </button>
+      </div>
+
+      <div class="dl-complete-progress-bar">
+        <div class="dl-complete-progress-fill"></div>
+      </div>
+    `;
+
+    container.appendChild(notif);
+    if (window.lucide) window.lucide.createIcons();
+
+    // Event handlers
+    const closeBtn = notif.querySelector('.dl-complete-close-btn');
+    const openBtn = notif.querySelector('.dl-complete-open-btn');
+    const folderBtn = notif.querySelector('.dl-complete-folder-btn');
+    const pathTextArea = notif.querySelector('.dl-complete-path-text-area');
+    const copyBtn = notif.querySelector('.dl-complete-copy-path-btn');
+
+    const dismissNotif = () => {
+      if (notif.classList.contains('dismissing')) return;
+      notif.classList.add('dismissing');
+      setTimeout(() => {
+        notif.remove();
+      }, 300);
+    };
+
+    closeBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      dismissNotif();
+    });
+
+    openBtn?.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      try {
+        if (task.id) {
+          await API.openFile(task.id, task.file_path);
+        } else if (task.file_path) {
+          await fetch('/api/system/open-file', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ file_path: task.file_path })
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to open file:', err);
+      }
+      dismissNotif();
+    });
+
+    const openFolderAction = async (e) => {
+      e.stopPropagation();
+      try {
+        if (task.id) {
+          await API.openFolder(task.id, task.file_path);
+        } else if (task.file_path) {
+          await fetch('/api/system/open-folder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ file_path: task.file_path })
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to open folder:', err);
+      }
+      dismissNotif();
+    };
+
+    folderBtn?.addEventListener('click', openFolderAction);
+    pathTextArea?.addEventListener('click', openFolderAction);
+
+    // Copy Path Handler
+    if (copyBtn) {
+      copyBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(dirPath);
+          } else {
+            const input = document.createElement('input');
+            input.value = dirPath;
+            document.body.appendChild(input);
+            input.select();
+            document.execCommand('copy');
+            input.remove();
+          }
+        } catch (_) {}
+
+        const copiedText = copyBtn.querySelector('.dl-complete-copied-text');
+        copyBtn.style.color = '#10B981';
+        copyBtn.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+        copyBtn.style.background = 'rgba(16, 185, 129, 0.12)';
+        if (copiedText) copiedText.style.display = 'inline';
+        setTimeout(() => {
+          copyBtn.style.color = '#94A3B8';
+          copyBtn.style.borderColor = 'rgba(255,255,255,0.1)';
+          copyBtn.style.background = 'rgba(255,255,255,0.05)';
+          if (copiedText) copiedText.style.display = 'none';
+        }, 1600);
+      });
+    }
+
+    // Auto-dismiss timer (7.5s), pauses on hover
+    let timeoutId = setTimeout(dismissNotif, 7500);
+
+    notif.addEventListener('mouseenter', () => {
+      clearTimeout(timeoutId);
+      const fill = notif.querySelector('.dl-complete-progress-fill');
+      if (fill) fill.style.animationPlayState = 'paused';
+    });
+
+    notif.addEventListener('mouseleave', () => {
+      timeoutId = setTimeout(dismissNotif, 4000);
+      const fill = notif.querySelector('.dl-complete-progress-fill');
+      if (fill) fill.style.animationPlayState = 'running';
+    });
   },
 
   renderActiveTasks(tasks) {
@@ -272,37 +554,40 @@ const UI = {
       else if (effectiveStatus === 'error') statusLabel = '<span class="status-icon">✕</span> Error';
       else if (effectiveStatus === 'canceled') statusLabel = '<span class="status-icon">■</span> Stopped';
       
+      const title = item.title || item.filename || 'Download';
+      const cleanUrl = (item.url && item.url.startsWith('data:')) ? 'data:image/... [Embedded Image Data]' : (item.url || '');
+
       return `
         <tr id="row-${item.id}">
-          <td style="padding-left: 16px;">
+          <td class="col-type">
             <div class="type-icon ${item.category || 'other'}">
               <i data-lucide="${UI.getCategoryIcon(item.category)}"></i>
             </div>
           </td>
-          <td>
+          <td class="col-file">
             <div class="file-cell">
               <div class="file-cell-info">
-                <div class="file-title" title="${item.title || item.filename}">${item.title || item.filename}</div>
-                <div class="file-sub" title="${item.url}">${item.url}</div>
+                <div class="file-title" title="${UI.escapeHtml(title)}">${UI.escapeHtml(title)}</div>
+                <div class="file-sub" title="${UI.escapeHtml(cleanUrl)}">${UI.escapeHtml(cleanUrl)}</div>
               </div>
             </div>
           </td>
-          <td style="font-weight: 600; font-family: var(--font-mono);">${sizeStr}</td>
-          <td>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <div class="progress-bar-bg" style="width: 80px; margin-bottom: 0;">
+          <td class="col-size">${sizeStr}</td>
+          <td class="col-progress">
+            <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+              <div class="progress-bar-bg" style="width: 70px; margin-bottom: 0; flex-shrink: 0;">
                 <div class="progress-bar-fill" style="width: ${effectiveProgress}%;"></div>
               </div>
-              <span class="row-progress-pct" style="font-size: 0.8rem; font-family: var(--font-mono); font-weight: 600;">${effectiveProgress}%</span>
+              <span class="row-progress-pct" style="font-size: 0.8rem; font-family: var(--font-mono); font-weight: 600; flex-shrink: 0;">${effectiveProgress}%</span>
             </div>
           </td>
-          <td>
+          <td class="col-status">
             <span class="status-badge ${statusClass}">
               ${statusLabel}
             </span>
           </td>
-          <td style="font-size: 0.8rem; color: var(--text-dim); white-space: nowrap;">${UI.formatDate(item.created_at)}</td>
-          <td style="text-align: right; padding-right: 18px;">
+          <td class="col-date">${UI.formatDate(item.created_at)}</td>
+          <td class="col-actions">
             <div class="action-buttons">
               ${isDownloading ? `
                 <button class="btn btn-secondary btn-sm" onclick="App.pauseTask('${item.id}')" title="Pause Download">
@@ -894,7 +1179,7 @@ const UI = {
     });
   },
 
-  renderAdminDevices(devicesData, adminKey) {
+  renderAdminDevices(devicesData, adminKey, activeFilter = 'all') {
     const listContainer = document.getElementById('admin-devices-list');
     const totalCountEl = document.getElementById('admin-total-devices-count');
     const onlineCountEl = document.getElementById('admin-online-devices-count');
@@ -903,67 +1188,191 @@ const UI = {
 
     if (!listContainer) return;
 
-    const devices = devicesData.devices || [];
-    if (totalCountEl) totalCountEl.innerText = devicesData.total_devices || devices.length;
-    if (onlineCountEl) onlineCountEl.innerText = devicesData.online_count || 0;
-    if (proCountEl) proCountEl.innerText = devicesData.pro_count || 0;
-    if (blockedCountEl) blockedCountEl.innerText = devicesData.blocked_count || 0;
+    window._lastAdminDevicesData = devicesData;
+    window._lastAdminKey = adminKey;
+    window._activeAdminFilter = activeFilter;
+
+    const allDevices = devicesData.devices || [];
+    
+    // Count calculations
+    const onlineCount = allDevices.filter(d => d.is_online).length;
+    const proCount = allDevices.filter(d => d.is_pro).length;
+    const blockedCount = allDevices.filter(d => d.is_blocked).length;
+    const offlineCount = allDevices.filter(d => !d.is_online).length;
+
+    if (totalCountEl) totalCountEl.innerText = devicesData.total_devices || allDevices.length;
+    if (onlineCountEl) onlineCountEl.innerText = onlineCount;
+    if (proCountEl) proCountEl.innerText = proCount;
+    if (blockedCountEl) blockedCountEl.innerText = blockedCount;
+
+    // Apply Filter
+    let devices = allDevices;
+    if (activeFilter === 'online') {
+      devices = allDevices.filter(d => d.is_online);
+    } else if (activeFilter === 'pro') {
+      devices = allDevices.filter(d => d.is_pro);
+    } else if (activeFilter === 'trial') {
+      devices = allDevices.filter(d => d.is_trial && !d.is_pro && !d.is_blocked);
+    } else if (activeFilter === 'offline') {
+      devices = allDevices.filter(d => !d.is_online);
+    }
+
+    // Filter Tabs HTML
+    const filterTabsHtml = `
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap;">
+        <div style="display: flex; gap: 6px; flex-wrap: wrap;" id="admin-device-filter-bar">
+          <button type="button" class="btn btn-sm ${activeFilter === 'all' ? 'btn-primary btn-glow' : 'btn-secondary'}" onclick="UI.renderAdminDevices(window._lastAdminDevicesData, window._lastAdminKey, 'all')" style="padding: 4px 10px; font-size: 0.76rem;">
+            All Users <span style="opacity: 0.7; margin-left: 3px;">(${allDevices.length})</span>
+          </button>
+          <button type="button" class="btn btn-sm ${activeFilter === 'online' ? 'btn-primary btn-glow' : 'btn-secondary'}" onclick="UI.renderAdminDevices(window._lastAdminDevicesData, window._lastAdminKey, 'online')" style="padding: 4px 10px; font-size: 0.76rem;">
+            <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#10B981;margin-right:4px;box-shadow:0 0 6px #10B981;"></span> Online (${onlineCount})
+          </button>
+          <button type="button" class="btn btn-sm ${activeFilter === 'pro' ? 'btn-primary btn-glow' : 'btn-secondary'}" onclick="UI.renderAdminDevices(window._lastAdminDevicesData, window._lastAdminKey, 'pro')" style="padding: 4px 10px; font-size: 0.76rem;">
+            ⭐ Pro (${proCount})
+          </button>
+          <button type="button" class="btn btn-sm ${activeFilter === 'trial' ? 'btn-primary btn-glow' : 'btn-secondary'}" onclick="UI.renderAdminDevices(window._lastAdminDevicesData, window._lastAdminKey, 'trial')" style="padding: 4px 10px; font-size: 0.76rem;">
+            ⏳ Trial (${allDevices.filter(d => d.is_trial && !d.is_pro && !d.is_blocked).length})
+          </button>
+          <button type="button" class="btn btn-sm ${activeFilter === 'offline' ? 'btn-primary btn-glow' : 'btn-secondary'}" onclick="UI.renderAdminDevices(window._lastAdminDevicesData, window._lastAdminKey, 'offline')" style="padding: 4px 10px; font-size: 0.76rem;">
+            ⚪ Offline (${offlineCount})
+          </button>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="App.refreshAdminDevices()" title="Refresh telemetry from devices" style="padding: 4px 10px; font-size: 0.76rem;">
+          <i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i> Refresh
+        </button>
+      </div>
+    `;
+
+    // Dynamic clean empty messages
+    const emptyMessages = {
+      all: 'No connected devices recorded yet.',
+      online: 'No devices online right now.',
+      pro: 'No Pro devices found.',
+      trial: 'No devices on trial.',
+      offline: 'No devices offline.'
+    };
+    const emptyText = emptyMessages[activeFilter] || 'No devices found.';
 
     if (!devices.length) {
-      listContainer.innerHTML = `
-        <div style="text-align:center;padding:40px;color:var(--text-dim);">
+      listContainer.innerHTML = filterTabsHtml + `
+        <div style="text-align:center;padding:40px;color:var(--text-dim);background:rgba(255,255,255,0.02);border:1px dashed rgba(255,255,255,0.08);border-radius:12px;">
           <i data-lucide="monitor-off" style="width:36px;height:36px;margin:0 auto 12px auto;opacity:0.5;"></i>
-          <p>No connected devices recorded yet.</p>
+          <p style="font-size:0.92rem;font-weight:600;color:#CBD5E1;margin:0;">${emptyText}</p>
         </div>
       `;
-      lucide.createIcons();
+      if (window.lucide) window.lucide.createIcons();
       return;
     }
 
-    let html = '';
+    let html = filterTabsHtml;
     devices.forEach((dev) => {
       const isOnline = dev.is_online;
-      const isBlocked = dev.is_blocked;
-      const isPro = dev.is_pro;
+      const planType = (dev.plan_type || 'trial').toLowerCase().trim();
+      const isBlocked = Boolean(dev.is_blocked);
+      const isPro = !isBlocked && Boolean(dev.is_pro) && planType !== 'trial' && planType !== 'free' && planType !== 'blocked';
+      const isTrial = !isBlocked && !isPro && (planType === 'trial' || Boolean(dev.is_trial));
+
+      // Real Days Remaining Calculation:
+      let daysLeft = dev.days_remaining;
+      const durMap = { '1month': 30, '3month': 90, '6month': 180, '1year': 365, 'pro': 30 };
       
-      const onlineDot = isOnline 
-        ? '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#10B981;box-shadow:0 0 8px #10B981;margin-right:6px;"></span>'
-        : '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#64748B;margin-right:6px;"></span>';
+      if (planType === 'lifetime') {
+        daysLeft = 99999;
+      } else if (dev.plan_expires_at) {
+        try {
+          const expTime = new Date(dev.plan_expires_at).getTime();
+          const nowTime = Date.now();
+          const diffDays = Math.ceil((expTime - nowTime) / (1000 * 86400));
+          if (diffDays > 0) {
+            daysLeft = diffDays;
+          }
+        } catch (_) {}
+      }
+      
+      if (isPro && planType !== 'lifetime' && (daysLeft === undefined || daysLeft === null || daysLeft <= 0)) {
+        const totalDur = durMap[planType] || 30;
+        if (dev.created_at) {
+          try {
+            const crTime = new Date(dev.created_at).getTime();
+            const nowTime = Date.now();
+            const daysPassed = Math.max(0, Math.floor((nowTime - crTime) / (1000 * 86400)));
+            daysLeft = Math.max(1, totalDur - daysPassed);
+          } catch (_) {
+            daysLeft = totalDur;
+          }
+        } else {
+          daysLeft = totalDur;
+        }
+      }
+
+      let trialDaysLeft = dev.trial_days_remaining;
+      if (!trialDaysLeft || trialDaysLeft <= 0) {
+        if (dev.created_at) {
+          try {
+            const crTime = new Date(dev.created_at).getTime();
+            const nowTime = Date.now();
+            const daysPassed = Math.max(0, Math.floor((nowTime - crTime) / (1000 * 86400)));
+            trialDaysLeft = Math.max(1, 7 - daysPassed);
+          } catch (_) {
+            trialDaysLeft = 7;
+          }
+        } else {
+          trialDaysLeft = 7;
+        }
+      }
+      
+      const onlineBadge = isOnline 
+        ? '<span style="display:inline-flex;align-items:center;gap:4px;font-size:0.72rem;font-weight:700;color:#10B981;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.25);padding:1px 6px;border-radius:4px;"><span style="width:6px;height:6px;border-radius:50%;background:#10B981;box-shadow:0 0 6px #10B981;"></span> Online</span>'
+        : `<span style="display:inline-flex;align-items:center;gap:4px;font-size:0.72rem;font-weight:500;color:#94A3B8;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);padding:1px 6px;border-radius:4px;"><span style="width:6px;height:6px;border-radius:50%;background:#64748B;"></span> ${dev.last_seen_str || 'Offline'}</span>`;
+
+      // Formatted License Badge with exact Days Left (No redundant 'Active Now' underneath)
+      let licenseBadgeHtml = '';
+      if (isBlocked) {
+        licenseBadgeHtml = `<div style="font-size:0.84rem;font-weight:800;color:#EF4444;letter-spacing:0.2px;">🚨 BLOCKED / KILLED</div>`;
+      } else if (isPro) {
+        if (planType === 'lifetime' || daysLeft >= 36500) {
+          licenseBadgeHtml = `<div style="font-size:0.84rem;font-weight:800;color:#FBBF24;display:flex;align-items:center;gap:4px;justify-content:flex-end;">👑 PRO (Lifetime) • Permanent</div>`;
+        } else {
+          licenseBadgeHtml = `<div style="font-size:0.84rem;font-weight:800;color:#10B981;display:flex;align-items:center;gap:4px;justify-content:flex-end;">⭐ PRO (${planType}) • <span style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);padding:1px 6px;border-radius:4px;">${daysLeft} days left</span></div>`;
+        }
+      } else if (isTrial) {
+        licenseBadgeHtml = `<div style="font-size:0.84rem;font-weight:800;color:#F59E0B;display:flex;align-items:center;gap:4px;justify-content:flex-end;">⏳ Free Trial • <span style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.3);padding:1px 6px;border-radius:4px;">${trialDaysLeft} days left</span></div>`;
+      } else {
+        licenseBadgeHtml = `<div style="font-size:0.84rem;font-weight:700;color:#94A3B8;">⚠️ Free Trial Expired</div>`;
+      }
 
       html += `
-        <div class="admin-device-card ${isBlocked ? 'blocked' : ''}" style="background:rgba(255,255,255,0.03);border:1px solid ${isBlocked ? 'rgba(239,68,68,0.4)' : 'rgba(255,255,255,0.08)'};border-radius:14px;padding:16px 18px;margin-bottom:12px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:14px;">
+        <div class="admin-device-card ${isBlocked ? 'blocked' : ''}" style="background:rgba(255,255,255,0.03);border:1px solid ${isBlocked ? 'rgba(239,68,68,0.4)' : (isOnline ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.07)')};border-radius:14px;padding:16px 18px;margin-bottom:12px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:14px;transition:all 0.15s ease;">
           <div style="display:flex;align-items:center;gap:14px;min-width:260px;">
-            <div style="width:42px;height:42px;border-radius:10px;background:${isBlocked ? 'rgba(239,68,68,0.15)' : 'rgba(59,130,246,0.12)'};color:${isBlocked ? '#EF4444' : '#3B82F6'};display:flex;align-items:center;justify-content:center;font-size:1.2rem;">
+            <div style="width:42px;height:42px;border-radius:10px;background:${isBlocked ? 'rgba(239,68,68,0.15)' : (isOnline ? 'rgba(16,185,129,0.12)' : 'rgba(59,130,246,0.1)')};color:${isBlocked ? '#EF4444' : (isOnline ? '#10B981' : '#3B82F6')};display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;">
               <i data-lucide="${isBlocked ? 'shield-ban' : 'monitor'}"></i>
             </div>
             <div>
-              <div style="font-weight:700;font-size:0.96rem;color:var(--text-main);display:flex;align-items:center;">
-                ${onlineDot} ${dev.desktop_name}
-                <span style="font-size:0.72rem;background:rgba(255,255,255,0.08);padding:2px 6px;border-radius:6px;margin-left:8px;font-family:monospace;color:var(--text-dim);">${dev.device_id}</span>
+              <div style="font-weight:700;font-size:0.96rem;color:var(--text-main);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <span>${dev.desktop_name}</span>
+                ${onlineBadge}
+                <span style="font-size:0.72rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);padding:2px 6px;border-radius:5px;font-family:ui-monospace,monospace;color:var(--text-dim);cursor:pointer;" title="Click to copy Machine ID" onclick="navigator.clipboard.writeText('${dev.device_id}'); UI.showToast('Copied Machine ID: ${dev.device_id}', 'info', 1800);">
+                  ${dev.device_id}
+                </span>
               </div>
-              <div style="font-size:0.78rem;color:var(--text-secondary);margin-top:3px;">
-                User: <span style="color:#CBD5E1;">${dev.user_name || 'User'}</span> • ${dev.os_info || 'Windows'} • v${dev.app_version} • <span style="font-family:monospace;">${dev.ip_address || '127.0.0.1'}</span>
+              <div style="font-size:0.78rem;color:var(--text-secondary);margin-top:4px;">
+                User: <span style="color:#CBD5E1;font-weight:600;">${dev.user_name || 'User'}</span> • ${dev.os_info || 'Windows'} • v${dev.app_version} • <span style="font-family:monospace;color:#94A3B8;">${dev.ip_address || '127.0.0.1'}</span>
               </div>
             </div>
           </div>
 
-          <div style="display:flex;align-items:center;gap:16px;">
+          <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
             <div style="text-align:right;">
-              <div style="font-size:0.82rem;font-weight:700;color:${isBlocked ? '#EF4444' : (isPro ? '#10B981' : '#F59E0B')};">
-                ${dev.status_badge}
-              </div>
-              <div style="font-size:0.72rem;color:var(--text-dim);margin-top:2px;">
-                ${dev.last_seen_str}
-              </div>
+              ${licenseBadgeHtml}
             </div>
 
             <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;">
               <select class="form-control form-control-sm plan-select-dropdown" id="plan-select-${dev.device_id}" style="padding:4px 8px;font-size:0.78rem;height:30px;background:#1E293B !important;border:1px solid rgba(255,255,255,0.25);border-radius:6px;color:#F8FAFC !important;cursor:pointer;font-weight:600;">
-                <option value="1month" style="background:#1E293B;color:#F8FAFC;">1 Month (30d)</option>
-                <option value="3month" style="background:#1E293B;color:#F8FAFC;">3 Months (90d)</option>
-                <option value="6month" style="background:#1E293B;color:#F8FAFC;">6 Months (180d)</option>
-                <option value="1year" style="background:#1E293B;color:#F8FAFC;">1 Year (365d)</option>
-                <option value="lifetime" selected style="background:#1E293B;color:#F8FAFC;">Lifetime</option>
+                <option value="1month" ${planType === '1month' ? 'selected' : ''} style="background:#1E293B;color:#F8FAFC;">1 Month (30d)</option>
+                <option value="3month" ${planType === '3month' ? 'selected' : ''} style="background:#1E293B;color:#F8FAFC;">3 Months (90d)</option>
+                <option value="6month" ${planType === '6month' ? 'selected' : ''} style="background:#1E293B;color:#F8FAFC;">6 Months (180d)</option>
+                <option value="1year" ${planType === '1year' ? 'selected' : ''} style="background:#1E293B;color:#F8FAFC;">1 Year (365d)</option>
+                <option value="lifetime" ${planType === 'lifetime' ? 'selected' : ''} style="background:#1E293B;color:#F8FAFC;">Lifetime</option>
               </select>
               <button class="btn btn-sm btn-primary" onclick="App.handleAdminGrantPlan('${dev.device_id}')" title="Grant Selected Subscription">
                 <i data-lucide="crown" style="width:13px;height:13px;"></i> Set Plan
@@ -993,6 +1402,6 @@ const UI = {
     });
 
     listContainer.innerHTML = html;
-    lucide.createIcons();
+    if (window.lucide) window.lucide.createIcons();
   }
 };

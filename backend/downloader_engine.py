@@ -190,7 +190,26 @@ class DownloadTask:
         content_range = headers.get("content-range") or headers.get("Content-Range")
         self.supports_ranges = (accept_ranges == "bytes" or status_code == 206 or bool(content_range))
 
-        if not self.filename:
+        if self.custom_filename:
+            self.filename = self.custom_filename
+            if not os.path.splitext(self.filename)[1]:
+                ct = content_type.lower()
+                guessed_ext = ""
+                if "image/jpeg" in ct or "image/jpg" in ct: guessed_ext = ".jpg"
+                elif "image/png" in ct: guessed_ext = ".png"
+                elif "image/webp" in ct: guessed_ext = ".webp"
+                elif "image/gif" in ct: guessed_ext = ".gif"
+                elif "video/mp4" in ct: guessed_ext = ".mp4"
+                elif "video/webm" in ct: guessed_ext = ".webm"
+                elif "audio/mpeg" in ct or "audio/mp3" in ct: guessed_ext = ".mp3"
+                elif "audio/mp4" in ct or "audio/m4a" in ct: guessed_ext = ".m4a"
+                elif "application/pdf" in ct: guessed_ext = ".pdf"
+                elif "application/zip" in ct or "compressed" in ct: guessed_ext = ".zip"
+                else:
+                    guessed_ext = mimetypes.guess_extension(content_type.split(";")[0].strip()) or ""
+                if guessed_ext and guessed_ext != ".bin":
+                    self.filename = f"{self.filename}{guessed_ext}"
+        elif not self.filename:
             self.filename = extract_filename_from_headers(final_url, dict(headers))
         
         self.category = detect_category(self.filename, content_type)

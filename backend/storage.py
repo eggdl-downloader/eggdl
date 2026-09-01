@@ -181,8 +181,14 @@ def init_db():
     conn.close()
 
 def get_db_connection():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30.0)
     conn.row_factory = sqlite3.Row
+    try:
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA busy_timeout=15000;")
+        conn.execute("PRAGMA synchronous=NORMAL;")
+    except Exception:
+        pass
     return conn
 
 def get_settings() -> Dict[str, Any]:
@@ -925,7 +931,7 @@ def set_device_blocked(device_id: str, blocked: bool = True, reason: str = "Lice
     conn.close()
 
 def get_all_devices_telemetry() -> List[Dict[str, Any]]:
-    """Returns telemetry of all registered devices with live online/offline calculation."""
+    """Returns telemetry of all registered devices with live online/offline calculation, days remaining & past 7 days retention."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM devices ORDER BY last_seen DESC")
@@ -937,9 +943,11 @@ def get_all_devices_telemetry() -> List[Dict[str, Any]]:
     
     for r in rows:
         dev = dict(r)
+        dev_id = dev.get("device_id")
         last_seen = dev.get("last_seen")
         is_online = False
-        last_seen_str = "Never"
+        last_seen_str = "Never seen"
+        diff_sec = 9999999
         
         if last_seen:
             try:
@@ -948,51 +956,72 @@ def get_all_devices_telemetry() -> List[Dict[str, Any]]:
                 else:
                     ls_dt = datetime.strptime(str(last_seen)[:19], "%Y-%m-%d %H:%M:%S")
                 diff_sec = (now - ls_dt).total_seconds()
-                if diff_sec <= 75:
+                if diff_sec <= 180:  # 3 minutes threshold for heartbeat
                     is_online = True
                     last_seen_str = "🟢 Active Now"
                 elif diff_sec < 3600:
-                    last_seen_str = f"🟡 {int(diff_sec // 60)}m ago"
+                    mins = max(1, int(diff_sec // 60))
+                    last_seen_str = f"⚪ Offline ({mins}m ago)"
                 elif diff_sec < 86400:
-                    last_seen_str = f"⚪ {int(diff_sec // 3600)}h ago"
+                    hours = max(1, int(diff_sec // 3600))
+                    last_seen_str = f"⚪ Offline ({hours}h ago)"
                 else:
-                    last_seen_str = f"⚫ {int(diff_sec // 86400)}d ago"
+                    days = max(1, int(diff_sec // 86400))
+                    last_seen_str = f"⚪ Offline ({days}d ago)"
             except Exception:
                 last_seen_str = str(last_seen)[:16]
-                
-        # Status text
-        if dev.get("is_blocked"):
-            status_badge = "🚨 BLOCKED"
+        
+        # Calculate exact license status & days remaining
+        st = get_device_license_status(dev_id)
+        plan_type = (dev.get("plan_type") or st.get("plan_type") or "trial").lower().strip()
+        is_blocked = bool(dev.get("is_blocked") or st.get("is_blocked"))
+        is_pro = not is_blocked and bool(dev.get("is_pro") or st.get("is_pro")) and plan_type not in ["trial", "free", "blocked"]
+        is_trial = not is_blocked and not is_pro and (plan_type == "trial" or bool(st.get("is_trial")))
+        
+        days_remaining = st.get("days_remaining", 0)
+        trial_days_remaining = st.get("trial_days_remaining", 0)
+        
+        if is_blocked:
+            status_badge = "🚨 BLOCKED / KILLED"
             tier = "Suspended / Banned"
-        elif dev.get("is_pro"):
-            status_badge = "⭐ PRO LIFETIME" if dev.get("plan_type") == "lifetime" else f"⭐ PRO ({dev.get('plan_type')})"
-            tier = "Pro Active"
-        else:
-            # Check trial
-            st = get_device_license_status(dev["device_id"])
-            if st.get("is_trial"):
-                status_badge = f"⏳ {st.get('trial_days_remaining')}d Trial Left"
-                tier = "7-Day Free Trial"
+        elif is_pro:
+            if plan_type == "lifetime" or days_remaining >= 36500:
+                status_badge = "👑 PRO (Lifetime) • Lifetime VIP"
+                tier = "Pro Lifetime"
             else:
-                status_badge = "❌ Trial Expired"
-                tier = "Unlicensed"
-                
+                status_badge = f"⭐ PRO ({plan_type}) • {days_remaining} days left"
+                tier = f"Pro Active ({days_remaining}d left)"
+        elif is_trial:
+            if trial_days_remaining <= 0:
+                trial_days_remaining = 7
+            status_badge = f"⏳ Free Trial • {trial_days_remaining} days left"
+            tier = f"7-Day Free Trial ({trial_days_remaining}d left)"
+        else:
+            status_badge = "⚠️ Free Trial Expired"
+            tier = "Unlicensed"
+            
         devices.append({
-            "device_id": dev["device_id"],
+            "device_id": dev_id,
             "desktop_name": dev.get("machine_name") or "DESKTOP-PC",
             "user_name": dev.get("user_name") or "User",
             "os_info": dev.get("os_info") or "Windows",
-            "app_version": dev.get("app_version") or "2.1.2",
+            "app_version": dev.get("app_version") or "2.1.5",
             "ip_address": dev.get("ip_address") or "127.0.0.1",
-            "plan_type": dev.get("plan_type") or "trial",
-            "is_pro": bool(dev.get("is_pro")),
-            "is_blocked": bool(dev.get("is_blocked")),
-            "block_reason": dev.get("block_reason"),
-            "license_key": dev.get("license_key"),
+            "plan_type": plan_type,
+            "days_remaining": days_remaining,
+            "trial_days_remaining": trial_days_remaining,
+            "plan_expires_at": dev.get("plan_expires_at") or st.get("plan_expires_at"),
+            "is_pro": is_pro,
+            "is_trial": bool(st.get("is_trial")),
+            "is_blocked": is_blocked,
+            "block_reason": dev.get("block_reason") or st.get("block_reason"),
+            "license_key": dev.get("license_key") or st.get("license_key"),
             "total_downloads": dev.get("total_downloads") or 0,
             "data_downloaded_mb": dev.get("data_downloaded_mb") or 0.0,
             "is_online": is_online,
             "last_seen_str": last_seen_str,
+            "last_seen": str(last_seen) if last_seen else None,
+            "diff_sec": diff_sec,
             "status_badge": status_badge,
             "tier": tier,
             "created_at": dev.get("created_at")

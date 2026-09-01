@@ -11,6 +11,7 @@ const App = {
 
   async init() {
     this.bindEvents();
+    this.notifiedCompletedTaskIds = new Set();
     this.bindAuthEvents();
     this.initWebSocket();
     await this.initAuth();
@@ -139,6 +140,14 @@ const App = {
       if (res.ok) {
         const data = await res.json();
         if (data.downloads) {
+          if (!this._hasInitializedCompletedNotifs) {
+            this._hasInitializedCompletedNotifs = true;
+            data.downloads.forEach(d => {
+              if (d && d.status === 'completed' && d.id) {
+                this.notifiedCompletedTaskIds.add(d.id);
+              }
+            });
+          }
           this.downloads = data.downloads;
           this.updateCategoryCounts();
           this.renderDownloads();
@@ -184,6 +193,14 @@ const App = {
     if (msg.type === 'init') {
       this.settings = msg.settings || {};
       this.downloads = msg.downloads || [];
+      if (!this._hasInitializedCompletedNotifs) {
+        this._hasInitializedCompletedNotifs = true;
+        this.downloads.forEach(d => {
+          if (d && d.status === 'completed' && d.id) {
+            this.notifiedCompletedTaskIds.add(d.id);
+          }
+        });
+      }
       this.updateCategoryCounts();
       this.renderDownloads();
       this.updateDashboardStats();
@@ -229,8 +246,12 @@ const App = {
         this.updateDashboardStats();
       }
 
-      if (task.status === 'completed' && msg.type === 'task_updated') {
-        UI.showToast(`Download complete: ${task.title || task.filename}`, 'success');
+      if (task.status === 'completed') {
+        const taskId = task.id || task.filename;
+        if (taskId && !this.notifiedCompletedTaskIds.has(taskId)) {
+          this.notifiedCompletedTaskIds.add(taskId);
+          UI.showDownloadCompleteNotification(task);
+        }
       } else if (task.status === 'error' && msg.type === 'task_updated') {
         UI.showToast(`Download failed: ${task.error_message || 'Unknown error'}`, 'error');
       }
@@ -515,18 +536,32 @@ const App = {
 
     pasteBtn?.addEventListener('click', async () => {
       urlInput?.focus();
+      let text = '';
+
+      // 1. Native Windows Clipboard via Local Backend (Zero "allow localhost" prompts, 100% instant)
       try {
-        let text = await API.getClipboard();
-        if (text && text.trim()) {
-          urlInput.value = text.trim();
-          if (clearBtn) clearBtn.style.display = 'flex';
-          if (text.startsWith('http://') || text.startsWith('https://')) {
-            this.handleInspect();
-          }
-          return;
-        }
+        text = await API.getClipboard();
       } catch (_) {}
-      UI.showToast('📋 Press Ctrl + V to paste your link directly!', 'info', 3000);
+
+      // 2. Fallback only if backend was unreachable
+      if (!text || !text.trim()) {
+        try {
+          if (navigator.clipboard && navigator.clipboard.readText) {
+            text = await navigator.clipboard.readText();
+          }
+        } catch (_) {}
+      }
+
+      if (text && text.trim()) {
+        urlInput.value = text.trim();
+        if (clearBtn) clearBtn.style.display = 'flex';
+        const val = text.trim();
+        if (val.startsWith('http://') || val.startsWith('https://') || val.startsWith('magnet:')) {
+          this.handleInspect();
+        }
+        return;
+      }
+      UI.showToast('📋 Clipboard is empty. Copy a link first!', 'info', 2500);
     });
 
     // Category navigation
@@ -1076,7 +1111,7 @@ const App = {
           desktop_name: machine.desktop_name,
           user_name: machine.user_name,
           os_info: machine.os_info,
-          app_version: '2.1.5',
+          app_version: '2.1.6',
           total_downloads: this.downloads?.length || 0,
           data_downloaded_mb: 0
         });
@@ -1177,7 +1212,10 @@ const App = {
     const topBanner = document.getElementById('top-update-banner');
 
     if (manual) {
-      if (checkBtn) checkBtn.innerHTML = '<i data-lucide="loader-2" class="spin"></i> Checking...';
+      if (checkBtn) {
+        checkBtn.disabled = true;
+        checkBtn.innerHTML = '<i data-lucide="loader-2" class="spin"></i> Checking...';
+      }
       if (statusHint) {
         statusHint.style.color = '#38BDF8';
         statusHint.innerHTML = '<i data-lucide="refresh-cw" class="spin" style="width:12px;height:12px;display:inline-block;vertical-align:middle;margin-right:4px;"></i> Checking update server...';
@@ -1186,7 +1224,7 @@ const App = {
 
     try {
       const info = await API.checkVersion();
-      const curVer = info?.current_version || '2.1.5';
+      const curVer = info?.current_version || '2.1.6';
       const latVer = info?.latest_version || curVer;
 
       if (versionBadge) versionBadge.innerText = `v${curVer}`;
@@ -1234,6 +1272,7 @@ const App = {
       if (manual && window.UI) UI.showToast('Could not reach update server. Check your connection.', 'error');
     } finally {
       if (checkBtn) {
+        checkBtn.disabled = false;
         checkBtn.innerHTML = '<i data-lucide="refresh-cw"></i> Check for Updates';
       }
       if (window.lucide) window.lucide.createIcons();
@@ -1491,7 +1530,7 @@ const App = {
     if (!this.adminKey) return;
     try {
       const data = await API.getAdminDevices(this.adminKey);
-      UI.renderAdminDevices(data, this.adminKey);
+      UI.renderAdminDevices(data, this.adminKey, window._activeAdminFilter || 'all');
     } catch (e) {
       UI.showToast('Refresh failed: ' + e.message, 'error');
     }

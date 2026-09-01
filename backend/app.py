@@ -9,6 +9,7 @@ import secrets
 import asyncio
 import subprocess
 import shutil
+import threading
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 
@@ -75,7 +76,7 @@ except ImportError:
 
 app = FastAPI(title="EggDL API", version="2.0.0")
 
-APP_CURRENT_VERSION = "2.1.5"
+APP_CURRENT_VERSION = "2.1.6"
 CLOUD_API_URL = os.environ.get("CLOUD_API_URL", "https://eggdl.onrender.com")
 
 @app.middleware("http")
@@ -103,6 +104,22 @@ app.add_middleware(
 # Active tasks in memory
 active_tasks: Dict[str, Any] = {}
 websocket_connections: List[WebSocket] = []
+
+_SHOW_WINDOW_CALLBACK = None
+
+def set_show_window_callback(cb):
+    global _SHOW_WINDOW_CALLBACK
+    _SHOW_WINDOW_CALLBACK = cb
+
+@app.get("/api/app/show_window")
+async def api_show_window():
+    global _SHOW_WINDOW_CALLBACK
+    if _SHOW_WINDOW_CALLBACK:
+        try:
+            _SHOW_WINDOW_CALLBACK()
+        except Exception:
+            pass
+    return {"status": "ok"}
 
 # Ensure DB is ready
 init_db()
@@ -155,6 +172,7 @@ class StartDownloadRequest(BaseModel):
     expected_size: Optional[int] = None
     segments_count: Optional[int] = 8
     referer: Optional[str] = None
+    download_dir: Optional[str] = None
 
 class SaveFileRequest(BaseModel):
     filename: str
@@ -832,15 +850,23 @@ async def inspect_url(req: InspectRequest):
     if not url:
         raise HTTPException(status_code=400, detail="URL is required")
 
+    async def _safe_stream_inspect(target_url: str):
+        return await asyncio.wait_for(
+            asyncio.to_thread(MediaExtractor.inspect_url, target_url),
+            timeout=22.0
+        )
+
     # 1. Check if it's a known media/video streaming URL
     if MediaExtractor.is_supported_url(url):
         try:
-            stream_info = MediaExtractor.inspect_url(url)
+            stream_info = await _safe_stream_inspect(url)
             return {
                 "success": True,
                 "type": "stream",
                 "data": stream_info
             }
+        except asyncio.TimeoutError:
+            raise HTTPException(status_code=408, detail="Media inspection timed out. Please check your internet connection or try again.")
         except Exception as e:
             err_msg = str(e)
             if "unavailable" in err_msg.lower():
@@ -857,14 +883,14 @@ async def inspect_url(req: InspectRequest):
     temp_task = DownloadTask(task_id="inspect", url=url, target_dir=target_dir)
     
     try:
-        direct_info = await temp_task.inspect()
+        direct_info = await asyncio.wait_for(temp_task.inspect(), timeout=12.0)
         
         # Check if the inspected content is an HTML page (not a downloadable media file)
         content_type = direct_info.get("content_type", "")
         if "text/html" in content_type and not direct_info.get("supports_ranges"):
-            # Try yt-dlp first
+            # Try yt-dlp first non-blocking
             try:
-                stream_info = MediaExtractor.inspect_url(url)
+                stream_info = await _safe_stream_inspect(url)
                 return {
                     "success": True,
                     "type": "stream",
@@ -888,9 +914,9 @@ async def inspect_url(req: InspectRequest):
             "data": direct_info
         }
     except Exception as e:
-        # Final attempt with yt-dlp generic extractor
+        # Final attempt with yt-dlp generic extractor non-blocking
         try:
-            stream_info = MediaExtractor.inspect_url(url)
+            stream_info = await _safe_stream_inspect(url)
             return {
                 "success": True,
                 "type": "stream",
@@ -996,6 +1022,26 @@ async def save_direct_file(req: SaveFileRequest, user: Optional[Dict[str, Any]] 
         raise HTTPException(status_code=400, detail=f"Failed to save file: {str(e)}")
 
 
+def resolve_target_dir(custom_dir: Optional[str]) -> str:
+    default_dir = str(Path.home() / "Downloads" / "Eggdl Downloads")
+    if not custom_dir:
+        settings = get_settings()
+        return settings.get("download_dir") or default_dir
+    
+    clean = custom_dir.strip()
+    clean_lower = clean.lower().replace("/", "\\")
+    if clean_lower in ("downloads\\eggdl downloads", "downloads\\eggdl downloads\\", "downloads\\eggdl downloads"):
+        return default_dir
+    elif clean_lower.startswith("downloads\\"):
+        sub = clean[10:].strip("\\/")
+        return str(Path.home() / "Downloads" / sub) if sub else str(Path.home() / "Downloads")
+    elif clean_lower.startswith("desktop\\") or clean_lower == "desktop":
+        sub = clean[8:].strip("\\/")
+        return str(Path.home() / "Desktop" / sub) if sub else str(Path.home() / "Desktop")
+    elif not os.path.isabs(clean):
+        return str(Path.home() / clean)
+    return clean
+
 @app.post("/api/download/start")
 async def start_download(req: StartDownloadRequest, user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)):
     url = req.url.strip()
@@ -1030,7 +1076,7 @@ async def start_download(req: StartDownloadRequest, user: Optional[Dict[str, Any
 
     task_id = str(uuid.uuid4())[:8]
     settings = get_settings()
-    target_dir = settings.get("download_dir", str(Path.home() / "Downloads" / "EggDL"))
+    target_dir = resolve_target_dir(req.download_dir)
     
     plan_key = status["plan_type"] if (status["is_pro"] or status["is_trial"]) else "trial"
     plan_info = PLAN_CONFIGS.get(plan_key, PLAN_CONFIGS["trial"])
@@ -1068,7 +1114,8 @@ async def start_download(req: StartDownloadRequest, user: Optional[Dict[str, Any
             format_id=req.format_id or "bestvideo+bestaudio/best",
             is_audio_only=req.is_audio_only or False,
             audio_format=req.audio_format or "mp3",
-            custom_title=req.custom_title,
+            custom_title=req.custom_title or req.custom_filename,
+            custom_filename=req.custom_filename,
             expected_size=req.expected_size or -1,
             on_progress=handle_progress_update
         )
@@ -1128,6 +1175,13 @@ async def _run_task(task_id: str, task: Any):
         })
         if task_id in active_tasks and task_dict["status"] in ("completed", "canceled", "error"):
             active_tasks.pop(task_id, None)
+
+@app.get("/api/download/{task_id}")
+async def get_single_download_task(task_id: str):
+    task = get_download_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return {"success": True, "task": task}
 
 
 @app.post("/api/download/{task_id}/pause")
@@ -1362,7 +1416,7 @@ async def convert_to_h264(req: FileActionRequest):
 
     return {
         "success": True,
-        "message": "Video successfully converted to 100% Premiere Pro ready H.264 & AAC!",
+        "message": "Video successfully converted to universal MP4 (H.264 & AAC)!",
         "file_path": file_path,
         "file_size": new_size
     }
@@ -1472,6 +1526,57 @@ async def open_folder(req: FileActionRequest):
         return {"success": True, "message": "Folder opened", "folder_path": dl_dir}
 
 
+@app.post("/api/system/select-folder")
+@app.get("/api/system/select-folder")
+async def select_folder():
+    def _pick():
+        if sys.platform == "win32":
+            # 1. Tkinter native dialog (opens fast, topmost, 0 console windows)
+            try:
+                import tkinter as tk
+                from tkinter import filedialog
+                root = tk.Tk()
+                root.withdraw()
+                root.attributes('-topmost', True)
+                folder = filedialog.askdirectory(title="Select EggDL Download Location")
+                root.destroy()
+                if folder:
+                    return folder.replace("/", "\\")
+            except Exception:
+                pass
+
+            # 2. PowerShell STA FolderBrowserDialog fallback
+            try:
+                ps_script = """Add-Type -AssemblyName System.Windows.Forms
+$d = New-Object System.Windows.Forms.FolderBrowserDialog
+$d.Description = 'Select EggDL Download Location'
+$d.ShowNewFolderButton = $true
+$f = New-Object System.Windows.Forms.Form
+$f.TopMost = $true
+if ($d.ShowDialog($f) -eq [System.Windows.Forms.DialogResult]::OK) {
+    [Console]::WriteLine($d.SelectedPath)
+}
+"""
+                res = subprocess.run(
+                    ["powershell.exe", "-STA", "-NoProfile", "-Command", ps_script],
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                    creationflags=0x08000000  # CREATE_NO_WINDOW suppresses console window while keeping dialog visible
+                )
+                out = res.stdout.strip()
+                if out:
+                    return out
+            except Exception:
+                pass
+        return ""
+    
+    selected = await asyncio.to_thread(_pick)
+    if selected:
+        return {"success": True, "folder": selected}
+    return {"success": False, "folder": ""}
+
+
 @app.get("/api/system/stats")
 async def system_stats():
     settings = get_settings()
@@ -1509,7 +1614,7 @@ async def system_stats():
         "download_dir": dl_dir
     }
 
-APP_CURRENT_VERSION = "2.1.5"
+APP_CURRENT_VERSION = "2.1.6"
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "eggdl_admin_2026")
 CLOUD_API_URL = os.environ.get("CLOUD_API_URL", "https://eggdl.onrender.com")
 
@@ -1552,22 +1657,43 @@ def is_newer_version(remote_ver: str, local_ver: str) -> bool:
     except Exception:
         return remote_ver != local_ver
 
+_CLOUD_VERSION_CACHE = {
+    "last_check": 0.0,
+    "data": None
+}
+
+def _refresh_cloud_version_async():
+    def _worker():
+        try:
+            import urllib.request
+            req = urllib.request.Request(f"{CLOUD_API_URL}/api/system/version", headers={"User-Agent": "EggDL-Client"})
+            with urllib.request.urlopen(req, timeout=3.0) as res:
+                if res.status == 200:
+                    remote_data = json.loads(res.read().decode())
+                    if remote_data.get("latest_release"):
+                        _CLOUD_VERSION_CACHE["data"] = remote_data["latest_release"]
+                        _CLOUD_VERSION_CACHE["last_check"] = time.time()
+        except Exception:
+            pass
+    threading.Thread(target=_worker, daemon=True).start()
+
+@app.get("/api/system/ping")
+async def ping_system():
+    return {"success": True, "status": "online", "version": APP_CURRENT_VERSION}
+
 @app.get("/api/system/version")
 async def get_version_info():
     latest = get_latest_app_release()
     
-    # If running locally on desktop, also check Render central server
+    # If running locally on desktop, use background cached cloud release if available
     if not os.environ.get("RENDER"):
-        try:
-            import urllib.request
-            req = urllib.request.Request(f"{CLOUD_API_URL}/api/system/version", headers={"User-Agent": "EggDL-Client"})
-            with urllib.request.urlopen(req, timeout=3) as res:
-                if res.status == 200:
-                    remote_data = json.loads(res.read().decode())
-                    if remote_data.get("latest_release"):
-                        latest = remote_data["latest_release"]
-        except Exception:
-            pass
+        now = time.time()
+        if _CLOUD_VERSION_CACHE.get("data"):
+            latest = _CLOUD_VERSION_CACHE["data"]
+        # Trigger background refresh if cache is older than 5 minutes without blocking event loop
+        if now - _CLOUD_VERSION_CACHE["last_check"] > 300:
+            _CLOUD_VERSION_CACHE["last_check"] = now
+            _refresh_cloud_version_async()
 
     has_update = is_newer_version(latest.get("version", "2.0.0"), APP_CURRENT_VERSION)
     return {
@@ -1587,25 +1713,6 @@ async def check_device_status(req: DeviceCheckRequest):
     dev_id = req.device_id or get_device_id()
     reg = register_device(dev_id, req.user_email, req.app_version or APP_CURRENT_VERSION)
     
-    # Check central cloud server if running locally
-    if not os.environ.get("RENDER"):
-        try:
-            import urllib.request
-            data_bytes = json.dumps({"device_id": dev_id, "user_email": req.user_email, "app_version": req.app_version}).encode()
-            remote_req = urllib.request.Request(
-                f"{CLOUD_API_URL}/api/system/device-status",
-                data=data_bytes,
-                headers={"Content-Type": "application/json", "User-Agent": "EggDL-Client"}
-            )
-            with urllib.request.urlopen(remote_req, timeout=3) as res:
-                if res.status == 200:
-                    cloud_status = json.loads(res.read().decode())
-                    if cloud_status.get("is_blocked"):
-                        reg["is_blocked"] = True
-                        reg["block_reason"] = cloud_status.get("block_reason")
-        except Exception:
-            pass
-
     return {
         "success": True,
         "device_id": dev_id,
@@ -1613,26 +1720,56 @@ async def check_device_status(req: DeviceCheckRequest):
         "block_reason": reg.get("block_reason") or "Access to this device has been revoked by the administrator."
     }
 
-# --- Native Windows Clipboard (Zero Browser Dialogs & Zero Localhost Prompts) ---
+# --- Native Windows Clipboard (Zero Browser Dialogs, 64-Bit Safe & Zero Crashes) ---
 def get_native_clipboard_text() -> str:
+    # 1. Native Win32 API with 64-bit safe pointer types
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            from ctypes import wintypes
+            user32 = ctypes.windll.user32
+            kernel32 = ctypes.windll.kernel32
+
+            user32.OpenClipboard.argtypes = [wintypes.HWND]
+            user32.OpenClipboard.restype = wintypes.BOOL
+            user32.GetClipboardData.argtypes = [wintypes.UINT]
+            user32.GetClipboardData.restype = wintypes.HANDLE
+            user32.CloseClipboard.argtypes = []
+            user32.CloseClipboard.restype = wintypes.BOOL
+
+            kernel32.GlobalLock.argtypes = [wintypes.HGLOBAL]
+            kernel32.GlobalLock.restype = ctypes.c_void_p
+            kernel32.GlobalUnlock.argtypes = [wintypes.HGLOBAL]
+            kernel32.GlobalUnlock.restype = wintypes.BOOL
+
+            CF_UNICODETEXT = 13
+            if user32.OpenClipboard(None):
+                try:
+                    h_clip = user32.GetClipboardData(CF_UNICODETEXT)
+                    if h_clip:
+                        p_clip = kernel32.GlobalLock(h_clip)
+                        if p_clip:
+                            val = ctypes.c_wchar_p(p_clip).value
+                            kernel32.GlobalUnlock(h_clip)
+                            if val:
+                                return str(val)
+                finally:
+                    user32.CloseClipboard()
+        except Exception:
+            pass
+
+    # 2. Fallback via tkinter if initialized or available
     try:
-        import ctypes
-        CF_UNICODETEXT = 13
-        user32 = ctypes.windll.user32
-        kernel32 = ctypes.windll.kernel32
-        if user32.OpenClipboard(None):
-            try:
-                h_clip_mem = user32.GetClipboardData(CF_UNICODETEXT)
-                if h_clip_mem:
-                    p_clip_mem = kernel32.GlobalLock(h_clip_mem)
-                    if p_clip_mem:
-                        text = ctypes.c_wchar_p(p_clip_mem).value
-                        kernel32.GlobalUnlock(h_clip_mem)
-                        return text or ""
-            finally:
-                user32.CloseClipboard()
+        import tkinter as tk
+        root = tk.Tk()
+        root.withdraw()
+        txt = root.clipboard_get()
+        root.destroy()
+        if txt:
+            return str(txt)
     except Exception:
         pass
+
     return ""
 
 @app.get("/api/system/clipboard")
@@ -1822,7 +1959,7 @@ update_mgr = UpdateDownloadManager()
 
 @app.post("/api/system/update/download")
 async def start_app_update_download(data: Dict[str, Any] = Body(...)):
-    version = data.get("version", "2.1.5")
+    version = data.get("version", "2.1.6")
     download_url = data.get("download_url", "")
     update_mgr.start_download(version, download_url)
     return {"success": True, "message": "Update download started"}
@@ -1858,6 +1995,260 @@ async def download_setup_installer():
 
 # --- Admin Remote Control API ---
 @app.get("/api/admin/overview")
+def enrich_device_item(dev: dict) -> dict:
+    import math
+    from datetime import datetime
+    now = datetime.now()
+    dev_id = dev.get("device_id")
+    
+    local_st = {}
+    try:
+        if dev_id:
+            local_st = get_device_license_status(dev_id)
+    except Exception:
+        pass
+        
+    plan_type = (dev.get("plan_type") or local_st.get("plan_type") or "trial").lower().strip()
+    is_blocked = bool(dev.get("is_blocked") or local_st.get("is_blocked"))
+    
+    # 1. Blocked / Killed
+    if is_blocked:
+        is_pro = False
+        is_trial = False
+        days_remaining = 0
+        trial_days_remaining = 0
+        status_badge = "🚨 BLOCKED / KILLED"
+        tier = "Suspended / Banned"
+    # 2. Free Trial (7 Days)
+    elif plan_type == "trial":
+        is_pro = False
+        is_trial = True
+        days_remaining = 0
+        trial_days = 7
+        cr_str = dev.get("created_at") or local_st.get("created_at")
+        if cr_str:
+            try:
+                cr_dt = datetime.fromisoformat(str(cr_str)) if 'T' in str(cr_str) else datetime.strptime(str(cr_str)[:19], "%Y-%m-%d %H:%M:%S")
+                passed = max(0, int((now - cr_dt).total_seconds() // 86400))
+                trial_days = max(1, 7 - passed)
+            except Exception:
+                trial_days = 7
+        trial_days_remaining = dev.get("trial_days_remaining") or local_st.get("trial_days_remaining") or trial_days
+        status_badge = f"⏳ Free Trial • {trial_days_remaining} days left"
+        tier = f"7-Day Free Trial ({trial_days_remaining}d left)"
+    # 3. Pro Active Plans (1month, 3month, 6month, 1year, lifetime)
+    elif plan_type in ["1month", "3month", "6month", "1year", "lifetime", "pro"]:
+        is_pro = True
+        is_trial = False
+        trial_days_remaining = 0
+        if plan_type == "lifetime":
+            days_remaining = 99999
+            status_badge = "👑 PRO (Lifetime) • Permanent"
+            tier = "Pro Lifetime"
+        else:
+            dur_map = {"1month": 30, "3month": 90, "6month": 180, "1year": 365, "pro": 30}
+            total_dur = dur_map.get(plan_type, 30)
+            exp_str = dev.get("plan_expires_at") or local_st.get("plan_expires_at")
+            if exp_str:
+                try:
+                    exp_dt = datetime.fromisoformat(str(exp_str)) if 'T' in str(exp_str) else datetime.strptime(str(exp_str)[:19], "%Y-%m-%d %H:%M:%S")
+                    diff_sec = (exp_dt - now).total_seconds()
+                    days_remaining = max(1, math.ceil(diff_sec / 86400)) if diff_sec > 0 else 0
+                except Exception:
+                    days_remaining = total_dur
+            else:
+                days_remaining = dev.get("days_remaining") or local_st.get("days_remaining") or total_dur
+            status_badge = f"⭐ PRO ({plan_type}) • {days_remaining} days left"
+            tier = f"Pro Active ({days_remaining}d left)"
+    # 4. Free / Unlicensed / Expired
+    else:
+        is_pro = False
+        is_trial = False
+        days_remaining = 0
+        trial_days_remaining = 0
+        status_badge = "⚠️ Free Trial Expired"
+        tier = "Unlicensed"
+
+    dev["is_pro"] = is_pro
+    dev["is_trial"] = is_trial
+    dev["is_blocked"] = is_blocked
+    dev["plan_type"] = plan_type
+    dev["days_remaining"] = days_remaining
+    dev["trial_days_remaining"] = trial_days_remaining
+    dev["status_badge"] = status_badge
+    dev["tier"] = tier
+    return dev
+
+@app.get("/api/admin/overview")
+def enrich_device_item(dev: dict) -> dict:
+    import math
+    from datetime import datetime
+    now = datetime.now()
+    dev_id = dev.get("device_id")
+    
+    plan_type = (dev.get("plan_type") or "trial").lower().strip()
+    is_blocked = bool(dev.get("is_blocked"))
+    
+    # 1. Blocked / Killed
+    if is_blocked:
+        is_pro = False
+        is_trial = False
+        days_remaining = 0
+        trial_days_remaining = 0
+        status_badge = "🚨 BLOCKED / KILLED"
+        tier = "Suspended / Banned"
+    # 2. Free Trial (7 Days)
+    elif plan_type == "trial":
+        is_pro = False
+        is_trial = True
+        days_remaining = 0
+        trial_days = 7
+        cr_str = dev.get("created_at")
+        if cr_str:
+            try:
+                cr_dt = datetime.fromisoformat(str(cr_str)) if 'T' in str(cr_str) else datetime.strptime(str(cr_str)[:19], "%Y-%m-%d %H:%M:%S")
+                passed = max(0, int((now - cr_dt).total_seconds() // 86400))
+                trial_days = max(1, 7 - passed)
+            except Exception:
+                trial_days = 7
+        trial_days_remaining = dev.get("trial_days_remaining") or trial_days
+        status_badge = f"⏳ Free Trial • {trial_days_remaining} days left"
+        tier = f"7-Day Free Trial ({trial_days_remaining}d left)"
+    # 3. Pro Active Plans (1month, 3month, 6month, 1year, lifetime)
+    elif plan_type in ["1month", "3month", "6month", "1year", "lifetime", "pro"]:
+        is_pro = True
+        is_trial = False
+        trial_days_remaining = 0
+        if plan_type == "lifetime":
+            days_remaining = 99999
+            status_badge = "👑 PRO (Lifetime) • Permanent"
+            tier = "Pro Lifetime"
+        else:
+            dur_map = {"1month": 30, "3month": 90, "6month": 180, "1year": 365, "pro": 30}
+            total_dur = dur_map.get(plan_type, 30)
+            exp_str = dev.get("plan_expires_at")
+            if exp_str:
+                try:
+                    exp_dt = datetime.fromisoformat(str(exp_str)) if 'T' in str(exp_str) else datetime.strptime(str(exp_str)[:19], "%Y-%m-%d %H:%M:%S")
+                    diff_sec = (exp_dt - now).total_seconds()
+                    days_remaining = max(1, math.ceil(diff_sec / 86400)) if diff_sec > 0 else 0
+                except Exception:
+                    days_remaining = total_dur
+            else:
+                cr_str = dev.get("created_at")
+                if cr_str:
+                    try:
+                        cr_dt = datetime.fromisoformat(str(cr_str)) if 'T' in str(cr_str) else datetime.strptime(str(cr_str)[:19], "%Y-%m-%d %H:%M:%S")
+                        passed = max(0, int((now - cr_dt).total_seconds() // 86400))
+                        days_remaining = max(1, total_dur - passed)
+                    except Exception:
+                        days_remaining = total_dur
+                else:
+                    days_remaining = dev.get("days_remaining") or total_dur
+            status_badge = f"⭐ PRO ({plan_type}) • {days_remaining} days left"
+            tier = f"Pro Active ({days_remaining}d left)"
+    # 4. Free / Unlicensed / Expired
+    else:
+        is_pro = False
+        is_trial = False
+        days_remaining = 0
+        trial_days_remaining = 0
+        status_badge = "⚠️ Free Trial Expired"
+        tier = "Unlicensed"
+
+    dev["is_pro"] = is_pro
+    dev["is_trial"] = is_trial
+    dev["is_blocked"] = is_blocked
+    dev["plan_type"] = plan_type
+    dev["days_remaining"] = days_remaining
+    dev["trial_days_remaining"] = trial_days_remaining
+    dev["status_badge"] = status_badge
+    dev["tier"] = tier
+    return dev
+
+@app.get("/api/admin/overview")
+def enrich_device_item(dev: dict) -> dict:
+    import math
+    from datetime import datetime
+    now = datetime.now()
+    dev_id = dev.get("device_id")
+    
+    # Check local status if available
+    local_st = {}
+    try:
+        if dev_id:
+            local_st = get_device_license_status(dev_id)
+    except Exception:
+        pass
+        
+    is_blocked = bool(dev.get("is_blocked") or local_st.get("is_blocked"))
+    is_pro = bool(dev.get("is_pro") or local_st.get("is_pro"))
+    plan_type = (dev.get("plan_type") or local_st.get("plan_type") or "trial").lower()
+    
+    # 1. Exact days remaining calculation
+    days_remaining = dev.get("days_remaining") or local_st.get("days_remaining") or 0
+    trial_days_remaining = dev.get("trial_days_remaining") or local_st.get("trial_days_remaining") or 0
+    
+    # Known plan durations
+    dur_map = {"1month": 30, "3month": 90, "6month": 180, "1year": 365, "trial": 7, "free": 0}
+    
+    if plan_type == "lifetime":
+        days_remaining = 99999
+    elif is_pro and days_remaining <= 0:
+        total_dur = dur_map.get(plan_type, 30)
+        cr_str = dev.get("created_at") or local_st.get("created_at")
+        if cr_str:
+            try:
+                cr_dt = datetime.fromisoformat(str(cr_str)) if 'T' in str(cr_str) else datetime.strptime(str(cr_str)[:19], "%Y-%m-%d %H:%M:%S")
+                passed = max(0, int((now - cr_dt).total_seconds() // 86400))
+                days_remaining = max(1, total_dur - passed)
+            except Exception:
+                days_remaining = total_dur
+        else:
+            days_remaining = total_dur
+            
+    is_trial = bool(dev.get("is_trial") or local_st.get("is_trial") or (not is_pro and not is_blocked and plan_type == "trial"))
+    if is_trial and trial_days_remaining <= 0:
+        cr_str = dev.get("created_at") or local_st.get("created_at")
+        if cr_str:
+            try:
+                cr_dt = datetime.fromisoformat(str(cr_str)) if 'T' in str(cr_str) else datetime.strptime(str(cr_str)[:19], "%Y-%m-%d %H:%M:%S")
+                passed = max(0, int((now - cr_dt).total_seconds() // 86400))
+                trial_days_remaining = max(1, 7 - passed)
+            except Exception:
+                trial_days_remaining = 7
+        else:
+            trial_days_remaining = 7
+
+    # 2. Status badge formatting
+    if is_blocked:
+        status_badge = "🚨 BLOCKED / KILLED"
+        tier = "Suspended / Banned"
+    elif is_pro:
+        if plan_type == "lifetime" or days_remaining >= 36500:
+            status_badge = "👑 PRO (Lifetime) • Permanent"
+            tier = "Pro Lifetime"
+        else:
+            status_badge = f"⭐ PRO ({plan_type}) • {days_remaining} days left"
+            tier = f"Pro Active ({days_remaining}d left)"
+    elif is_trial:
+        status_badge = f"⏳ Free Trial • {trial_days_remaining} days left"
+        tier = f"7-Day Free Trial ({trial_days_remaining}d left)"
+    else:
+        status_badge = "⚠️ Free Trial Expired"
+        tier = "Unlicensed"
+
+    dev["is_pro"] = is_pro
+    dev["is_trial"] = is_trial
+    dev["is_blocked"] = is_blocked
+    dev["plan_type"] = plan_type
+    dev["days_remaining"] = days_remaining
+    dev["trial_days_remaining"] = trial_days_remaining
+    dev["status_badge"] = status_badge
+    dev["tier"] = tier
+    return dev
+
+@app.get("/api/admin/overview")
 async def get_admin_overview(admin_key: str = Query(...)):
     if not is_valid_admin_key(admin_key):
         raise HTTPException(status_code=403, detail="Invalid Master Admin Key")
@@ -1871,11 +2262,14 @@ async def get_admin_overview(admin_key: str = Query(...)):
             )
             with urllib.request.urlopen(req, timeout=4.0) as res:
                 if res.status == 200:
-                    return json.loads(res.read().decode())
+                    cloud_data = json.loads(res.read().decode())
+                    if "devices" in cloud_data:
+                        cloud_data["devices"] = [enrich_device_item(d) for d in cloud_data["devices"]]
+                    return cloud_data
         except Exception:
             pass
 
-    devices = get_all_devices_telemetry()
+    devices = [enrich_device_item(d) for d in get_all_devices_telemetry()]
     latest_release = get_latest_app_release()
     return {
         "success": True,
@@ -1902,11 +2296,14 @@ async def get_admin_devices(admin_key: str = Query(...)):
             )
             with urllib.request.urlopen(req, timeout=4.0) as res:
                 if res.status == 200:
-                    return json.loads(res.read().decode())
+                    cloud_data = json.loads(res.read().decode())
+                    if "devices" in cloud_data:
+                        cloud_data["devices"] = [enrich_device_item(d) for d in cloud_data["devices"]]
+                    return cloud_data
         except Exception:
             pass
 
-    devices = get_all_devices_telemetry()
+    devices = [enrich_device_item(d) for d in get_all_devices_telemetry()]
     return {
         "success": True,
         "total_devices": len(devices),

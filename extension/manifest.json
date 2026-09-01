@@ -1,14 +1,15 @@
 {
   "manifest_version": 3,
   "name": "EggDL",
-  "version": "2.0.0",
+  "version": "2.1.6",
   "description": "High-speed video & media downloader for web, YouTube, Facebook, Instagram, and more.",
   "permissions": [
     "activeTab",
     "storage",
     "contextMenus",
     "webRequest",
-    "scripting"
+    "scripting",
+    "downloads"
   ],
   "host_permissions": [
     "<all_urls>",
@@ -41,5 +42,11 @@
     "32": "icons/icon32.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/*", "content.css"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }

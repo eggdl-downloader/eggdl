@@ -434,7 +434,7 @@ class MediaExtractor:
             "skip_download": True,
             "extract_flat": False,
             "noplaylist": True,
-            "socket_timeout": 20,
+            "socket_timeout": 15,
             "no_color": True,
             "cachedir": False,
             "http_headers": {
@@ -463,6 +463,7 @@ class MediaExtractor:
                         "quiet": True,
                         "skip_download": True,
                         "noplaylist": True,
+                        "socket_timeout": 12,
                     }
                     if cookie_path:
                         fallback_opts["cookiefile"] = cookie_path
@@ -497,9 +498,7 @@ class MediaExtractor:
         formats = info.get("formats", [])
         video_options = []
         audio_options = []
-        seen_res = set()
 
-        # Find best audio size to add to video size for true combined size
         # Find best audio size
         best_audio_size = 0
         for f in formats:
@@ -512,88 +511,82 @@ class MediaExtractor:
         if not best_audio_size and duration:
             best_audio_size = int(duration * 16 * 1024) # ~128kbps audio
 
-        # Add "Best Quality" default preset (True highest available resolution, standardized to H.264 automatically)
+        # Add "Best Quality" default preset (True highest available resolution up to 4K / 8K)
         video_options.append({
             "format_id": "bestvideo+bestaudio/best",
-            "label": "Best Video Quality (Auto - Premiere Ready)",
+            "label": "Best Video Quality (Auto - Ultra HD)",
             "resolution": "Best",
-            "codec": "MP4 / H.264",
+            "codec": "MP4 / AAC",
             "ext": "mp4",
             "filesize": None,
             "filesize_str": "Auto (Highest Available)",
             "type": "video"
         })
 
-        # Group formats by height to find the true best stream for each resolution
-        formats_by_height = {}
+        def bucket_resolution(w, h):
+            eff = min(w, h) if (w and h) else (h or 0)
+            if eff >= 3800:
+                return 4320, '8K', '8K Ultra HD'
+            elif eff >= 2000:
+                return 2160, '4K', '4K Ultra HD'
+            elif eff >= 1350:
+                return 1440, '1440p', '1440p (2K QHD)'
+            elif eff >= 950:
+                return 1080, '1080p', '1080p (Full HD)'
+            elif eff >= 650:
+                return 720, '720p', '720p (HD)'
+            elif eff >= 440:
+                return 480, '480p', '480p (SD)'
+            elif eff >= 320:
+                return 360, '360p', '360p'
+            elif eff >= 200:
+                return 240, '240p', '240p'
+            elif eff >= 100:
+                return 144, '144p', '144p'
+            return None
+
+        # Group formats into resolution buckets
+        buckets = {}
         for f in formats:
             vcodec = f.get("vcodec", "none")
-            height = f.get("height")
-            if vcodec != "none" and height:
-                if height not in formats_by_height:
-                    formats_by_height[height] = []
-                formats_by_height[height].append(f)
+            if vcodec == "none":
+                continue
+            w = f.get("width")
+            h = f.get("height")
+            b = bucket_resolution(w, h)
+            if not b:
+                continue
+            tier_h = b[0]
+            if tier_h not in buckets:
+                buckets[tier_h] = []
+            buckets[tier_h].append((b, f))
 
-        # Process standard resolutions in descending order
-        sorted_heights = sorted(formats_by_height.keys(), reverse=True)
-        for height in sorted_heights:
-            height_fmts = formats_by_height[height]
-            best_fmt = height_fmts[-1]
-            max_br = 0
-            for f in height_fmts:
-                br = f.get("vbr") or f.get("tbr") or 0
-                sz = f.get("filesize") or f.get("filesize_approx") or 0
-                if sz > 0 or br > max_br:
-                    max_br = br
-                    best_fmt = f
-
-            v_size = best_fmt.get("filesize") or best_fmt.get("filesize_approx")
-            fps = best_fmt.get("fps") or 30
+        sorted_tiers = sorted(buckets.keys(), reverse=True)
+        for tier_h in sorted_tiers:
+            items = buckets[tier_h]
+            best_b, best_fmt = max(items, key=lambda x: (x[1].get('vbr') or x[1].get('tbr') or 0, x[1].get('filesize') or 0))
+            
+            clean_res = best_b[1]
+            base_label = best_b[2]
+            fps = best_fmt.get("fps")
+            fps_str = f" {int(fps)}fps" if (fps and fps >= 50) else ""
+            label = f"{base_label}{fps_str}"
             ext = "mp4"
 
-            if height >= 4320:
-                clean_res = "8K"
-                label = "8K Ultra HD" if height == 4320 else f"{height}p (8K UHD)"
-            elif height >= 2160:
-                clean_res = "4K"
-                label = "4K Ultra HD" if height == 2160 else f"{height}p (4K UHD)"
-            elif height >= 1440:
-                clean_res = "1440p"
-                label = "1440p (2K QHD)" if height == 1440 else f"{height}p (2K QHD)"
-            elif height >= 1080:
-                clean_res = "1080p"
-                label = "1080p (Full HD)" if height == 1080 else f"{height}p (Full HD)"
-            elif height >= 720:
-                clean_res = "720p"
-                label = "720p (HD)" if height == 720 else f"{height}p (HD)"
-            elif height >= 480:
-                clean_res = "480p"
-                label = "480p (SD)" if height == 480 else f"{height}p (SD)"
-            elif height >= 360:
-                clean_res = "360p"
-                label = f"{height}p"
-            elif height >= 240:
-                clean_res = "240p"
-                label = f"{height}p"
-            else:
-                clean_res = "144p"
-                label = f"{height}p"
-
-            if fps and fps >= 50:
-                label += f" {int(fps)}fps"
-
+            v_size = best_fmt.get("filesize") or best_fmt.get("filesize_approx")
             if not v_size and duration:
                 actual_vbr = best_fmt.get("vbr") or best_fmt.get("tbr")
                 if not actual_vbr:
-                    actual_vbr = {4320: 35000, 2160: 18000, 1440: 7000, 1080: 2500, 720: 1400, 480: 700, 360: 400, 240: 220}.get(height, 180)
+                    actual_vbr = {4320: 35000, 2160: 18000, 1440: 7000, 1080: 2500, 720: 1400, 480: 700, 360: 400, 240: 220}.get(tier_h, 180)
                 v_size = int(duration * (actual_vbr * 1024 / 8))
 
             comb_size = (v_size + best_audio_size) if v_size else None
+            fid = best_fmt.get("format_id")
 
             format_spec = (
-                f"bestvideo[height={height}]+bestaudio/"
-                f"bestvideo[height<={height}]+bestaudio/"
-                f"best[height<={height}]"
+                f"bestvideo[format_id={fid}]+bestaudio/"
+                f"bestvideo[height<={tier_h}]+bestaudio/"
+                f"bestvideo+bestaudio/best"
             )
             video_options.append({
                 "format_id": format_spec,
@@ -657,6 +650,7 @@ class StreamDownloadTask:
         is_audio_only: bool = False,
         audio_format: str = "mp3",
         custom_title: Optional[str] = None,
+        custom_filename: Optional[str] = None,
         expected_size: int = -1,
         downloaded_bytes: int = 0,
         progress: float = 0.0,
@@ -669,11 +663,12 @@ class StreamDownloadTask:
         self.is_audio_only = is_audio_only
         self.audio_format = audio_format
         self.custom_title = custom_title
+        self.custom_filename = custom_filename
         self.on_progress = on_progress
 
-        self.title = custom_title or "Media Download"
-        self.filename = ""
-        self.file_path = ""
+        self.title = custom_title or custom_filename or "Media Download"
+        self.filename = custom_filename or ""
+        self.file_path = os.path.join(target_dir, custom_filename) if custom_filename else ""
         self.file_size = expected_size if (expected_size and expected_size > 0) else -1
         self.downloaded_bytes = downloaded_bytes or 0
         self.progress = progress or 0.0
@@ -799,7 +794,12 @@ class StreamDownloadTask:
 
     def run_sync(self):
         os.makedirs(self.target_dir, exist_ok=True)
-        outtmpl = os.path.join(self.target_dir, "%(title).80s.%(ext)s")
+        custom_name = self.custom_filename or self.custom_title
+        clean_base = sanitize_filename(os.path.splitext(custom_name)[0]).strip() if custom_name else ""
+        if clean_base:
+            outtmpl = os.path.join(self.target_dir, f"{clean_base}.%(ext)s")
+        else:
+            outtmpl = os.path.join(self.target_dir, "%(title).80s.%(ext)s")
 
         ffmpeg_dir = get_ffmpeg_location()
         cookie_path = get_cookie_file()
@@ -916,7 +916,10 @@ class StreamDownloadTask:
                 if not info and dl_last_err:
                     raise dl_last_err
                 if info:
-                    self.title = info.get("title", self.title)
+                    if not self.custom_title and not self.custom_filename:
+                        self.title = info.get("title", self.title)
+                    else:
+                        self.title = self.custom_title or self.custom_filename
                     self.thumbnail = info.get("thumbnail") or ""
                     
                     # Resolve true final filename on disk
@@ -944,6 +947,24 @@ class StreamDownloadTask:
                             ffmpeg_bin = get_ffmpeg_exe()
                             if ffmpeg_bin and os.path.exists(ffmpeg_bin):
                                 ensure_premiere_compatibility(final_path, ffmpeg_bin)
+
+                        # Guarantee exact custom filename on disk
+                        if custom_name and clean_base:
+                            final_ext = os.path.splitext(final_path)[1]
+                            if self.custom_filename and os.path.splitext(self.custom_filename)[1]:
+                                target_fname = sanitize_filename(self.custom_filename)
+                            else:
+                                target_fname = f"{clean_base}{final_ext}"
+                            
+                            target_custom_path = os.path.join(self.target_dir, target_fname)
+                            if os.path.abspath(final_path) != os.path.abspath(target_custom_path):
+                                try:
+                                    if os.path.exists(target_custom_path):
+                                        os.remove(target_custom_path)
+                                    os.rename(final_path, target_custom_path)
+                                    final_path = target_custom_path
+                                except Exception as ren_err:
+                                    sys.stderr.write(f"[Rename Custom File Error] {ren_err}\n")
 
                         if os.path.exists(final_path):
                             self.file_path = os.path.abspath(final_path)

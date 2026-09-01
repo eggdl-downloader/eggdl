@@ -236,13 +236,13 @@
           <table class="downloads-table">
             <thead>
               <tr>
-                <th style="width: 44px; padding-left: 16px;">Type</th>
-                <th>File / Name</th>
-                <th style="width: 90px;">Size</th>
-                <th style="width: 130px;">Progress</th>
-                <th style="width: 115px;">Status</th>
-                <th style="width: 125px;">Date</th>
-                <th style="width: 185px; text-align: right; padding-right: 18px;">Actions</th>
+                <th class="th-type" style="width: 68px; padding-left: 16px;">Type</th>
+                <th class="th-file">File / Name</th>
+                <th class="th-size" style="width: 100px;">Size</th>
+                <th class="th-progress" style="width: 125px;">Progress</th>
+                <th class="th-status" style="width: 115px;">Status</th>
+                <th class="th-date" style="width: 135px;">Date</th>
+                <th class="th-actions" style="width: 175px; text-align: right; padding-right: 16px;">Actions</th>
               </tr>
             </thead>
             <tbody id="downloads-tbody">
@@ -367,7 +367,7 @@
         <div class="form-group" style="border-top: 1px solid var(--border-color); padding-top: 14px; margin-top: 14px;">
           <label style="display: flex; justify-content: space-between; align-items: center;">
             <span>App Version & Updates</span>
-            <span class="badge" style="font-size: 0.76rem; font-weight: 700; padding: 3px 10px; background: rgba(59, 130, 246, 0.18); color: #38BDF8; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.3);" id="settings-app-version">v2.1.5</span>
+            <span class="badge" style="font-size: 0.76rem; font-weight: 700; padding: 3px 10px; background: rgba(59, 130, 246, 0.18); color: #38BDF8; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.3);" id="settings-app-version">v2.1.6</span>
           </label>
           <div style="margin-top: 8px;">
             <button type="button" class="btn btn-secondary btn-sm" id="btn-check-updates" style="width: 100%; justify-content: center;">
@@ -1010,9 +1010,13 @@
   <!-- Toast Notification Container -->
   <div class="toast-container" id="toast-container"></div>
 
+  <!-- Download Complete Notification Popup Container -->
+  <div class="download-notification-container" id="download-notification-container"></div>
+
   <!-- Scripts -->
-  <script src="/static/js/api.js?v=44.0"></script>
-  <script src="/static/js/ui.js?v=44.0"></script>
-  <script src="/static/js/app.js?v=44.0"></script>
+  <script src="/static/audio/notification_base64.js?v=45.0"></script>
+  <script src="/static/js/api.js?v=45.0"></script>
+  <script src="/static/js/ui.js?v=45.0"></script>
+  <script src="/static/js/app.js?v=45.0"></script>
 </body>
 </html>

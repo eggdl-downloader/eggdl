@@ -280,9 +280,12 @@ const API = {
     let currentVer = '2.1.5';
     let localData = null;
 
-    // 1. Try local server
+    // 1. Try local server with fast 2.5s timeout
     try {
-      const res = await fetch(`${this.baseUrl}/api/system/version`, { headers: this.getHeaders() });
+      const res = await fetch(`${this.baseUrl}/api/system/version`, {
+        headers: this.getHeaders(),
+        signal: AbortSignal.timeout ? AbortSignal.timeout(2500) : undefined
+      });
       if (res.ok) {
         localData = await res.json();
         currentVer = localData.current_version || '2.1.5';
@@ -292,9 +295,11 @@ const API = {
       }
     } catch (_) {}
 
-    // 2. Direct cloud query to ensure no outdated cache
+    // 2. Direct cloud query with 3.5s timeout to avoid infinite spinning
     try {
-      const cloudRes = await fetch('https://eggdl.onrender.com/api/system/version');
+      const cloudRes = await fetch('https://eggdl.onrender.com/api/system/version', {
+        signal: AbortSignal.timeout ? AbortSignal.timeout(3500) : undefined
+      });
       if (cloudRes.ok) {
         const cloudData = await cloudRes.json();
         const latestVer = cloudData.latest_version || cloudData.latest_release?.version || '2.1.5';
@@ -311,7 +316,7 @@ const API = {
         };
       }
     } catch (err) {
-      console.warn('Cloud update check error:', err);
+      console.warn('Cloud update check error/timeout:', err);
     }
 
     return localData || {

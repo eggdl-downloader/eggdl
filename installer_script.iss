@@ -1,8 +1,9 @@
 #define MyAppName "EggDL"
-#define MyAppVersion "2.1.5"
+#define MyAppVersion "2.1.6"
 #define MyAppPublisher "EggDL Technologies"
 #define MyAppURL "https://eggdl.com"
 #define MyAppExeName "EggDL.exe"
+#define MyAppID "EggDL.Downloader.App"
 
 [Setup]
 AppId={{E66D1002-88E4-42B1-9C33-8F7D2B6F9A01}
@@ -36,9 +37,9 @@ Name: "startupicon"; Description: "Automatically start EggDL in system tray on W
 Source: "dist\EggDL\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*\downloads\*,*\downloads"
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; AppUserModelID: "{#MyAppID}"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; AppUserModelID: "{#MyAppID}"; Tasks: desktopicon
 
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "{#MyAppName}"; ValueData: """{app}\{#MyAppExeName}"" --tray"; Tasks: startupicon; Flags: uninsdeletevalue

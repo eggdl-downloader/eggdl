@@ -5,6 +5,8 @@ import socket
 import threading
 import asyncio
 import urllib.request
+import shutil
+import json
 from pathlib import Path
 
 # Fix PyInstaller windowed mode where sys.stdout and sys.stderr are None
@@ -40,6 +42,46 @@ if sys.stdout is None:
     sys.stdout = StreamToLogger(log_path)
 if sys.stderr is None:
     sys.stderr = StreamToLogger(log_path)
+
+# Set Windows AppUserModelID early so taskbar icon grouping is always 1:1 identical to pinned shortcut
+APP_USER_MODEL_ID = "EggDL.Downloader.App"
+if sys.platform == "win32":
+    try:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_USER_MODEL_ID)
+    except Exception:
+        pass
+
+# Single-Instance Protection: Prevents duplicate process and duplicate taskbar icons
+_INSTANCE_MUTEX = None
+def check_single_instance():
+    global _INSTANCE_MUTEX
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            ERROR_ALREADY_EXISTS = 183
+            kernel32 = ctypes.windll.kernel32
+            mutex_name = "Local\\EggDL_App_Single_Instance_Mutex"
+            _INSTANCE_MUTEX = kernel32.CreateMutexW(None, False, mutex_name)
+            if kernel32.GetLastError() == ERROR_ALREADY_EXISTS:
+                # App is already running! Trigger existing window to show
+                try:
+                    urllib.request.urlopen("http://127.0.0.1:8000/api/app/show_window", timeout=1.0)
+                except Exception:
+                    pass
+                try:
+                    hwnd = ctypes.windll.user32.FindWindowW(None, "EggDL - Ultra Turbo Downloader")
+                    if hwnd:
+                        ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                        ctypes.windll.user32.SetForegroundWindow(hwnd)
+                except Exception:
+                    pass
+                # Terminate duplicate instance immediately
+                sys.exit(0)
+        except Exception:
+            pass
+
+check_single_instance()
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if getattr(sys, 'frozen', False):
@@ -170,16 +212,33 @@ def ensure_autostart_registry():
         except Exception:
             pass
 
-if sys.platform == "win32":
-    try:
-        import ctypes
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("EggDL.Downloader.Desktop.v2")
-    except Exception:
-        pass
-
 _MAIN_WINDOW = None
 _TRAY_ICON = None
 _IS_EXITING = False
+
+def show_main_window():
+    global _MAIN_WINDOW
+    if _MAIN_WINDOW:
+        try:
+            _MAIN_WINDOW.show()
+            _MAIN_WINDOW.restore()
+        except Exception:
+            pass
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            hwnd = ctypes.windll.user32.FindWindowW(None, "EggDL - Ultra Turbo Downloader")
+            if hwnd:
+                ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                ctypes.windll.user32.SetForegroundWindow(hwnd)
+        except Exception:
+            pass
+
+# Connect show window callback for FastAPI backend
+if "backend.app" in sys.modules and hasattr(sys.modules["backend.app"], "set_show_window_callback"):
+    sys.modules["backend.app"].set_show_window_callback(show_main_window)
+elif "app" in sys.modules and hasattr(sys.modules["app"], "set_show_window_callback"):
+    sys.modules["app"].set_show_window_callback(show_main_window)
 
 def on_closing():
     global _MAIN_WINDOW, _IS_EXITING
@@ -193,28 +252,164 @@ def on_closing():
         return False
     return True
 
-def on_open_app(icon=None, item=None):
+def on_license_details(icon=None, item=None):
+    show_main_window()
     global _MAIN_WINDOW
     if _MAIN_WINDOW:
         try:
-            _MAIN_WINDOW.show()
-            _MAIN_WINDOW.restore()
+            _MAIN_WINDOW.evaluate_js("if(window.UI && window.UI.openAccountModal){ window.UI.openAccountModal(); }")
         except Exception:
             pass
 
-def on_exit_app(icon=None, item=None):
-    global _IS_EXITING, _TRAY_ICON, _MAIN_WINDOW
+def on_open_downloads(icon=None, item=None):
+    try:
+        dl_dir = Path.home() / "Downloads" / "Eggdl Downloads"
+        dl_dir.mkdir(parents=True, exist_ok=True)
+        if sys.platform == "win32":
+            os.startfile(str(dl_dir))
+        else:
+            import subprocess
+            subprocess.Popen(["xdg-open", str(dl_dir)])
+    except Exception as e:
+        sys.stderr.write(f"[Open Downloads Error] {e}\n")
+
+def on_restart_app(icon=None, item=None):
+    global _IS_EXITING, _TRAY_ICON, _INSTANCE_MUTEX
     _IS_EXITING = True
+
+    # 1. Hide tray icon immediately
     if _TRAY_ICON:
         try:
-            _TRAY_ICON.stop()
+            _TRAY_ICON.visible = False
         except Exception:
             pass
-    if _MAIN_WINDOW:
+
+    # 2. Release and close the single-instance mutex so the new process starts freely
+    if _INSTANCE_MUTEX and sys.platform == "win32":
         try:
-            _MAIN_WINDOW.destroy()
+            import ctypes
+            ctypes.windll.kernel32.CloseHandle(_INSTANCE_MUTEX)
+            _INSTANCE_MUTEX = None
         except Exception:
             pass
+
+    # 3. Launch the new EggDL process detached with a 0.5s pause to ensure port 8000 is clean
+    try:
+        import subprocess
+        if getattr(sys, 'frozen', False):
+            exe_path = sys.executable
+            cmd = f'ping 127.0.0.1 -n 2 > nul & start "" "{exe_path}"'
+        else:
+            py_exe = sys.executable.replace("python.exe", "pythonw.exe")
+            if not os.path.exists(py_exe):
+                py_exe = sys.executable
+            script_path = os.path.abspath(sys.argv[0])
+            cmd = f'ping 127.0.0.1 -n 2 > nul & start "" "{py_exe}" "{script_path}"'
+
+        subprocess.Popen(cmd, shell=True, creationflags=0x08000000)
+    except Exception as e:
+        sys.stderr.write(f"[Restart Error] {e}\n")
+
+    # 4. Terminate current process instantly
+    os._exit(0)
+
+def on_clear_cache(icon=None, item=None):
+    try:
+        freed_bytes = 0
+        deleted_files = 0
+
+        # 1. User AppData EggDL Temp Chunks
+        data_dir = get_user_data_dir()
+        if os.path.exists(data_dir):
+            for root, dirs, files in os.walk(data_dir):
+                for f in files:
+                    if f.endswith('.tmp') or f.endswith('.part') or f.endswith('.crdownload') or f.endswith('.log.old'):
+                        try:
+                            p = os.path.join(root, f)
+                            sz = os.path.getsize(p)
+                            os.remove(p)
+                            freed_bytes += sz
+                            deleted_files += 1
+                        except Exception:
+                            pass
+
+        # 2. System Temp EggDL files
+        sys_temp = os.environ.get('TEMP', '')
+        if sys_temp and os.path.exists(sys_temp):
+            for f in os.listdir(sys_temp):
+                if f.startswith('eggdl') or f.startswith('yt-dlp') or f.startswith('tmp_egg'):
+                    try:
+                        p = os.path.join(sys_temp, f)
+                        if os.path.isfile(p):
+                            sz = os.path.getsize(p)
+                            os.remove(p)
+                            freed_bytes += sz
+                            deleted_files += 1
+                        elif os.path.isdir(p):
+                            shutil.rmtree(p, ignore_errors=True)
+                            deleted_files += 1
+                    except Exception:
+                        pass
+
+        # 3. Downloads directory temporary partial files
+        dl_dir = Path.home() / "Downloads" / "Eggdl Downloads"
+        if dl_dir.exists():
+            for f in dl_dir.iterdir():
+                if f.is_file() and (f.suffix in ['.tmp', '.part', '.ytdl'] or f.name.endswith('.temp')):
+                    try:
+                        sz = f.stat().st_size
+                        f.unlink()
+                        freed_bytes += sz
+                        deleted_files += 1
+                    except Exception:
+                        pass
+
+        # Format human readable size
+        if freed_bytes >= 1024 * 1024 * 1024:
+            size_text = f"{freed_bytes / (1024 * 1024 * 1024):.2f} GB"
+        elif freed_bytes >= 1024 * 1024:
+            size_text = f"{freed_bytes / (1024 * 1024):.2f} MB"
+        elif freed_bytes >= 1024:
+            size_text = f"{freed_bytes / 1024:.2f} KB"
+        elif freed_bytes > 0:
+            size_text = f"{freed_bytes} Bytes"
+        else:
+            size_text = "0 KB"
+
+        if deleted_files > 0:
+            summary_msg = f"Cleaned {deleted_files} temp chunks & freed {size_text} space!"
+        else:
+            summary_msg = "All temporary download chunks and cache are already clean!"
+
+        # Show native Windows System Tray Balloon Notification
+        global _TRAY_ICON, _MAIN_WINDOW
+        if _TRAY_ICON:
+            try:
+                _TRAY_ICON.notify(summary_msg, "EggDL • Cache Cleaned ⚡")
+            except Exception:
+                pass
+
+        # Also show Toast in UI if main window is open
+        if _MAIN_WINDOW:
+            try:
+                clean_json = json.dumps(summary_msg)
+                _MAIN_WINDOW.evaluate_js(f"if(window.UI && window.UI.showToast){{ window.UI.showToast({clean_json}, 'success'); }}")
+            except Exception:
+                pass
+
+    except Exception as e:
+        sys.stderr.write(f"[Clear Cache Error] {e}\n")
+
+def on_exit_app(icon=None, item=None):
+    global _IS_EXITING, _TRAY_ICON
+    _IS_EXITING = True
+    # Immediately remove tray icon from Windows taskbar notification area with 0 delay
+    if _TRAY_ICON:
+        try:
+            _TRAY_ICON.visible = False
+        except Exception:
+            pass
+    # Instant process termination with 0ms delay
     os._exit(0)
 
 def launch_browser_fallback(target_url: str):
@@ -270,7 +465,7 @@ def main():
     if not os.path.exists(icon_path):
         icon_path = os.path.join(BUNDLE_DIR, "frontend", "images", "egg-icon.png")
 
-    # Setup System Tray Icon (runs detached in background thread)
+    # Setup System Tray Icon with rich, needful options (Open EggDL removed from right click menu)
     try:
         if os.path.exists(icon_path):
             img = Image.open(icon_path)
@@ -278,11 +473,20 @@ def main():
             img = Image.new('RGB', (64, 64), color=(59, 130, 246))
 
         menu = pystray.Menu(
-            pystray.MenuItem("🥚 Open EggDL", on_open_app, default=True),
+            pystray.MenuItem("📁 Open Downloads", on_open_downloads),
+            pystray.MenuItem("🔑 License Details", on_license_details),
+            pystray.MenuItem("🔄 Restart App", on_restart_app),
+            pystray.MenuItem("⚡ Clear Temp & Cache", on_clear_cache),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("✕ Exit EggDL", on_exit_app)
         )
-        _TRAY_ICON = pystray.Icon("EggDL", img, "EggDL - Ultra Turbo Downloader (Active)", menu)
+        _TRAY_ICON = pystray.Icon(
+            "EggDL",
+            img,
+            "EggDL - Ultra Turbo Downloader (Active)",
+            menu=menu,
+            default_action=show_main_window
+        )
         _TRAY_ICON.run_detached()
     except Exception as tray_err:
         sys.stderr.write(f"[Tray Init Note] {tray_err}\n")

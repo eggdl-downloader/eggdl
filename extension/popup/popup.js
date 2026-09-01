@@ -8,24 +8,53 @@ document.addEventListener('DOMContentLoaded', async () => {
   const downloadAllBtn = document.getElementById('download-all-btn');
   const overlayToggle = document.getElementById('overlay-toggle');
 
+  function isExtensionValid() {
+    try {
+      return typeof chrome !== 'undefined' && !!chrome.runtime && !!chrome.runtime.id;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function safeSendMessage(message, callback) {
+    if (!isExtensionValid()) return;
+    try {
+      chrome.runtime.sendMessage(message, (response) => {
+        const err = chrome.runtime?.lastError;
+        if (err) {
+          if (typeof callback === 'function') callback(null);
+          return;
+        }
+        if (typeof callback === 'function') {
+          callback(response);
+        }
+      });
+    } catch (_) {
+      if (typeof callback === 'function') callback(null);
+    }
+  }
+
   // Load and bind Overlay Toggle setting
   if (overlayToggle) {
-    chrome.storage.sync.get({ showVideoOverlay: true }, (items) => {
-      overlayToggle.checked = items.showVideoOverlay !== false;
-    });
+    try {
+      chrome.storage.sync.get({ showVideoOverlay: true }, (items) => {
+        overlayToggle.checked = items?.showVideoOverlay !== false;
+      });
 
-    overlayToggle.addEventListener('change', () => {
-      const enabled = overlayToggle.checked;
-      chrome.storage.sync.set({ showVideoOverlay: enabled }, () => {
-        chrome.tabs.query({}, (tabs) => {
-          tabs.forEach(t => {
-            if (t.id) {
-              chrome.tabs.sendMessage(t.id, { action: "toggle_overlay", enabled: enabled }).catch(() => {});
-            }
+      overlayToggle.addEventListener('change', () => {
+        const enabled = overlayToggle.checked;
+        chrome.storage.sync.set({ showVideoOverlay: enabled }, () => {
+          chrome.tabs.query({}, (tabs) => {
+            if (chrome.runtime?.lastError) return;
+            tabs.forEach(t => {
+              if (t.id) {
+                chrome.tabs.sendMessage(t.id, { action: "toggle_overlay", enabled: enabled }).catch(() => {});
+              }
+            });
           });
         });
       });
-    });
+    } catch (_) {}
   }
 
   // Resilient tab query (handles popup focus windows cleanly)
@@ -61,7 +90,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   pageTitleEl.title = tab.title || "";
 
   // 1. Immediately render sniffed media from tab store (0ms instant)
-  chrome.runtime.sendMessage({ action: "get_tab_media", tabId: tab.id }, (mediaRes) => {
+  safeSendMessage({ action: "get_tab_media", tabId: tab.id }, (mediaRes) => {
     const list = (mediaRes && mediaRes.media) ? mediaRes.media : [];
     if (list.length > 0) {
       renderSniffedMedia(list, tab);
@@ -74,20 +103,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   let inspectDone = false;
   const timeoutId = setTimeout(() => {
     if (!inspectDone) {
-      chrome.runtime.sendMessage({ action: "get_tab_media", tabId: tab.id }, (mediaRes) => {
+      safeSendMessage({ action: "get_tab_media", tabId: tab.id }, (mediaRes) => {
         const list = (mediaRes && mediaRes.media) ? mediaRes.media : [];
         renderSniffedMedia(list, tab);
       });
     }
   }, 6000);
 
-  chrome.runtime.sendMessage({ action: "inspect_page", url: tab.url }, (res) => {
+  safeSendMessage({ action: "inspect_page", url: tab.url }, (res) => {
     inspectDone = true;
     clearTimeout(timeoutId);
     if (res && res.success && res.data) {
       renderInspectQualities(res.data, tab);
     } else {
-      chrome.runtime.sendMessage({ action: "get_tab_media", tabId: tab.id }, (mediaRes) => {
+      safeSendMessage({ action: "get_tab_media", tabId: tab.id }, (mediaRes) => {
         const list = (mediaRes && mediaRes.media) ? mediaRes.media : [];
         renderSniffedMedia(list, tab);
       });
@@ -112,10 +141,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderInspectQualities(data, currentTab) {
     const videoOpts = data.video_options || [];
     const audioOpts = data.audio_options || [];
-    const total = videoOpts.length + audioOpts.length;
-    countBadge.innerText = `${total} Egg Qualities`;
+    const totalCount = videoOpts.length + audioOpts.length;
 
-    if (total === 0) {
+    countBadge.innerText = `${totalCount} Available`;
+
+    if (totalCount === 0) {
       streamList.innerHTML = '';
       emptyState.style.display = 'block';
       downloadAllBtn.disabled = true;
@@ -125,54 +155,65 @@ document.addEventListener('DOMContentLoaded', async () => {
     emptyState.style.display = 'none';
     downloadAllBtn.disabled = false;
 
-    let html = '';
+    let itemsHtml = '';
 
-    videoOpts.forEach(opt => {
-      const tag = getQualityTag(opt.resolution);
-      html += `
-        <div class="stream-item">
-          <div class="stream-info">
-            <div class="stream-title">${opt.label}</div>
-            <div class="stream-meta">
-              <span class="quality-tag ${tag.class}">${tag.label}</span>
-              <span class="stream-size">${opt.ext.toUpperCase()} • ${opt.filesize_str}</span>
+    if (videoOpts.length > 0) {
+      itemsHtml += `<div class="stream-section-label">🎬 Video Qualities</div>`;
+      itemsHtml += videoOpts.map(opt => {
+        const tag = getQualityTag(opt.resolution);
+        const formatId = opt.format_id;
+        const sizeStr = opt.filesize_str || 'Auto Size';
+        return `
+          <div class="stream-item">
+            <div class="stream-info">
+              <div class="stream-title">${opt.label}</div>
+              <div class="stream-meta">
+                <span class="quality-tag ${tag.class}">${tag.label}</span>
+                <span class="stream-size">${opt.ext.toUpperCase()} • ${sizeStr}</span>
+              </div>
             </div>
+            <button class="dl-btn" data-format="${formatId}" data-type="video" data-filesize="${opt.filesize || ''}">
+              ⚡ Download
+            </button>
           </div>
-          <button class="dl-btn" data-format-id="${opt.format_id}" data-type="video" data-filesize="${opt.filesize || ''}">
-            🥚 Download Egg
-          </button>
-        </div>
-      `;
-    });
+        `;
+      }).join('');
+    }
 
-    audioOpts.forEach(opt => {
-      html += `
-        <div class="stream-item">
-          <div class="stream-info">
-            <div class="stream-title">${opt.label}</div>
-            <div class="stream-meta">
-              <span class="quality-tag audio">MP3/M4A</span>
-              <span class="stream-size">${opt.ext.toUpperCase()} • ${opt.filesize_str}</span>
+    if (audioOpts.length > 0) {
+      itemsHtml += `<div class="stream-section-label" style="margin-top: 10px;">🎵 Audio Formats</div>`;
+      itemsHtml += audioOpts.map(opt => {
+        const formatId = opt.format_id;
+        const sizeStr = opt.filesize_str || 'Audio Stream';
+        return `
+          <div class="stream-item">
+            <div class="stream-info">
+              <div class="stream-title">${opt.label}</div>
+              <div class="stream-meta">
+                <span class="quality-tag audio">MP3/M4A</span>
+                <span class="stream-size">${opt.ext.toUpperCase()} • ${sizeStr}</span>
+              </div>
             </div>
+            <button class="dl-btn" data-format="${formatId}" data-type="audio" data-filesize="${opt.filesize || ''}">
+              🎵 Download Audio
+            </button>
           </div>
-          <button class="dl-btn" data-format-id="${opt.format_id}" data-type="audio" data-filesize="${opt.filesize || ''}">
-            🎵 Audio Egg
-          </button>
-        </div>
-      `;
-    });
+        `;
+      }).join('');
+    }
 
-    streamList.innerHTML = html;
+    streamList.innerHTML = itemsHtml;
 
     streamList.querySelectorAll('.dl-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        const formatId = btn.dataset.formatId;
+        const formatId = btn.dataset.format;
         const isAudio = btn.dataset.type === 'audio';
         const fileSize = btn.dataset.filesize ? parseInt(btn.dataset.filesize) : null;
         btn.innerText = '⏳ Starting...';
 
-        chrome.runtime.sendMessage({
+        safeSendMessage({
           action: "download_task",
+          tabId: currentTab.id,
           payload: {
             url: currentTab.url,
             download_type: "stream",
@@ -197,8 +238,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     downloadAllBtn.onclick = () => {
       if (videoOpts[0]) {
         downloadAllBtn.innerText = '⏳ Starting...';
-        chrome.runtime.sendMessage({
+        safeSendMessage({
           action: "download_task",
+          tabId: currentTab.id,
           payload: {
             url: currentTab.url,
             download_type: "stream",
@@ -253,8 +295,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       btn.addEventListener('click', () => {
         const url = btn.dataset.url;
         btn.innerText = '⏳ Starting...';
-        chrome.runtime.sendMessage({
+        safeSendMessage({
           action: "download_task",
+          tabId: currentTab.id,
           payload: {
             url: url,
             download_type: "auto",
@@ -275,7 +318,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   sniffFullBtn.onclick = () => {
     if (tab && tab.url) {
-      chrome.tabs.create({ url: `http://localhost:8000/#sniff=${encodeURIComponent(tab.url)}` });
+      chrome.tabs.create({ url: `http://127.0.0.1:8000/#sniff=${encodeURIComponent(tab.url)}` });
     }
   };
 });

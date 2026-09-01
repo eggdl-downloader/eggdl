@@ -912,38 +912,67 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
 .history-section {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
   flex: 1;
   min-height: 0;
   overflow: hidden;
 }
 
 .history-section .section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+  padding-bottom: 2px;
   flex-shrink: 0;
+}
+
+.history-section .section-header h2 {
+  font-family: var(--font-heading);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1;
 }
 
 .search-box {
   display: flex;
   align-items: center;
-  gap: 8px;
-  background: var(--bg-card);
+  gap: 9px;
+  background: rgba(15, 23, 42, 0.65);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  padding: 6px 12px;
+  border-radius: 8px;
+  padding: 6px 14px;
+  height: 36px;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+.search-box:focus-within {
+  border-color: rgba(59, 130, 246, 0.5);
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.2);
+  background: rgba(15, 23, 42, 0.9);
 }
 
 .search-box i {
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
   color: var(--text-dim);
+  flex-shrink: 0;
 }
 
 .search-box input {
   background: transparent;
   border: none;
   color: var(--text-main);
-  font-size: 0.82rem;
+  font-size: 0.84rem;
   outline: none;
+  width: 180px;
+  font-family: inherit;
 }
 
 .table-container {
@@ -951,7 +980,7 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   overflow-y: auto;
-  overflow-x: auto;
+  overflow-x: hidden;
   box-shadow: var(--shadow-sm);
   width: 100%;
   flex: 1;
@@ -981,6 +1010,7 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
 
 .downloads-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
   text-align: left;
@@ -991,21 +1021,59 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   top: 0;
   z-index: 10;
   background: #0e1628;
-  padding: 11px 14px;
+  padding: 11px 10px;
   font-size: 0.74rem;
   font-weight: 700;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.6px;
+  letter-spacing: 0.5px;
   border-bottom: 1px solid var(--border-subtle);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.downloads-table th.th-type {
+  padding-left: 16px;
+}
+
+.downloads-table th.th-actions {
+  padding-right: 16px;
+  text-align: right;
 }
 
 .downloads-table td {
-  padding: 10px 14px;
+  padding: 10px 10px;
   border-bottom: 1px solid var(--border-subtle);
   font-size: 0.88rem;
   color: var(--text-secondary);
   vertical-align: middle;
+}
+
+.downloads-table td.col-type {
+  padding-left: 16px;
+}
+
+.downloads-table td.col-file {
+  max-width: 0;
+  width: auto;
+  overflow: hidden;
+}
+
+.downloads-table td.col-size {
+  font-weight: 600;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.downloads-table td.col-date {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.downloads-table td.col-actions {
+  padding-right: 16px;
+  text-align: right;
 }
 
 .downloads-table tr:last-child td {
@@ -1025,22 +1093,28 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   align-items: center;
   gap: 12px;
   min-width: 0;
-  flex: 1;
+  width: 100%;
+  overflow: hidden;
 }
 
 .file-cell-info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   min-width: 0;
+  flex: 1;
+  overflow: hidden;
 }
 
 .file-title {
+  font-size: 0.88rem;
   font-weight: 600;
   color: var(--text-main);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 100%;
+  line-height: 1.35;
 }
 
 .file-sub {
@@ -1050,6 +1124,7 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   overflow: hidden;
   text-overflow: ellipsis;
   font-family: var(--font-mono);
+  max-width: 100%;
 }
 
 /* Precision Uniform Status Badges */
@@ -1606,6 +1681,326 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
 @keyframes toastSlideIn {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* ==========================================================================
+   Download Complete Notification Popup (Premium Glassmorphism)
+   ========================================================================== */
+.download-notification-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 10005;
+  pointer-events: none;
+  max-width: 375px;
+  width: calc(100vw - 48px);
+}
+
+.dl-complete-popup {
+  pointer-events: auto;
+  position: relative;
+  background: rgba(13, 17, 23, 0.95);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 14px;
+  box-shadow: 0 24px 60px -10px rgba(0, 0, 0, 0.85), 0 0 1px 1px rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(120%);
+  opacity: 0;
+  animation: dlCompleteSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.dl-complete-popup.dismissing {
+  transform: translateX(120%);
+  opacity: 0;
+}
+
+@keyframes dlCompleteSlideIn {
+  0% {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.dl-complete-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.dl-complete-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dl-complete-logo {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.5));
+}
+
+.dl-complete-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #FFFFFF;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dl-complete-pulse-dot {
+  width: 6px;
+  height: 6px;
+  background: #10B981;
+  border-radius: 50%;
+  box-shadow: 0 0 8px #10B981;
+  display: inline-block;
+}
+
+.dl-complete-close-btn {
+  background: transparent;
+  border: none;
+  color: #94A3B8;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.dl-complete-close-btn:hover {
+  color: #FFFFFF;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.dl-complete-body {
+  padding: 12px 14px 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.dl-complete-file-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.dl-complete-icon-box {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  color: #38BDF8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dl-complete-icon-box.video {
+  background: rgba(192, 132, 252, 0.12);
+  border-color: rgba(192, 132, 252, 0.25);
+  color: #C084FC;
+}
+
+.dl-complete-icon-box.image {
+  background: rgba(244, 114, 182, 0.12);
+  border-color: rgba(244, 114, 182, 0.25);
+  color: #F472B6;
+}
+
+.dl-complete-icon-box.audio {
+  background: rgba(251, 191, 36, 0.12);
+  border-color: rgba(251, 191, 36, 0.25);
+  color: #FBBF24;
+}
+
+.dl-complete-icon-box.document {
+  background: rgba(52, 211, 153, 0.12);
+  border-color: rgba(52, 211, 153, 0.25);
+  color: #34D399;
+}
+
+.dl-complete-icon-box.compressed {
+  background: rgba(251, 113, 133, 0.12);
+  border-color: rgba(251, 113, 133, 0.25);
+  color: #FB7185;
+}
+
+.dl-complete-file-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.dl-complete-filename {
+  font-size: 13px;
+  font-weight: 600;
+  color: #FFFFFF;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.35;
+}
+
+.dl-complete-filesize {
+  font-size: 11px;
+  font-weight: 500;
+  color: #94A3B8;
+  margin-top: 2px;
+  letter-spacing: 0.2px;
+}
+
+.dl-complete-path-container {
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 6px 8px 6px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  transition: all 0.15s ease;
+}
+
+.dl-complete-path-container:hover {
+  background: rgba(0, 0, 0, 0.65);
+  border-color: rgba(96, 165, 250, 0.35);
+}
+
+.dl-complete-path-text-area {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  flex: 1;
+  cursor: pointer;
+}
+
+.dl-complete-path-text {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  color: #94A3B8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dl-complete-path-container:hover .dl-complete-path-text {
+  color: #CBD5E1;
+}
+
+.dl-complete-copy-path-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 4px 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94A3B8;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.dl-complete-copy-path-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #FFFFFF;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.dl-complete-footer {
+  padding: 2px 14px 13px 14px;
+  display: flex;
+  gap: 8px;
+}
+
+.dl-complete-open-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: linear-gradient(180deg, #2563EB 0%, #1D4ED8 100%);
+  color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 7.5px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition: all 0.15s ease;
+}
+
+.dl-complete-open-btn:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.dl-complete-folder-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #E2E8F0;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 7.5px 13px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.dl-complete-folder-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #FFFFFF;
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.dl-complete-progress-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.dl-complete-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #38BDF8, #10B981);
+  width: 100%;
+  animation: dlCompleteProgress 7.5s linear forwards;
+}
+
+@keyframes dlCompleteProgress {
+  0% { width: 100%; }
+  100% { width: 0%; }
 }
 
 /* Responsive Styles */
