@@ -1979,14 +1979,43 @@ class UpdateDownloadManager:
         if self.status != "ready" or not os.path.exists(self.target_file):
             raise Exception("Update installer is not ready.")
         
-        flags = subprocess.DETACHED_PROCESS if os.name == 'nt' else 0
-        subprocess.Popen([self.target_file], creationflags=flags, close_fds=True)
+        target_exe = os.path.abspath(self.target_file)
         
-        import threading
-        def _terminate():
-            time.sleep(0.8)
-            os._exit(0)
-        threading.Thread(target=_terminate, daemon=True).start()
+        # Release single instance mutex if held
+        try:
+            import ctypes
+            import desktop_launcher
+            if hasattr(desktop_launcher, "_INSTANCE_MUTEX") and desktop_launcher._INSTANCE_MUTEX:
+                ctypes.windll.kernel32.CloseHandle(desktop_launcher._INSTANCE_MUTEX)
+        except Exception:
+            pass
+
+        # Use a detached batch script to wait for full process termination, install silently, and relaunch
+        try:
+            import tempfile
+            bat_path = os.path.join(tempfile.gettempdir(), "eggdl_apply_update.bat")
+            with open(bat_path, "w", encoding="utf-8") as f:
+                f.write(f'''@echo off
+ping 127.0.0.1 -n 2 > nul
+taskkill /F /IM EggDL.exe > nul 2>&1
+start "" /wait "{target_exe}" /SILENT /SP- /CLOSEAPPLICATIONS /FORCECLOSEAPPLICATIONS /NORESTART
+ping 127.0.0.1 -n 2 > nul
+set "NEW_EXE=%LOCALAPPDATA%\\EggDL\\EggDL.exe"
+if exist "%NEW_EXE%" (
+    start "" "%NEW_EXE%"
+) else (
+    start "" "{target_exe}"
+)
+del "%~f0"
+''')
+            flags = subprocess.DETACHED_PROCESS if os.name == 'nt' else 0
+            subprocess.Popen(["cmd.exe", "/c", bat_path], creationflags=flags, close_fds=True)
+        except Exception:
+            flags = subprocess.DETACHED_PROCESS if os.name == 'nt' else 0
+            subprocess.Popen([target_exe, "/SILENT", "/SP-", "/CLOSEAPPLICATIONS", "/FORCECLOSEAPPLICATIONS"], creationflags=flags, close_fds=True)
+        
+        # Terminate immediately so no files or ports are locked
+        os._exit(0)
 
 update_mgr = UpdateDownloadManager()
 
