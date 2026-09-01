@@ -234,11 +234,32 @@ def show_main_window():
         except Exception:
             pass
 
-# Connect show window callback for FastAPI backend
-if "backend.app" in sys.modules and hasattr(sys.modules["backend.app"], "set_show_window_callback"):
-    sys.modules["backend.app"].set_show_window_callback(show_main_window)
-elif "app" in sys.modules and hasattr(sys.modules["app"], "set_show_window_callback"):
-    sys.modules["app"].set_show_window_callback(show_main_window)
+def on_desktop_download_completed(task_dict):
+    global _TRAY_ICON, _MAIN_WINDOW
+    title = task_dict.get("title") or task_dict.get("filename") or "File"
+    if _TRAY_ICON:
+        try:
+            _TRAY_ICON.notify(f"Downloaded {title}", "EggDL • Download Complete ⚡")
+        except Exception:
+            pass
+    if _MAIN_WINDOW:
+        try:
+            task_json = json.dumps(task_dict)
+            _MAIN_WINDOW.evaluate_js(f"if(window.UI && window.UI.showDownloadCompleteNotification){{ window.UI.showDownloadCompleteNotification({task_json}); }}")
+        except Exception:
+            pass
+
+# Connect show window callback and download completed callback for FastAPI backend
+if "backend.app" in sys.modules:
+    if hasattr(sys.modules["backend.app"], "set_show_window_callback"):
+        sys.modules["backend.app"].set_show_window_callback(show_main_window)
+    if hasattr(sys.modules["backend.app"], "set_download_completed_callback"):
+        sys.modules["backend.app"].set_download_completed_callback(on_desktop_download_completed)
+elif "app" in sys.modules:
+    if hasattr(sys.modules["app"], "set_show_window_callback"):
+        sys.modules["app"].set_show_window_callback(show_main_window)
+    if hasattr(sys.modules["app"], "set_download_completed_callback"):
+        sys.modules["app"].set_download_completed_callback(on_desktop_download_completed)
 
 def on_closing():
     global _MAIN_WINDOW, _IS_EXITING

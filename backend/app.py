@@ -106,10 +106,15 @@ active_tasks: Dict[str, Any] = {}
 websocket_connections: List[WebSocket] = []
 
 _SHOW_WINDOW_CALLBACK = None
+_DOWNLOAD_COMPLETED_CALLBACK = None
 
 def set_show_window_callback(cb):
     global _SHOW_WINDOW_CALLBACK
     _SHOW_WINDOW_CALLBACK = cb
+
+def set_download_completed_callback(cb):
+    global _DOWNLOAD_COMPLETED_CALLBACK
+    _DOWNLOAD_COMPLETED_CALLBACK = cb
 
 @app.get("/api/app/show_window")
 async def api_show_window():
@@ -1175,6 +1180,16 @@ async def _run_task(task_id: str, task: Any):
             "type": "task_updated",
             "task": task_dict
         })
+        if task_dict.get("status") == "completed":
+            await broadcast({
+                "type": "task_completed",
+                "task": task_dict
+            })
+            if _DOWNLOAD_COMPLETED_CALLBACK:
+                try:
+                    _DOWNLOAD_COMPLETED_CALLBACK(task_dict)
+                except Exception as cb_err:
+                    print(f"Download completion callback error: {cb_err}")
         if task_id in active_tasks and task_dict["status"] in ("completed", "canceled", "error"):
             active_tasks.pop(task_id, None)
 

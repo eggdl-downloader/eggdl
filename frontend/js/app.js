@@ -136,23 +136,33 @@ const App = {
 
   async loadDownloads() {
     try {
-      const res = await fetch('/api/downloads');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.downloads) {
-          if (!this._hasInitializedCompletedNotifs) {
-            this._hasInitializedCompletedNotifs = true;
-            data.downloads.forEach(d => {
-              if (d && d.status === 'completed' && d.id) {
-                this.notifiedCompletedTaskIds.add(d.id);
+      const res = await API.getDownloads(this.currentCategory);
+      if (res && res.success && Array.isArray(res.downloads)) {
+        if (!this._hasInitializedCompletedNotifs) {
+          this._hasInitializedCompletedNotifs = true;
+          res.downloads.forEach(d => {
+            if (d && d.status === 'completed' && (d.id || d.filename)) {
+              this.notifiedCompletedTaskIds.add(d.id || d.filename);
+            }
+          });
+        } else {
+          // Check for newly completed downloads that haven't been notified yet
+          res.downloads.forEach(d => {
+            const taskId = d.id || d.filename;
+            if (d && d.status === 'completed' && taskId && !this.notifiedCompletedTaskIds.has(taskId)) {
+              if (this.activeTasks[d.id] || (d.created_at && (Date.now() / 1000 - d.created_at < 300))) {
+                this.notifiedCompletedTaskIds.add(taskId);
+                delete this.activeTasks[d.id];
+                UI.renderActiveTasks(this.activeTasks);
+                UI.showDownloadCompleteNotification(d);
               }
-            });
-          }
-          this.downloads = data.downloads;
-          this.updateCategoryCounts();
-          this.renderDownloads();
-          this.updateDashboardStats();
+            }
+          });
         }
+        this.downloads = res.downloads;
+        this.updateCategoryCounts();
+        this.renderDownloads();
+        this.updateDashboardStats();
       }
     } catch (e) {
       console.warn('Failed to sync downloads:', e);
@@ -196,8 +206,8 @@ const App = {
       if (!this._hasInitializedCompletedNotifs) {
         this._hasInitializedCompletedNotifs = true;
         this.downloads.forEach(d => {
-          if (d && d.status === 'completed' && d.id) {
-            this.notifiedCompletedTaskIds.add(d.id);
+          if (d && d.status === 'completed' && (d.id || d.filename)) {
+            this.notifiedCompletedTaskIds.add(d.id || d.filename);
           }
         });
       }
@@ -250,11 +260,25 @@ const App = {
         const taskId = task.id || task.filename;
         if (taskId && !this.notifiedCompletedTaskIds.has(taskId)) {
           this.notifiedCompletedTaskIds.add(taskId);
+          delete this.activeTasks[task.id];
+          UI.renderActiveTasks(this.activeTasks);
           UI.showDownloadCompleteNotification(task);
         }
       } else if (task.status === 'error' && msg.type === 'task_updated') {
         UI.showToast(`Download failed: ${task.error_message || 'Unknown error'}`, 'error');
       }
+    } else if (msg.type === 'task_completed') {
+      const task = msg.task;
+      if (task) {
+        const taskId = task.id || task.filename;
+        if (taskId && !this.notifiedCompletedTaskIds.has(taskId)) {
+          this.notifiedCompletedTaskIds.add(taskId);
+          delete this.activeTasks[task.id];
+          UI.renderActiveTasks(this.activeTasks);
+          UI.showDownloadCompleteNotification(task);
+        }
+      }
+      this.loadDownloads();
     } else if (msg.type === 'task_canceled' || msg.type === 'task_deleted') {
       delete this.activeTasks[msg.task_id];
       this.downloads = this.downloads.filter(d => d.id !== msg.task_id);
@@ -324,20 +348,6 @@ const App = {
     }
   },
 
-  async loadDownloads() {
-    try {
-      const res = await API.getDownloads(this.currentCategory);
-      if (res.success) {
-        this.downloads = res.downloads;
-        this.updateCategoryCounts();
-        this.renderDownloads();
-        this.updateDashboardStats();
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  },
-
   updateCategoryCounts() {
     const counts = { all: this.downloads.length, video: 0, audio: 0, document: 0, compressed: 0, program: 0 };
     this.downloads.forEach(d => {
@@ -368,60 +378,6 @@ const App = {
     }
 
     UI.renderDownloadsTable(filtered);
-  },
-
-  async startDownloadTask(payload) {
-    try {
-      const res = await API.startDownload(payload);
-      if (res.success) {
-        UI.showToast('🥚 Egg added to nest!', 'success');
-        document.getElementById('url-input').value = '';
-        document.getElementById('clear-input-btn').style.display = 'none';
-        this.loadDownloads();
-      }
-    } catch (e) {
-      UI.showToast(e.message || 'Failed to start downloading egg', 'error');
-    }
-  },
-
-  async pauseTask(taskId) {
-    try {
-      await API.pauseDownload(taskId);
-      UI.showToast('⏸️ Egg incubating (Paused)', 'info');
-    } catch (e) {
-      UI.showToast('Could not pause download', 'error');
-    }
-  },
-
-  async resumeTask(taskId) {
-    try {
-      await API.resumeDownload(taskId);
-      UI.showToast('▶️ Hatching resumed', 'success');
-    } catch (e) {
-      UI.showToast('Could not resume download', 'error');
-    }
-  },
-
-  async cancelTask(taskId) {
-    try {
-      await API.cancelDownload(taskId);
-      UI.showToast('⏹️ Egg hatching stopped', 'info');
-    } catch (e) {
-      UI.showToast('Could not cancel download', 'error');
-    }
-  },
-
-  async deleteDownload(taskId) {
-    try {
-      await API.deleteDownload(taskId);
-      this.downloads = this.downloads.filter(d => d.id !== taskId);
-      this.updateCategoryCounts();
-      this.renderDownloads();
-      this.updateDashboardStats();
-      UI.showToast('🗑️ Egg removed from nest', 'info');
-    } catch (e) {
-      UI.showToast('Could not delete egg', 'error');
-    }
   },
 
   async clearCompleted() {
@@ -715,6 +671,7 @@ const App = {
             activeSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
           }
         }
+        this.loadDownloads();
       }
     } catch (e) {
       if (e.errorType === 'trial_expired' || (e.message && (e.message.includes('Trial has ended') || e.message.includes('trial has expired') || e.message.includes('Trial Expired') || e.message.includes('trial_expired')))) {

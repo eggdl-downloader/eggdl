@@ -123,9 +123,10 @@ const UI = {
 
   showDownloadCompleteNotification(task) {
     if (!task) return;
-    if (document.hasFocus()) {
+    try {
       this.playTechyCompletionSound();
-    }
+    } catch (_) {}
+
     let container = document.getElementById('download-notification-container');
     if (!container) {
       container = document.createElement('div');
@@ -143,18 +144,18 @@ const UI = {
     
     // Extract directory path only (without filename) so it looks clean and concise
     let dirPath = '';
-    const lastSlashIdx = Math.max(rawFilePath.lastIndexOf('\\'), rawFilePath.lastIndexOf('/'), rawFilePath.lastIndexOf('\\'));
+    const lastSlashIdx = Math.max(rawFilePath.lastIndexOf('\\'), rawFilePath.lastIndexOf('/'));
     if (lastSlashIdx !== -1) {
       dirPath = rawFilePath.substring(0, lastSlashIdx + 1);
     } else {
       dirPath = 'Downloads\\EggDL\\';
     }
-    if (!dirPath.endsWith('\\') && !dirPath.endsWith('/') && !dirPath.endsWith('\\')) {
+    if (!dirPath.endsWith('\\') && !dirPath.endsWith('/')) {
       dirPath += '\\';
     }
     const category = (task.category || 'file').toLowerCase();
     
-    // Real File Size calculation: "Downloaded 414.94 KB (424902 Bytes)"
+    // Real File Size calculation: "Downloaded 5.27 MB (5526449 Bytes)"
     const rawBytes = (task.file_size && task.file_size > 0) ? task.file_size : (task.downloaded_bytes || 0);
     let sizeStr = '';
     if (rawBytes >= 1024 * 1024 * 1024) {
@@ -182,59 +183,60 @@ const UI = {
       fileExt = (task.category || 'FILE').toUpperCase();
     }
 
-    let categoryIcon = 'file';
-    let catBadgeColor = 'var(--accent-cyan)';
+    let catBadgeColor = '#38BDF8';
     let catBg = 'rgba(56, 189, 248, 0.12)';
     let catBorder = 'rgba(56, 189, 248, 0.25)';
+    let catIconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>';
 
-    if (category === 'video') {
-      categoryIcon = 'video';
+    if (category === 'video' || title.toLowerCase().endsWith('.mp4') || title.toLowerCase().endsWith('.mkv') || title.toLowerCase().endsWith('.webm')) {
       catBadgeColor = '#C084FC';
       catBg = 'rgba(192, 132, 252, 0.12)';
       catBorder = 'rgba(192, 132, 252, 0.25)';
-    } else if (category === 'audio') {
-      categoryIcon = 'music';
+      catIconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C084FC" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg>';
+    } else if (category === 'audio' || title.toLowerCase().endsWith('.mp3') || title.toLowerCase().endsWith('.wav') || title.toLowerCase().endsWith('.m4a')) {
       catBadgeColor = '#FBBF24';
       catBg = 'rgba(251, 191, 36, 0.12)';
       catBorder = 'rgba(251, 191, 36, 0.25)';
-    } else if (category === 'image') {
-      categoryIcon = 'image';
+      catIconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>';
+    } else if (category === 'image' || title.toLowerCase().endsWith('.jpg') || title.toLowerCase().endsWith('.png') || title.toLowerCase().endsWith('.webp')) {
       catBadgeColor = '#F472B6';
       catBg = 'rgba(244, 114, 182, 0.12)';
       catBorder = 'rgba(244, 114, 182, 0.25)';
+      catIconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F472B6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>';
     } else if (category === 'document' || title.toLowerCase().endsWith('.pdf') || title.toLowerCase().endsWith('.doc') || title.toLowerCase().endsWith('.docx')) {
-      categoryIcon = 'file-text';
       catBadgeColor = '#34D399';
       catBg = 'rgba(52, 211, 153, 0.12)';
       catBorder = 'rgba(52, 211, 153, 0.25)';
+      catIconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#34D399" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>';
     } else if (category === 'compressed' || title.toLowerCase().endsWith('.zip') || title.toLowerCase().endsWith('.rar') || title.toLowerCase().endsWith('.7z')) {
-      categoryIcon = 'archive';
       catBadgeColor = '#FB7185';
       catBg = 'rgba(251, 113, 133, 0.12)';
       catBorder = 'rgba(251, 113, 133, 0.25)';
-    } else if (category === 'program' || title.toLowerCase().endsWith('.exe') || title.toLowerCase().endsWith('.msi')) {
-      categoryIcon = 'terminal';
+      catIconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FB7185" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>';
     }
 
+    const safeTitle = this.escapeHtml(title);
+    const safeDirPath = this.escapeHtml(dirPath);
+
     notif.innerHTML = `
-      <div class="dl-complete-header">
-        <div class="dl-complete-brand">
-          <img src="/static/images/egg-icon.png" alt="EggDL" class="dl-complete-logo" onerror="this.src='/static/images/favicon.png'">
-          <span class="dl-complete-title">Download complete</span>
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 11px 14px; border-bottom: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02);">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <img src="/static/images/egg-icon.png" alt="EggDL" style="width: 19px; height: 19px; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));" onerror="this.src='/static/images/favicon.png'">
+          <span style="font-size: 13px; font-weight: 700; color: #FFFFFF; letter-spacing: -0.01em;">Download complete</span>
         </div>
-        <button type="button" class="dl-complete-close-btn" title="Close notification">
-          <i data-lucide="x" style="width: 13px; height: 13px;"></i>
+        <button type="button" class="dl-complete-close-btn" style="background: transparent; border: none; color: #94A3B8; cursor: pointer; padding: 4px 6px; border-radius: 6px; display: flex; align-items: center; justify-content: center; transition: all 0.15s ease;" title="Close notification">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
 
-      <div class="dl-complete-body">
-        <div class="dl-complete-file-row">
-          <div class="dl-complete-icon-box ${category}">
-            <i data-lucide="${categoryIcon}" style="width: 18px; height: 18px;"></i>
+      <div style="padding: 12px 14px 10px 14px; display: flex; flex-direction: column; gap: 9px;">
+        <div style="display: flex; align-items: center; gap: 11px;">
+          <div style="width: 36px; height: 36px; border-radius: 9px; background: ${catBg}; border: 1px solid ${catBorder}; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+            ${catIconSvg}
           </div>
-          <div class="dl-complete-file-info">
-            <div class="dl-complete-filename" title="${UI.escapeHtml(title)}">${UI.escapeHtml(title)}</div>
-            <div class="dl-complete-filesize" style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 3px;">
+          <div style="flex: 1; min-width: 0;">
+            <div style="font-size: 13px; font-weight: 600; color: #FFFFFF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.35;" title="${safeTitle}">${safeTitle}</div>
+            <div style="font-size: 11px; font-weight: 500; color: #94A3B8; margin-top: 3px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
               <span style="color: #CBD5E1; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 10.5px;">${detailedSizeText}</span>
               <span style="color: #64748B;">•</span>
               <span style="color: ${catBadgeColor}; font-weight: 700; font-size: 10px; background: ${catBg}; border: 1px solid ${catBorder}; padding: 1px 5px; border-radius: 4px; letter-spacing: 0.3px;">${fileExt}</span>
@@ -243,33 +245,34 @@ const UI = {
         </div>
 
         <div class="dl-complete-path-container" style="background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 6px 8px 6px 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; transition: all 0.15s ease;">
-          <div class="dl-complete-path-text-area" style="display: flex; align-items: center; gap: 7px; min-width: 0; flex: 1; cursor: pointer;" title="Open containing folder">
-            <i data-lucide="folder" style="width: 13px; height: 13px; color: #60A5FA; flex-shrink: 0;"></i>
-            <span class="dl-complete-path-text" style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; color: #94A3B8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${UI.escapeHtml(dirPath)}</span>
+          <div class="dl-complete-path-text-area" style="display: flex; align-items: center; gap: 7px; min-width: 0; flex: 1; cursor: pointer;" title="Open containing folder: ${safeDirPath}">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#60A5FA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+            <span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; color: #94A3B8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${safeDirPath}</span>
           </div>
           <button type="button" class="dl-complete-copy-path-btn" title="Copy file path" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 4px 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #94A3B8; transition: all 0.15s ease; flex-shrink: 0;">
-            <i data-lucide="copy" class="dl-complete-copy-icon" style="width: 13px; height: 13px;"></i>
+            <svg class="dl-complete-copy-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
             <span class="dl-complete-copied-text" style="display: none; font-size: 10px; font-weight: 700; color: #10B981; margin-left: 3px;">Copied!</span>
           </button>
         </div>
       </div>
 
-      <div class="dl-complete-footer">
-        <button type="button" class="dl-complete-open-btn">
-          <i data-lucide="external-link" style="width: 13px; height: 13px;"></i> Open
+      <div style="padding: 2px 14px 13px 14px; display: flex; gap: 8px;">
+        <button type="button" class="dl-complete-open-btn" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; background: linear-gradient(180deg, #2563EB 0%, #1D4ED8 100%); color: #FFFFFF; border: 1px solid rgba(255,255,255,0.18); font-size: 12.5px; font-weight: 600; padding: 7.5px 14px; border-radius: 8px; cursor: pointer; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35), inset 0 1px 0 rgba(255,255,255,0.25); transition: all 0.15s ease;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          <span>Open</span>
         </button>
-        <button type="button" class="dl-complete-folder-btn" title="Open containing folder">
-          <i data-lucide="folder" style="width: 13px; height: 13px;"></i> Folder
+        <button type="button" class="dl-complete-folder-btn" style="display: flex; align-items: center; justify-content: center; gap: 6px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); color: #E2E8F0; font-size: 12px; font-weight: 500; padding: 7.5px 13px; border-radius: 8px; cursor: pointer; transition: all 0.15s ease;" title="Open containing folder">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
+          <span>Folder</span>
         </button>
       </div>
 
-      <div class="dl-complete-progress-bar">
-        <div class="dl-complete-progress-fill"></div>
+      <div style="height: 2px; background: rgba(255,255,255,0.06); width: 100%; position: relative;">
+        <div class="dl-complete-progress-fill" style="height: 100%; background: linear-gradient(90deg, #38BDF8, #10B981); width: 100%; animation: dlCompleteProgress 7.5s linear forwards;"></div>
       </div>
     `;
 
     container.appendChild(notif);
-    if (window.lucide) window.lucide.createIcons();
 
     // Event handlers
     const closeBtn = notif.querySelector('.dl-complete-close-btn');
