@@ -487,7 +487,7 @@ def sync_license_from_cloud(dev_id: str) -> Optional[Dict[str, Any]]:
             data=data_bytes,
             headers={"Content-Type": "application/json", "User-Agent": "EggDL-Client"}
         )
-        with urllib.request.urlopen(remote_req, timeout=3.0) as res:
+        with urllib.request.urlopen(remote_req, timeout=10.0) as res:
             if res.status == 200:
                 cloud_res = json.loads(res.read().decode())
                 
@@ -501,12 +501,14 @@ def sync_license_from_cloud(dev_id: str) -> Optional[Dict[str, Any]]:
                         exp_at = cloud_res.get("plan_expires_at")
                         days_left = cloud_res.get("days_remaining", 36500)
                         grant_device_pro(dev_id, plan_type=plan_t, duration_days=days_left, expires_at=exp_at)
-                    elif not local_status.get("is_pro"):
-                        # Only reset/revoke if client does NOT have local Pro
-                        if cloud_res.get("plan_type") == "trial":
-                            reset_device_trial(dev_id)
-                        elif cloud_res.get("plan_type") == "free" or cloud_res.get("trial_expired"):
+                    else:
+                        # Cloud server is the master authority. If not pro on cloud, revoke local Pro
+                        # unless client has a valid offline license key activated
+                        has_key = bool(local_status.get("license_key"))
+                        if not has_key:
                             revoke_device_pro(dev_id)
+                        elif cloud_res.get("plan_type") == "trial":
+                            reset_device_trial(dev_id)
 
                 return cloud_res
     except Exception:
@@ -2399,10 +2401,11 @@ async def admin_device_action(req: DeviceActionRequest):
                 data=data_bytes,
                 headers={"Content-Type": "application/json", "User-Agent": "EggDL-Client"}
             )
-            with urllib.request.urlopen(remote_req, timeout=4.0) as res:
-                pass
-        except Exception:
-            pass
+            with urllib.request.urlopen(remote_req, timeout=12.0) as res:
+                if res.status == 200:
+                    cloud_data = json.loads(res.read().decode())
+        except Exception as e:
+            print(f"[AdminDeviceAction] Warning forwarding to Cloud Render: {e}")
 
     if action == "block":
         set_device_blocked(device_id, blocked=True, reason=req.reason or "Suspended by Administrator")

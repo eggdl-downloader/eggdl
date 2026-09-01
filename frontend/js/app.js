@@ -1118,14 +1118,25 @@ const App = {
 
         if (res && res.is_blocked) {
           UI.renderDeviceSuspended(res.block_reason || 'Access has been suspended by the administrator.');
-        } else if (res && res.is_pro && !this.authData?.is_pro) {
-          await this.initAuth();
+        } else {
+          // If was previously suspended and now unblocked, remove suspension overlay immediately
+          const suspOverlay = document.getElementById('device-suspended-overlay');
+          if (suspOverlay) suspOverlay.remove();
+
+          if (res && res.is_pro !== undefined) {
+            const hadPro = !!this.authData?.is_pro;
+            const nowPro = !!res.is_pro;
+            if (hadPro !== nowPro) {
+              await this.initAuth();
+              if (typeof this.updateStats === 'function') this.updateStats();
+            }
+          }
         }
       } catch (_) {}
     };
 
     sendPing();
-    setInterval(sendPing, 30000);
+    setInterval(sendPing, 10000);
   },
 
   triggerStealthAdmin() {
