@@ -1174,10 +1174,19 @@ const App = {
           const suspOverlay = document.getElementById('device-suspended-overlay');
           if (suspOverlay) suspOverlay.remove();
 
-          if (res && res.is_pro !== undefined) {
+          if (res) {
             const hadPro = !!this.authData?.is_pro;
             const nowPro = !!res.is_pro;
-            if (hadPro !== nowPro) {
+            const hadPlan = this.authData?.plan_type;
+            const nowPlan = res.plan_type;
+            const hadDays = this.authData?.days_remaining;
+            const nowDays = res.days_remaining;
+            const hadTrialDays = this.authData?.trial_days_remaining;
+            const nowTrialDays = res.trial_days_remaining;
+            const hadTrialExpired = !!this.authData?.trial_expired;
+            const nowTrialExpired = !!res.trial_expired;
+
+            if (hadPro !== nowPro || hadPlan !== nowPlan || hadDays !== nowDays || hadTrialDays !== nowTrialDays || hadTrialExpired !== nowTrialExpired) {
               await this.initAuth();
               if (typeof this.updateStats === 'function') this.updateStats();
             }
@@ -1187,7 +1196,7 @@ const App = {
     };
 
     sendPing();
-    setInterval(sendPing, 10000);
+    setInterval(sendPing, 4000);
   },
 
   triggerStealthAdmin() {

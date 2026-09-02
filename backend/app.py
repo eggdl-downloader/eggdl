@@ -515,10 +515,10 @@ def sync_license_from_cloud(dev_id: str) -> Optional[Dict[str, Any]]:
                         exp_at = cloud_res.get("plan_expires_at")
                         days_left = cloud_res.get("days_remaining", 83)
                         grant_device_pro(dev_id, plan_type=plan_t, duration_days=days_left, expires_at=exp_at)
-                    elif cloud_res.get("is_revoked"):
+                    elif cloud_res.get("plan_type") == "trial":
+                        reset_device_trial(dev_id)
+                    else:
                         revoke_device_pro(dev_id)
-                        if cloud_res.get("plan_type") == "trial":
-                            reset_device_trial(dev_id)
 
                 return cloud_res
     except Exception:
@@ -543,8 +543,9 @@ async def telemetry_heartbeat(req: HeartbeatRequest):
     dev_id = req.device_id or get_device_id()
     app_ver = req.app_version or APP_CURRENT_VERSION
     
-    # Sync with cloud in background if running locally
-    trigger_cloud_license_sync_bg(dev_id)
+    # Synchronously sync license from cloud if running locally so heartbeat response is instantly up to date
+    if not os.environ.get("RENDER"):
+        sync_license_from_cloud(dev_id)
         
     dev_status = register_or_update_device(
         device_id=dev_id,
@@ -555,12 +556,6 @@ async def telemetry_heartbeat(req: HeartbeatRequest):
         total_downloads=req.total_downloads,
         data_downloaded_mb=req.data_downloaded_mb
     )
-
-    # When running on Render cloud: preserve active Pro status if not blocked
-    if os.environ.get("RENDER"):
-        if req.is_pro and not dev_status.get("is_blocked"):
-            grant_device_pro(dev_id, plan_type=req.plan_type or "3month", duration_days=30, expires_at=req.plan_expires_at)
-            dev_status = get_device_license_status(dev_id)
 
     return {
         "success": True,
