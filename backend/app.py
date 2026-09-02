@@ -511,18 +511,14 @@ def sync_license_from_cloud(dev_id: str) -> Optional[Dict[str, Any]]:
                 else:
                     set_device_blocked(dev_id, blocked=False)
                     if cloud_res.get("is_pro"):
-                        plan_t = cloud_res.get("plan_type", "lifetime")
+                        plan_t = cloud_res.get("plan_type", "3month")
                         exp_at = cloud_res.get("plan_expires_at")
-                        days_left = cloud_res.get("days_remaining", 36500)
+                        days_left = cloud_res.get("days_remaining", 83)
                         grant_device_pro(dev_id, plan_type=plan_t, duration_days=days_left, expires_at=exp_at)
-                    else:
-                        # Cloud server is the master authority. If not pro on cloud, revoke local Pro
-                        # unless client has a valid offline license key activated
-                        has_key = bool(local_status.get("license_key"))
-                        if not has_key:
-                            revoke_device_pro(dev_id)
-                            if cloud_res.get("plan_type") == "trial":
-                                reset_device_trial(dev_id)
+                    elif cloud_res.get("is_revoked"):
+                        revoke_device_pro(dev_id)
+                        if cloud_res.get("plan_type") == "trial":
+                            reset_device_trial(dev_id)
 
                 return cloud_res
     except Exception:
@@ -559,6 +555,12 @@ async def telemetry_heartbeat(req: HeartbeatRequest):
         total_downloads=req.total_downloads,
         data_downloaded_mb=req.data_downloaded_mb
     )
+
+    # When running on Render cloud: preserve active Pro status if not blocked
+    if os.environ.get("RENDER"):
+        if req.is_pro and not dev_status.get("is_blocked"):
+            grant_device_pro(dev_id, plan_type=req.plan_type or "3month", duration_days=30, expires_at=req.plan_expires_at)
+            dev_status = get_device_license_status(dev_id)
 
     return {
         "success": True,

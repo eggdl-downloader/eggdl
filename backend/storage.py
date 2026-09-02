@@ -179,6 +179,83 @@ def init_db():
     VALUES ('2.1.6', '⚡ Ultra-Fast Native MP4 Engine\n🚀 Instant Single-File Output & Zero 99% Lag\n🎬 4K/8K stream download optimizations.', 'https://eggdl.onrender.com/download/setup', 0, 1)
     """)
 
+    # Seed historical devices so they are NEVER lost on container restart or updates
+    seed_devices = [
+        {
+            "device_id": "EGG-DC7C46E21BBA51EE",
+            "machine_name": "SRIMAN",
+            "user_name": "Sriman",
+            "os_info": "Windows 11",
+            "app_version": "2.1.6",
+            "plan_type": "3month",
+            "plan_expires_at": (datetime.now() + timedelta(days=83)).isoformat(),
+            "is_pro": 1,
+            "is_blocked": 0,
+            "total_downloads": 116
+        },
+        {
+            "device_id": "EGG-60D638A88A20B92B",
+            "machine_name": "FXWORLD",
+            "user_name": "Fx World",
+            "os_info": "Windows 11",
+            "app_version": "2.1.6",
+            "plan_type": "lifetime",
+            "plan_expires_at": None,
+            "is_pro": 1,
+            "is_blocked": 0,
+            "total_downloads": 0
+        },
+        {
+            "device_id": "EGG-BE494EF057B5C366",
+            "machine_name": "DESKTOP-WIN-7293",
+            "user_name": "Sriman Work Account",
+            "os_info": "Windows 11",
+            "app_version": "2.1.6",
+            "plan_type": "trial",
+            "plan_expires_at": None,
+            "is_pro": 0,
+            "is_blocked": 0,
+            "total_downloads": 0
+        },
+        {
+            "device_id": "EGG-5D8D2A22D46A74DD",
+            "machine_name": "SRIMAN-WORK",
+            "user_name": "Sriman",
+            "os_info": "Windows 11",
+            "app_version": "2.1.3",
+            "plan_type": "lifetime",
+            "plan_expires_at": None,
+            "is_pro": 1,
+            "is_blocked": 1,
+            "block_reason": "Suspended by Administrator",
+            "total_downloads": 3
+        }
+    ]
+
+    for sd in seed_devices:
+        cursor.execute("SELECT device_id, is_pro FROM devices WHERE device_id = ?", (sd["device_id"],))
+        existing = cursor.fetchone()
+        if not existing:
+            cursor.execute("""
+            INSERT INTO devices (
+                device_id, machine_name, user_name, os_info, app_version,
+                plan_type, plan_expires_at, is_pro, is_blocked, block_reason, total_downloads, last_seen, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """, (
+                sd["device_id"], sd["machine_name"], sd["user_name"], sd["os_info"], sd["app_version"],
+                sd["plan_type"], sd["plan_expires_at"], sd["is_pro"], sd["is_blocked"], sd.get("block_reason"),
+                sd.get("total_downloads", 0)
+            ))
+        elif sd["is_pro"] and not existing[1]:
+            cursor.execute("""
+            UPDATE devices SET
+                is_pro = 1,
+                plan_type = ?,
+                plan_expires_at = ?,
+                is_blocked = 0
+            WHERE device_id = ?
+            """, (sd["plan_type"], sd["plan_expires_at"], sd["device_id"]))
+
     conn.commit()
     conn.close()
 
