@@ -178,6 +178,8 @@ class StartDownloadRequest(BaseModel):
     segments_count: Optional[int] = 8
     referer: Optional[str] = None
     download_dir: Optional[str] = None
+    video_encoder_enabled: Optional[bool] = None
+    video_codec: Optional[str] = None
 
 class SaveFileRequest(BaseModel):
     filename: str
@@ -193,6 +195,8 @@ class SettingsRequest(BaseModel):
     speed_limit: Optional[int] = None
     auto_start: Optional[bool] = None
     theme: Optional[str] = None
+    video_encoder_enabled: Optional[bool] = None
+    video_codec: Optional[str] = None
 
 class FileActionRequest(BaseModel):
     task_id: Optional[str] = None
@@ -1112,6 +1116,8 @@ async def start_download(req: StartDownloadRequest, user: Optional[Dict[str, Any
             download_type = "stream" if MediaExtractor.is_supported_url(url) else "direct"
 
     if download_type == "stream":
+        enc_enabled = req.video_encoder_enabled if req.video_encoder_enabled is not None else settings.get("video_encoder_enabled", False)
+        v_codec = req.video_codec or settings.get("video_codec", "h264")
         task = StreamDownloadTask(
             task_id=task_id,
             url=clean_stream_url(url),
@@ -1122,6 +1128,8 @@ async def start_download(req: StartDownloadRequest, user: Optional[Dict[str, Any
             custom_title=req.custom_title or req.custom_filename,
             custom_filename=req.custom_filename,
             expected_size=req.expected_size or -1,
+            video_encoder_enabled=bool(enc_enabled),
+            video_codec=str(v_codec),
             on_progress=handle_progress_update
         )
         task.thumbnail = req.thumbnail or ""
@@ -1244,6 +1252,10 @@ async def resume_download(task_id: str):
     segments = settings.get("max_segments_per_download", 8)
 
     if task_record["download_type"] == "stream":
+        enc_enabled = task_record.get("video_encoder_enabled")
+        if enc_enabled is None:
+            enc_enabled = settings.get("video_encoder_enabled", False)
+        v_codec = task_record.get("video_codec") or settings.get("video_codec", "h264")
         task = StreamDownloadTask(
             task_id=task_id,
             url=clean_stream_url(task_record["url"]),
@@ -1254,6 +1266,8 @@ async def resume_download(task_id: str):
             expected_size=task_record.get("file_size", -1),
             downloaded_bytes=task_record.get("downloaded_bytes", 0),
             progress=task_record.get("progress", 0.0),
+            video_encoder_enabled=bool(enc_enabled),
+            video_codec=str(v_codec),
             on_progress=handle_progress_update
         )
         task.thumbnail = task_record.get("thumbnail") or ""
@@ -1364,6 +1378,10 @@ async def save_settings(req: SettingsRequest):
         update_setting("auto_start", req.auto_start)
     if req.theme is not None:
         update_setting("theme", req.theme)
+    if req.video_encoder_enabled is not None:
+        update_setting("video_encoder_enabled", "true" if req.video_encoder_enabled else "false")
+    if req.video_codec is not None:
+        update_setting("video_codec", req.video_codec)
 
     updated = get_settings()
     await broadcast({"type": "settings_updated", "settings": updated})

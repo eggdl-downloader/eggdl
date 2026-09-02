@@ -165,7 +165,9 @@ def init_db():
         "max_segments_per_download": "8",
         "speed_limit": "0",
         "auto_start": "true",
-        "theme": "dark"
+        "theme": "dark",
+        "video_encoder_enabled": "false",
+        "video_codec": "h264"
     }
 
     for key, val in default_settings.items():

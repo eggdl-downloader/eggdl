@@ -346,6 +346,22 @@ const App = {
     if (settingSegments && this.settings.max_segments_per_download) {
       settingSegments.value = this.settings.max_segments_per_download;
     }
+
+    // Video Encoder Settings
+    const toggle = document.getElementById('toggle-video-encoder');
+    const storedEnc = localStorage.getItem('eggdl_video_encoder_enabled');
+    const isEnc = storedEnc !== null ? (storedEnc === 'true') : (this.settings.video_encoder_enabled === true);
+    if (toggle) {
+      toggle.checked = isEnc;
+      this.updateVideoEncoderUI(isEnc);
+    }
+
+    const storedCodec = localStorage.getItem('eggdl_video_codec') || this.settings.video_codec || 'h264';
+    const radio = document.querySelector(`input[name="video_codec_selection"][value="${storedCodec}"]`);
+    if (radio) {
+      radio.checked = true;
+      this.updateSelectedCodecCard(storedCodec);
+    }
   },
 
   updateCategoryCounts() {
@@ -595,6 +611,34 @@ const App = {
     document.getElementById('save-settings-btn')?.addEventListener('click', () => this.saveSettings());
     document.getElementById('btn-check-updates')?.addEventListener('click', () => this.checkVersion(true));
 
+    // Advanced Settings
+    document.getElementById('open-advanced-settings-btn')?.addEventListener('click', () => {
+      document.getElementById('advanced-settings-modal').style.display = 'flex';
+      if (window.lucide) window.lucide.createIcons();
+    });
+    document.getElementById('close-advanced-settings-btn')?.addEventListener('click', () => {
+      document.getElementById('advanced-settings-modal').style.display = 'none';
+    });
+    document.getElementById('cancel-advanced-settings-btn')?.addEventListener('click', () => {
+      document.getElementById('advanced-settings-modal').style.display = 'none';
+    });
+    document.getElementById('save-advanced-settings-btn')?.addEventListener('click', () => this.saveAdvancedSettings());
+
+    // Video Encoder Toggle in Advanced Settings
+    const encoderToggle = document.getElementById('toggle-video-encoder');
+    if (encoderToggle) {
+      encoderToggle.addEventListener('change', (e) => {
+        this.updateVideoEncoderUI(e.target.checked);
+      });
+    }
+
+    // Codec Selection Radio Cards
+    document.querySelectorAll('input[name="video_codec_selection"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        this.updateSelectedCodecCard(e.target.value);
+      });
+    });
+
     // Sniffer batch actions
     document.getElementById('sniffer-select-all')?.addEventListener('click', () => this.toggleSnifferSelectAll());
     document.getElementById('sniffer-download-selected')?.addEventListener('click', () => this.downloadSelectedSnifferItems());
@@ -643,7 +687,17 @@ const App = {
 
   async startDownloadTask(payload) {
     try {
-      const res = await API.startDownload(payload);
+      const storedEnc = localStorage.getItem('eggdl_video_encoder_enabled');
+      const isEnc = storedEnc !== null ? (storedEnc === 'true') : (this.settings?.video_encoder_enabled === true);
+      const selectedCodec = localStorage.getItem('eggdl_video_codec') || this.settings?.video_codec || 'h264';
+
+      const fullPayload = {
+        video_encoder_enabled: isEnc,
+        video_codec: selectedCodec,
+        ...payload
+      };
+
+      const res = await API.startDownload(fullPayload);
       if (res.success) {
         UI.showToast('Download started with Turbo Speed!', 'success');
         document.getElementById('url-input').value = '';
@@ -800,6 +854,53 @@ const App = {
       }
     } catch (e) {
       UI.showToast('Failed to save settings', 'error');
+    }
+  },
+
+  updateVideoEncoderUI(enabled) {
+    const optContainer = document.getElementById('advanced-encoder-options');
+    const cautionContainer = document.getElementById('advanced-encoder-caution');
+    if (optContainer) {
+      optContainer.style.display = enabled ? 'block' : 'none';
+    }
+    if (cautionContainer) {
+      cautionContainer.style.display = enabled ? 'flex' : 'none';
+    }
+    if (window.lucide) window.lucide.createIcons();
+  },
+
+  updateSelectedCodecCard(selectedVal) {
+    ['h264', 'h265', 'av1'].forEach(c => {
+      const card = document.getElementById(`card-codec-${c}`);
+      if (card) {
+        if (c === selectedVal) {
+          card.classList.add('active-selected');
+        } else {
+          card.classList.remove('active-selected');
+        }
+      }
+    });
+  },
+
+  async saveAdvancedSettings() {
+    const toggle = document.getElementById('toggle-video-encoder');
+    const enabled = Boolean(toggle?.checked);
+    const selectedCodec = document.querySelector('input[name="video_codec_selection"]:checked')?.value || 'h264';
+
+    localStorage.setItem('eggdl_video_encoder_enabled', enabled ? 'true' : 'false');
+    localStorage.setItem('eggdl_video_codec', selectedCodec);
+
+    try {
+      const res = await API.saveSettings({
+        video_encoder_enabled: enabled,
+        video_codec: selectedCodec
+      });
+      if (res.success) {
+        UI.showToast(enabled ? `Video Encoder active (${selectedCodec.toUpperCase()})` : 'Video Encoder disabled (Fast native downloads active)', 'success');
+        document.getElementById('advanced-settings-modal').style.display = 'none';
+      }
+    } catch (e) {
+      UI.showToast('Failed to save advanced settings', 'error');
     }
   },
 

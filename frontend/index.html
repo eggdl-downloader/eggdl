@@ -73,6 +73,10 @@
           <i data-lucide="settings"></i>
           <span class="nav-text">Settings</span>
         </button>
+        <button class="nav-item" id="open-advanced-settings-btn">
+          <i data-lucide="sliders"></i>
+          <span class="nav-text">Advanced Settings</span>
+        </button>
       </nav>
     </aside>
 
@@ -382,6 +386,131 @@
         <button class="btn btn-secondary" id="cancel-settings-btn">Cancel</button>
         <button class="btn btn-primary" id="save-settings-btn">
           <i data-lucide="check"></i> Save Settings
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Advanced Settings Modal (Video Encoder & Performance Codecs) -->
+  <div class="modal-backdrop" id="advanced-settings-modal" style="display: none; z-index: 10000;">
+    <div class="modal-card" style="max-width: 580px;">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i data-lucide="sliders" style="color: #38BDF8;"></i>
+          <span>Advanced Settings</span>
+        </div>
+        <button class="modal-close" id="close-advanced-settings-btn">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+
+      <div class="modal-body" style="padding: 20px 22px;">
+        
+        <!-- Video Encoder Module Card -->
+        <div class="card" style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px; padding: 18px 20px; margin-bottom: 16px;">
+          
+          <!-- Top Row: Title + Master Toggle Switch -->
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 14px;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-weight: 800; font-size: 1.02rem; color: var(--text-main);">Video Encoder</span>
+                <span style="font-size: 0.70rem; font-weight: 700; padding: 2px 7px; background: rgba(56, 189, 248, 0.15); color: #38BDF8; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.25);">Pro Transcoder</span>
+              </div>
+              <p style="font-size: 0.80rem; color: var(--text-muted); margin-top: 4px; margin-bottom: 0; line-height: 1.4;">
+                Transcode downloaded video streams into custom hardware-compatible video codecs.
+              </p>
+            </div>
+            
+            <!-- Master Toggle Switch (Default OFF) -->
+            <label class="switch-toggle" style="cursor: pointer;" title="Toggle Video Transcoding">
+              <input type="checkbox" id="toggle-video-encoder">
+              <span class="slider-round"></span>
+            </label>
+          </div>
+
+          <!-- Codec Selection Options (Visible only when toggle is ON) -->
+          <div id="advanced-encoder-options" style="display: none; margin-top: 18px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 16px;">
+            <label style="font-size: 0.78rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 10px;">
+              Target Video Codec
+            </label>
+            
+            <div style="display: grid; gap: 10px;">
+              <!-- Option 1: H.264 (AVC) -->
+              <label class="codec-option-card" id="card-codec-h264" style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 10px; cursor: pointer; transition: all 0.2s ease;">
+                <input type="radio" name="video_codec_selection" value="h264" checked style="margin-top: 3px; accent-color: #3B82F6;">
+                <div style="flex: 1;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+                    <span style="font-weight: 700; font-size: 0.90rem; color: #F8FAFC;">H.264 (AVC)</span>
+                    <span style="font-size: 0.70rem; font-weight: 700; padding: 2px 8px; background: rgba(16, 185, 129, 0.15); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 4px;">
+                      ⭐ Best for Editors • Premiere Pro Supported
+                    </span>
+                  </div>
+                  <p style="font-size: 0.76rem; color: #94A3B8; margin-top: 4px; margin-bottom: 0; line-height: 1.4;">
+                    Supported natively by Adobe Premiere Pro, After Effects, DaVinci Resolve, Final Cut &amp; older Smart TVs.
+                  </p>
+                </div>
+              </label>
+
+              <!-- Option 2: H.265 (HEVC) -->
+              <label class="codec-option-card" id="card-codec-h265" style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: rgba(15, 23, 42, 0.4); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px; cursor: pointer; transition: all 0.2s ease;">
+                <input type="radio" name="video_codec_selection" value="h265" style="margin-top: 3px; accent-color: #3B82F6;">
+                <div style="flex: 1;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+                    <span style="font-weight: 700; font-size: 0.90rem; color: #F8FAFC;">H.265 (HEVC)</span>
+                    <span style="font-size: 0.70rem; font-weight: 700; padding: 2px 8px; background: rgba(139, 92, 246, 0.15); color: #A78BFA; border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 4px;">
+                      ⚡ High Efficiency • 50% Smaller Size
+                    </span>
+                  </div>
+                  <p style="font-size: 0.76rem; color: #94A3B8; margin-top: 4px; margin-bottom: 0; line-height: 1.4;">
+                    Ultra-efficient compression designed for 4K/8K media playback and minimal disk storage.
+                  </p>
+                </div>
+              </label>
+
+              <!-- Option 3: AV1 -->
+              <label class="codec-option-card" id="card-codec-av1" style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: rgba(15, 23, 42, 0.4); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px; cursor: pointer; transition: all 0.2s ease;">
+                <input type="radio" name="video_codec_selection" value="av1" style="margin-top: 3px; accent-color: #3B82F6;">
+                <div style="flex: 1;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+                    <span style="font-weight: 700; font-size: 0.90rem; color: #F8FAFC;">AV1 (AOMedia Video 1)</span>
+                    <span style="font-size: 0.70rem; font-weight: 700; padding: 2px 8px; background: rgba(245, 158, 11, 0.15); color: #FBBF24; border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 4px;">
+                      🚀 Next-Gen Open Standard
+                    </span>
+                  </div>
+                  <p style="font-size: 0.76rem; color: #94A3B8; margin-top: 4px; margin-bottom: 0; line-height: 1.4;">
+                    State-of-the-art open royalty-free video codec with superior high dynamic range quality.
+                  </p>
+                </div>
+              </label>
+            </div>
+
+            <!-- Dynamic Red Caution Disclaimer Banner -->
+            <div id="advanced-encoder-caution" style="display: none; margin-top: 14px; padding: 12px 14px; background: rgba(239, 68, 68, 0.10); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 10px; align-items: flex-start; gap: 10px;">
+              <i data-lucide="alert-triangle" style="width: 20px; height: 20px; color: #EF4444; flex-shrink: 0; margin-top: 1px;"></i>
+              <div style="font-size: 0.78rem; color: #FCA5A5; line-height: 1.45;">
+                <strong style="color: #EF4444; display: block; margin-bottom: 2px;">⚠️ Caution: Video Transcoding Active</strong>
+                Conversion time directly depends on your computer hardware performance. It may take some time during download finalization, kindly wait while downloading.
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- Default Instant Download Speed Explanation Card -->
+        <div style="background: rgba(16, 185, 129, 0.06); border: 1px solid rgba(16, 185, 129, 0.18); border-radius: 10px; padding: 12px 14px; display: flex; align-items: center; gap: 10px;">
+          <i data-lucide="zap" style="width: 18px; height: 18px; color: #10B981; flex-shrink: 0;"></i>
+          <span style="font-size: 0.78rem; color: #CBD5E1; line-height: 1.4;">
+            When Video Encoder is <strong>OFF (Default)</strong>, files download directly in native source format with <strong>zero transcoding lag</strong> and instant 100% completion.
+          </span>
+        </div>
+
+      </div>
+
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px; padding: 14px 22px; border-top: 1px solid rgba(255, 255, 255, 0.08);">
+        <button class="btn btn-secondary" id="cancel-advanced-settings-btn">Close</button>
+        <button class="btn btn-primary btn-glow" id="save-advanced-settings-btn">
+          <i data-lucide="check"></i> Save Preferences
         </button>
       </div>
     </div>

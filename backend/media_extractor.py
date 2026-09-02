@@ -129,9 +129,9 @@ def get_best_h264_encoder(ffmpeg_exe: str) -> str:
     _CACHED_H264_ENCODER = "libx264"
     return _CACHED_H264_ENCODER
 
-def ensure_premiere_compatibility(target_file: str, ffmpeg_exe: str = None) -> bool:
-    """Universal high-speed H.264 & AAC standardizer ensuring 100% Adobe Premiere Pro / NLE compatibility."""
-    if not target_file or not os.path.exists(target_file) or not target_file.lower().endswith(".mp4"):
+def transcode_video_to_codec(target_file: str, ffmpeg_exe: str = None, codec: str = "h264") -> bool:
+    """Encodes downloaded video into selected hardware codec (h264, h265, av1) with hardware acceleration when available."""
+    if not target_file or not os.path.exists(target_file):
         return False
     if not ffmpeg_exe or not os.path.exists(ffmpeg_exe):
         ffmpeg_exe = get_ffmpeg_exe()
@@ -139,84 +139,60 @@ def ensure_premiere_compatibility(target_file: str, ffmpeg_exe: str = None) -> b
         return False
 
     creationflags = 0x08000000 if sys.platform == "win32" else 0
-    safe_tmp = None
+    parent_d = os.path.dirname(target_file)
+    safe_tmp = os.path.join(parent_d, f"eggdl_enc_{uuid.uuid4().hex[:8]}.mp4")
+    codec = (codec or "h264").lower().strip()
+
     try:
-        cmd = [ffmpeg_exe, "-i", target_file]
-        res = subprocess.run(
-            cmd,
-            stderr=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            encoding="utf-8",
-            errors="replace",
-            creationflags=creationflags
-        )
-        stderr = res.stderr or ""
-
-        # Check for non-standard Premiere formats
-        needs_audio_fix = any(aud in stderr for aud in ["Audio: opus", "Audio: vorbis", "Audio: flac"])
-        needs_video_fix = any(vid in stderr for vid in ["Video: av1", "av01", "Video: vp9", "vp09", "yuv420p10le", "yuv420p12le", "yuv444p10le"])
-
-        if not needs_audio_fix and not needs_video_fix:
-            return True
-
-        parent_d = os.path.dirname(target_file)
-        safe_tmp = os.path.join(parent_d, f"eggdl_tmp_{uuid.uuid4().hex[:8]}.mp4")
-
-        if needs_video_fix:
+        if codec == "h265":
+            # HEVC / H.265
+            enc_args = ["-c:v", "libx265", "-preset", "fast", "-crf", "24"]
+        elif codec == "av1":
+            # AV1
+            enc_args = ["-c:v", "libsvtav1", "-preset", "8", "-crf", "28"]
+        else:
+            # H.264 / AVC (Premiere Pro / NLE standard)
             best_enc = get_best_h264_encoder(ffmpeg_exe)
-            
-            enc_args = ["-c:v", best_enc]
             if best_enc == "h264_nvenc":
-                enc_args.extend(["-preset", "p1", "-cq", "22"])
+                enc_args = ["-c:v", "h264_nvenc", "-preset", "p1", "-cq", "22"]
             elif best_enc == "h264_qsv":
-                enc_args.extend(["-preset", "veryfast", "-global_quality", "22"])
-            elif best_enc == "libx264":
-                enc_args.extend(["-preset", "ultrafast", "-crf", "22", "-threads", "0"])
+                enc_args = ["-c:v", "h264_qsv", "-preset", "veryfast", "-global_quality", "22"]
+            else:
+                enc_args = ["-c:v", "libx264", "-preset", "ultrafast", "-crf", "22", "-threads", "0"]
 
-            convert_cmd = [
+        convert_cmd = [
+            ffmpeg_exe, "-y",
+            "-i", target_file,
+            "-pix_fmt", "yuv420p",
+            *enc_args,
+            "-c:a", "aac",
+            "-b:a", "192k",
+            safe_tmp
+        ]
+        c_res = subprocess.run(convert_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=creationflags)
+        
+        # Fallback to libx264 if any specialized encoder fails
+        if (c_res.returncode != 0 or not os.path.exists(safe_tmp) or os.path.getsize(safe_tmp) <= 1024):
+            fallback_cmd = [
                 ffmpeg_exe, "-y",
                 "-i", target_file,
                 "-pix_fmt", "yuv420p",
-                *enc_args,
+                "-c:v", "libx264",
+                "-preset", "ultrafast",
+                "-crf", "22",
+                "-threads", "0",
                 "-c:a", "aac",
                 "-b:a", "192k",
                 safe_tmp
             ]
-            c_res = subprocess.run(convert_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=creationflags)
-            
-            # If GPU encoder encountered an unexpected issue, fallback immediately to CPU ultrafast
-            if (c_res.returncode != 0 or not os.path.exists(safe_tmp) or os.path.getsize(safe_tmp) <= 1024) and best_enc != "libx264":
-                fallback_cmd = [
-                    ffmpeg_exe, "-y",
-                    "-i", target_file,
-                    "-pix_fmt", "yuv420p",
-                    "-c:v", "libx264",
-                    "-preset", "ultrafast",
-                    "-crf", "22",
-                    "-threads", "0",
-                    "-c:a", "aac",
-                    "-b:a", "192k",
-                    safe_tmp
-                ]
-                c_res = subprocess.run(fallback_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=creationflags)
-        else:
-            # Fast stream copy video (0ms) and transcode audio to AAC (< 1 sec)
-            convert_cmd = [
-                ffmpeg_exe, "-y",
-                "-i", target_file,
-                "-c:v", "copy",
-                "-c:a", "aac",
-                "-b:a", "192k",
-                safe_tmp
-            ]
-            c_res = subprocess.run(convert_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=creationflags)
+            c_res = subprocess.run(fallback_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=creationflags)
 
         if c_res.returncode == 0 and os.path.exists(safe_tmp) and os.path.getsize(safe_tmp) > 1024:
             os.replace(safe_tmp, target_file)
             return True
     except Exception as e:
         try:
-            sys.stderr.write(f"[Premiere Standardizer Warning] {e}\n")
+            sys.stderr.write(f"[Video Encoder Warning] {e}\n")
         except Exception:
             pass
     finally:
@@ -226,6 +202,9 @@ def ensure_premiere_compatibility(target_file: str, ffmpeg_exe: str = None) -> b
             except Exception:
                 pass
     return False
+
+def ensure_premiere_compatibility(target_file: str, ffmpeg_exe: str = None) -> bool:
+    return transcode_video_to_codec(target_file, ffmpeg_exe, codec="h264")
 
 
 
@@ -654,6 +633,8 @@ class StreamDownloadTask:
         expected_size: int = -1,
         downloaded_bytes: int = 0,
         progress: float = 0.0,
+        video_encoder_enabled: bool = False,
+        video_codec: str = "h264",
         on_progress: Optional[Callable] = None
     ):
         self.id = task_id
@@ -664,6 +645,8 @@ class StreamDownloadTask:
         self.audio_format = audio_format
         self.custom_title = custom_title
         self.custom_filename = custom_filename
+        self.video_encoder_enabled = video_encoder_enabled
+        self.video_codec = video_codec or "h264"
         self.on_progress = on_progress
 
         self.title = custom_title or custom_filename or "Media Download"
@@ -942,11 +925,11 @@ class StreamDownloadTask:
                             final_path = base_prep
 
                     if final_path and os.path.exists(final_path):
-                        # Ensure 100% Adobe Premiere Pro compatibility (H.264 + AAC)
-                        if not self.is_audio_only and final_path.lower().endswith(".mp4"):
+                        # Video Encoder Transcoding (Only when specifically toggled ON by user in Advanced Settings)
+                        if self.video_encoder_enabled and not self.is_audio_only and final_path.lower().endswith(".mp4"):
                             ffmpeg_bin = get_ffmpeg_exe()
                             if ffmpeg_bin and os.path.exists(ffmpeg_bin):
-                                ensure_premiere_compatibility(final_path, ffmpeg_bin)
+                                transcode_video_to_codec(final_path, ffmpeg_bin, codec=self.video_codec)
 
                         # Guarantee exact custom filename on disk
                         if custom_name and clean_base:
@@ -1102,6 +1085,8 @@ class StreamDownloadTask:
             "thumbnail": self.thumbnail,
             "download_type": "stream",
             "format_id": self.format_id,
+            "video_encoder_enabled": self.video_encoder_enabled,
+            "video_codec": self.video_codec,
             "segments": self.segments,
             "created_at": getattr(self, "created_at", time.time()),
             "error_message": self.error_message
