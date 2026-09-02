@@ -398,26 +398,19 @@
     const videoOpts = data.video_options || [];
     const audioOpts = data.audio_options || [];
 
+    if (videoOpts.length === 0 && audioOpts.length === 0) {
+      safeSendMessage({ action: "get_tab_media" }, (mediaRes) => {
+        const streams = (mediaRes && mediaRes.media) ? mediaRes.media : [];
+        if (menu.classList.contains('active')) {
+          renderFallbackStreams(menu, streams, pageUrl, pageTitle, video);
+        }
+      });
+      return;
+    }
+
     let html = `
       <div class="pro-dl-menu-header">🥚 Media Eggs (${videoOpts.length} Available)</div>
     `;
-
-    if (videoOpts.length === 0 && audioOpts.length === 0) {
-      const directSrc = video.currentSrc || video.src;
-      if (directSrc && !directSrc.startsWith('blob:')) {
-        html += `
-          <div class="pro-dl-menu-item" data-direct="${directSrc}">
-            <span class="pro-dl-tag hd">DIRECT</span>
-            <div class="pro-dl-item-info">
-              <span class="pro-dl-item-title">${pageTitle.slice(0, 28)}</span>
-              <span class="pro-dl-item-meta">Direct Video Stream</span>
-            </div>
-          </div>
-        `;
-      } else {
-        html += `<div class="pro-dl-empty">No streams found.</div>`;
-      }
-    }
 
     videoOpts.forEach(opt => {
       const tag = getQualityTag(opt.resolution);
@@ -472,46 +465,58 @@
           download_type: directUrl ? 'direct' : 'stream',
           format_id: formatId || 'bestvideo+bestaudio/best',
           thumbnail: data.thumbnail || '',
-          is_audio_only: isAudio
+          is_audio_only: isAudio,
+          referrer: window.location.href
         });
       });
     });
   }
 
   function renderFallbackStreams(menu, streams, pageUrl, pageTitle, video) {
-    let html = `
-      <div class="pro-dl-menu-header">🥚 Captured Streams (${streams.length})</div>
-    `;
-
-    streams.forEach(stream => {
-      const tag = getQualityTag(stream.resolution || stream.quality);
-      html += `
-        <div class="pro-dl-menu-item" data-url="${stream.url}">
-          <span class="pro-dl-tag ${tag.class}">${tag.label}</span>
-          <div class="pro-dl-item-info">
-            <span class="pro-dl-item-title">${stream.title || pageTitle.slice(0, 24)}</span>
-            <span class="pro-dl-item-meta">${stream.ext || 'MP4'} • ${stream.sizeFormatted || 'Direct Stream'}</span>
-          </div>
-        </div>
-      `;
+    // Also check DOM for any source tags
+    const sources = Array.from(video.querySelectorAll('source') || []).map(s => s.src).filter(s => s && s.startsWith('http'));
+    sources.forEach(src => {
+      if (!streams.some(s => s.url === src)) {
+        streams.push({
+          url: src,
+          quality: 'HD Stream',
+          type: 'video/mp4',
+          sizeFormatted: 'Direct Video'
+        });
+      }
     });
 
     const directSrc = video.currentSrc || video.src;
     if (directSrc && !directSrc.startsWith('blob:') && !streams.some(s => s.url === directSrc)) {
+      streams.unshift({
+        url: directSrc,
+        quality: 'Original Video',
+        type: 'video/mp4',
+        sizeFormatted: 'Full Quality'
+      });
+    }
+
+    let html = `
+      <div class="pro-dl-menu-header">🥚 Media Eggs (${streams.length} Available)</div>
+    `;
+
+    if (streams.length === 0) {
+      html += `<div class="pro-dl-empty">No streams captured yet. Play video to capture.</div>`;
+    }
+
+    streams.forEach(stream => {
+      const tag = getQualityTag(stream.quality || stream.resolution);
+      const isAudio = (stream.type || '').includes('audio');
       html += `
-        <div class="pro-dl-menu-item" data-url="${directSrc}">
-          <span class="pro-dl-tag hd">DIRECT</span>
+        <div class="pro-dl-menu-item" data-url="${stream.url}" data-size="${stream.size || ''}" data-type="${isAudio ? 'audio' : 'video'}">
+          <span class="pro-dl-tag ${tag.class}">${tag.label}</span>
           <div class="pro-dl-item-info">
-            <span class="pro-dl-item-title">${pageTitle.slice(0, 24)}</span>
-            <span class="pro-dl-item-meta">Direct Video Stream</span>
+            <span class="pro-dl-item-title">${stream.title || pageTitle.slice(0, 26)}</span>
+            <span class="pro-dl-item-meta">${stream.ext || (isAudio ? 'MP3' : 'MP4')} • ${stream.sizeFormatted || 'High Speed Stream'}</span>
           </div>
         </div>
       `;
-    }
-
-    if (streams.length === 0 && (!directSrc || directSrc.startsWith('blob:'))) {
-      html += `<div class="pro-dl-empty">No streams captured yet. Play video to capture.</div>`;
-    }
+    });
 
     menu.innerHTML = html;
 
@@ -520,16 +525,19 @@
         e.stopPropagation();
         menu.classList.remove('active');
         const streamUrl = item.dataset.url;
-        const videoTitle = pageTitle || "Video";
-        const cleanTitle = videoTitle.replace(/[/\?%*:|"<>]/g, '_').trim();
-        const initialFname = `${cleanTitle}.mp4`;
+        const fileSize = item.dataset.size ? parseInt(item.dataset.size, 10) : 0;
+        const isAudio = item.dataset.type === 'audio';
+        const videoTitle = document.title || pageTitle || "Video";
+        const cleanTitle = videoTitle.replace(/[/\?%*:|"<>]/g, '_').trim() || "video";
+        const initialFname = `${cleanTitle}${isAudio ? '.mp3' : '.mp4'}`;
 
         renderIdmDownloadDialog({
           url: streamUrl,
           filename: initialFname,
-          file_size: 0,
-          mime: 'video/mp4',
-          download_type: 'auto'
+          file_size: fileSize,
+          mime: isAudio ? 'audio/mpeg' : 'video/mp4',
+          download_type: 'direct',
+          referrer: window.location.href
         });
       });
     });
@@ -931,6 +939,7 @@
           custom_filename: finalFilename,
           custom_title: finalFilename,
           download_dir: customDir,
+          referer: downloadInfo.referrer || window.location.href,
           expected_size: rawBytes > 0 ? rawBytes : null
         }
       }, (res) => {

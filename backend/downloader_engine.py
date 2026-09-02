@@ -134,16 +134,95 @@ class DownloadTask:
         self._last_bytes = 0
         self._speed_samples = []
 
+def get_smart_headers(url: str, custom_referer: Optional[str] = None) -> Dict[str, str]:
+    parsed = urllib.parse.urlparse(url)
+    netloc = parsed.netloc.lower()
+    
+    ref = custom_referer
+    origin = None
+    
+    if not ref:
+        if "jiosicloud" in netloc or "jiocloud" in netloc or "jioaicloud" in netloc:
+            ref = "https://jioaicloud.com/"
+            origin = "https://jioaicloud.com"
+        elif "googleusercontent" in netloc or "drive.google" in netloc:
+            ref = "https://drive.google.com/"
+            origin = "https://drive.google.com"
+        elif "twimg" in netloc or "twitter" in netloc or "x.com" in netloc:
+            ref = "https://twitter.com/"
+            origin = "https://twitter.com"
+        elif "cdninstagram" in netloc or "instagram" in netloc:
+            ref = "https://www.instagram.com/"
+            origin = "https://www.instagram.com"
+        elif "fbcdn" in netloc or "facebook" in netloc:
+            ref = "https://www.facebook.com/"
+            origin = "https://www.facebook.com"
+        elif "tiktok" in netloc or "byteoversea" in netloc or "ibytedtos" in netloc:
+            ref = "https://www.tiktok.com/"
+            origin = "https://www.tiktok.com"
+        elif "reddit" in netloc or "redd.it" in netloc:
+            ref = "https://www.reddit.com/"
+            origin = "https://www.reddit.com"
+        elif "dropbox" in netloc:
+            ref = "https://www.dropbox.com/"
+            origin = "https://www.dropbox.com"
+        elif "mediafire" in netloc:
+            ref = "https://www.mediafire.com/"
+            origin = "https://www.mediafire.com"
+        elif "terabox" in netloc or "1024tera" in netloc:
+            ref = "https://www.terabox.com/"
+            origin = "https://www.terabox.com"
+        else:
+            ref = f"{parsed.scheme}://{parsed.netloc}/"
+            origin = f"{parsed.scheme}://{parsed.netloc}"
+
+    return {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+        "Accept": "*/*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "identity",
+        "Referer": ref,
+        "Origin": origin or f"{parsed.scheme}://{parsed.netloc}",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "cross-site"
+    }
+
+
+class DownloadTask:
+    def __init__(self, task_id: str, url: str, target_dir: str, filename: Optional[str] = None,
+                 segments_count: int = 8, referer: Optional[str] = None, on_progress: Optional[Callable] = None):
+        self.id = task_id
+        self.url = url
+        self.target_dir = target_dir
+        self.custom_filename = filename
+        self.segments_count = segments_count
+        self.referer = referer
+        self.on_progress = on_progress
+
+        self.filename = filename or ""
+        self.file_path = ""
+        self.file_size = -1
+        self.downloaded_bytes = 0
+        self.progress = 0.0
+        self.speed = 0.0
+        self.eta = 0
+        self.status = "queued"  # queued, downloading, paused, completed, error, canceled
+        self.category = "other"
+        self.supports_ranges = False
+        self.error_message = None
+        self.created_at = time.time()
+
+        self.segments: List[Segment] = []
+        self._is_paused = False
+        self._is_canceled = False
+        self._temp_dir = os.path.join(target_dir, f".pro_dl_{task_id}")
+        self._last_time = 0.0
+        self._last_bytes = 0
+        self._speed_samples = []
+
     async def inspect(self) -> Dict[str, Any]:
-        parsed_origin = f"{urllib.parse.urlparse(self.url).scheme}://{urllib.parse.urlparse(self.url).netloc}"
-        ref = self.referer or (parsed_origin + "/")
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-            "Accept": "*/*",
-            "Accept-Encoding": "identity",
-            "Referer": ref,
-            "Origin": parsed_origin
-        }
+        headers = get_smart_headers(self.url, self.referer)
         connector = aiohttp.TCPConnector(family=socket.AF_INET)
         async with aiohttp.ClientSession(headers=headers, connector=connector, auto_decompress=False) as session:
             try:
@@ -165,9 +244,7 @@ class DownloadTask:
     def _inspect_via_curl_cffi(self) -> Dict[str, Any]:
         try:
             from curl_cffi import requests
-            parsed_origin = f"{urllib.parse.urlparse(self.url).scheme}://{urllib.parse.urlparse(self.url).netloc}"
-            ref = self.referer or (parsed_origin + "/")
-            headers = {"Referer": ref, "Origin": parsed_origin}
+            headers = get_smart_headers(self.url, self.referer)
             r = requests.head(self.url, impersonate="chrome124", headers=headers, timeout=15)
             if r.status_code >= 400:
                 r = requests.get(self.url, impersonate="chrome124", headers={"Range": "bytes=0-0", **headers}, timeout=15)
@@ -180,8 +257,14 @@ class DownloadTask:
             raise Exception("This quality (1080p/4K) requires logging into a free account on the website. Please choose 720p or lower for instant free download.")
 
         content_type = headers.get("content-type") or headers.get("Content-Type") or ""
-        if "text/html" in content_type.lower() and (self.url.endswith(".mp4") or "dload" in self.url.lower()):
-            raise Exception("Server returned a login page instead of the video file. This resolution requires logging into the host website. Please choose 720p or lower.")
+        ct_lower = content_type.lower()
+
+        # Reject error JSON payloads on direct media links to avoid creating .json files
+        if ("application/json" in ct_lower or "text/json" in ct_lower) and not self.url.lower().split("?")[0].endswith(".json"):
+            raise Exception("This download link has expired or requires browser session authentication. Please play or download the media directly in your browser using the EggDL extension.")
+
+        if "text/html" in ct_lower and (self.url.endswith(".mp4") or "dload" in self.url.lower() or "download" in self.url.lower()):
+            raise Exception("Server returned a web page instead of the video stream. Please click 'Download Egg' directly on the video player.")
 
         content_length = headers.get("content-length") or headers.get("Content-Length")
         self.file_size = int(content_length) if content_length and content_length.isdigit() else -1
@@ -205,6 +288,8 @@ class DownloadTask:
                 elif "audio/mp4" in ct or "audio/m4a" in ct: guessed_ext = ".m4a"
                 elif "application/pdf" in ct: guessed_ext = ".pdf"
                 elif "application/zip" in ct or "compressed" in ct: guessed_ext = ".zip"
+                elif "octet-stream" in ct and any(k in self.url.lower() for k in ["video", "stream", "jio", "film", "movie", "clip"]):
+                    guessed_ext = ".mp4"
                 else:
                     guessed_ext = mimetypes.guess_extension(content_type.split(";")[0].strip()) or ""
                 if guessed_ext and guessed_ext != ".bin":
@@ -331,14 +416,7 @@ class DownloadTask:
             self._last_bytes = self.downloaded_bytes
 
             timeout = aiohttp.ClientTimeout(total=None, connect=30, sock_read=60)
-            parsed_origin = f"{urllib.parse.urlparse(self.url).scheme}://{urllib.parse.urlparse(self.url).netloc}"
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-                "Accept": "*/*",
-                "Accept-Encoding": "identity",
-                "Referer": parsed_origin + "/",
-                "Origin": parsed_origin
-            }
+            headers = get_smart_headers(self.url, self.referer)
             connector = aiohttp.TCPConnector(family=socket.AF_INET)
 
             async with aiohttp.ClientSession(headers=headers, connector=connector, timeout=timeout, auto_decompress=False) as session:

@@ -653,8 +653,20 @@ chrome.webRequest.onHeadersReceived.addListener(
       lowerUrl.includes(".mp4") ||
       lowerUrl.includes(".webm") ||
       lowerUrl.includes(".m4s") ||
+      lowerUrl.includes(".m4a") ||
+      lowerUrl.includes(".mkv") ||
+      lowerUrl.includes(".avi") ||
+      lowerUrl.includes(".mov") ||
+      lowerUrl.includes(".flv") ||
+      lowerUrl.includes(".ts") ||
       lowerUrl.includes("/dload/") ||
-      lowerUrl.includes("videoplayback")
+      lowerUrl.includes("videoplayback") ||
+      lowerUrl.includes("/unishr/files/") ||
+      lowerUrl.includes("jiosicloud.com") ||
+      lowerUrl.includes("jiocloud.com") ||
+      lowerUrl.includes("jioaicloud.com") ||
+      (lowerUrl.includes("/download/") && !lowerUrl.endsWith(".html") && !lowerUrl.endsWith(".js") && !lowerUrl.endsWith(".css")) ||
+      (lowerUrl.includes("/stream/") && !lowerUrl.endsWith(".html") && !lowerUrl.endsWith(".js") && !lowerUrl.endsWith(".css"))
     );
 
     const isMediaHeader = (
@@ -662,7 +674,8 @@ chrome.webRequest.onHeadersReceived.addListener(
       (contentType.includes("audio/") && (!contentLength || contentLength > 150000)) ||
       contentType.includes("application/vnd.apple.mpegurl") ||
       contentType.includes("application/x-mpegurl") ||
-      contentType.includes("application/dash+xml")
+      contentType.includes("application/dash+xml") ||
+      ((contentType.includes("application/octet-stream") || contentType.includes("binary/octet-stream")) && (contentLength > 500000 || lowerUrl.includes("stream") || lowerUrl.includes("download") || lowerUrl.includes("jio") || lowerUrl.includes("video")))
     );
 
     if (isMediaUrl || isMediaHeader) {
@@ -698,6 +711,15 @@ chrome.webRequest.onHeadersReceived.addListener(
           quality = "144p";
         } else if (contentType.includes("audio")) {
           quality = "HQ Audio";
+        } else if (contentLength > 100 * 1024 * 1024) {
+          quality = `Video (${(contentLength / (1024 * 1024)).toFixed(0)} MB)`;
+        } else if (contentLength > 0) {
+          quality = `Stream (${(contentLength / (1024 * 1024)).toFixed(1)} MB)`;
+        }
+
+        let sizeFormatted = "";
+        if (contentLength > 0) {
+          sizeFormatted = contentLength >= 1024 * 1024 ? `${(contentLength / (1024 * 1024)).toFixed(1)} MB` : `${(contentLength / 1024).toFixed(0)} KB`;
         }
 
         const mediaItem = {
@@ -705,6 +727,7 @@ chrome.webRequest.onHeadersReceived.addListener(
           type: contentType || "video/mp4",
           quality: quality,
           size: contentLength,
+          sizeFormatted: sizeFormatted,
           capturedAt: Date.now()
         };
 
