@@ -1489,11 +1489,25 @@ const App = {
 
   async refreshAdminDevices() {
     if (!this.adminKey) return;
+    const btn = document.getElementById('btn-admin-refresh-devices');
+    const origHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<i data-lucide="refresh-cw" class="spin" style="width:12px;height:12px;display:inline-block;vertical-align:middle;margin-right:4px;"></i> Refreshing...';
+      if (window.lucide) window.lucide.createIcons();
+    }
     try {
       const data = await API.getAdminDevices(this.adminKey);
       UI.renderAdminDevices(data, this.adminKey, window._activeAdminFilter || 'all');
+      UI.showToast(`Updated ${data.devices?.length || 0} device telemetry records`, 'info', 1800);
     } catch (e) {
       UI.showToast('Refresh failed: ' + e.message, 'error');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = origHtml || '<i data-lucide="refresh-cw"></i> Refresh Devices';
+        if (window.lucide) window.lucide.createIcons();
+      }
     }
   },
 

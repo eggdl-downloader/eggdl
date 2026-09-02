@@ -1257,10 +1257,22 @@ const UI = {
 
     const allDevices = devicesData.devices || [];
     
+    // Helper to categorize device precisely (Ensures 7D Trial is never counted as Pro)
+    const getDeviceCategory = (dev) => {
+      if (dev.is_blocked) return 'blocked';
+      const planType = (dev.plan_type || 'trial').toLowerCase().trim();
+      const isPro = Boolean(dev.is_pro) && planType !== 'trial' && planType !== 'free' && planType !== 'blocked';
+      if (isPro) return 'pro';
+      const isTrial = planType === 'trial' || Boolean(dev.is_trial);
+      if (isTrial) return 'trial';
+      return 'expired';
+    };
+    
     // Count calculations
     const onlineCount = allDevices.filter(d => d.is_online).length;
-    const proCount = allDevices.filter(d => d.is_pro).length;
-    const blockedCount = allDevices.filter(d => d.is_blocked).length;
+    const proCount = allDevices.filter(d => getDeviceCategory(d) === 'pro').length;
+    const trialCount = allDevices.filter(d => getDeviceCategory(d) === 'trial').length;
+    const blockedCount = allDevices.filter(d => getDeviceCategory(d) === 'blocked').length;
     const offlineCount = allDevices.filter(d => !d.is_online).length;
 
     if (totalCountEl) totalCountEl.innerText = devicesData.total_devices || allDevices.length;
@@ -1273,16 +1285,16 @@ const UI = {
     if (activeFilter === 'online') {
       devices = allDevices.filter(d => d.is_online);
     } else if (activeFilter === 'pro') {
-      devices = allDevices.filter(d => d.is_pro);
+      devices = allDevices.filter(d => getDeviceCategory(d) === 'pro');
     } else if (activeFilter === 'trial') {
-      devices = allDevices.filter(d => d.is_trial && !d.is_pro && !d.is_blocked);
+      devices = allDevices.filter(d => getDeviceCategory(d) === 'trial');
     } else if (activeFilter === 'offline') {
       devices = allDevices.filter(d => !d.is_online);
     }
 
-    // Filter Tabs HTML
+    // Filter Tabs HTML (Single clean bar without redundant duplicate refresh button)
     const filterTabsHtml = `
-      <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap;">
+      <div style="display: flex; justify-content: flex-start; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap;">
         <div style="display: flex; gap: 6px; flex-wrap: wrap;" id="admin-device-filter-bar">
           <button type="button" class="btn btn-sm ${activeFilter === 'all' ? 'btn-primary btn-glow' : 'btn-secondary'}" onclick="UI.renderAdminDevices(window._lastAdminDevicesData, window._lastAdminKey, 'all')" style="padding: 4px 10px; font-size: 0.76rem;">
             All Users <span style="opacity: 0.7; margin-left: 3px;">(${allDevices.length})</span>
@@ -1294,15 +1306,12 @@ const UI = {
             ⭐ Pro (${proCount})
           </button>
           <button type="button" class="btn btn-sm ${activeFilter === 'trial' ? 'btn-primary btn-glow' : 'btn-secondary'}" onclick="UI.renderAdminDevices(window._lastAdminDevicesData, window._lastAdminKey, 'trial')" style="padding: 4px 10px; font-size: 0.76rem;">
-            ⏳ Trial (${allDevices.filter(d => d.is_trial && !d.is_pro && !d.is_blocked).length})
+            ⏳ Trial (${trialCount})
           </button>
           <button type="button" class="btn btn-sm ${activeFilter === 'offline' ? 'btn-primary btn-glow' : 'btn-secondary'}" onclick="UI.renderAdminDevices(window._lastAdminDevicesData, window._lastAdminKey, 'offline')" style="padding: 4px 10px; font-size: 0.76rem;">
             ⚪ Offline (${offlineCount})
           </button>
         </div>
-        <button type="button" class="btn btn-secondary btn-sm" onclick="App.refreshAdminDevices()" title="Refresh telemetry from devices" style="padding: 4px 10px; font-size: 0.76rem;">
-          <i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i> Refresh
-        </button>
       </div>
     `;
 

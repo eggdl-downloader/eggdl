@@ -517,8 +517,8 @@ def sync_license_from_cloud(dev_id: str) -> Optional[Dict[str, Any]]:
                         has_key = bool(local_status.get("license_key"))
                         if not has_key:
                             revoke_device_pro(dev_id)
-                        elif cloud_res.get("plan_type") == "trial":
-                            reset_device_trial(dev_id)
+                            if cloud_res.get("plan_type") == "trial":
+                                reset_device_trial(dev_id)
 
                 return cloud_res
     except Exception:
@@ -555,12 +555,6 @@ async def telemetry_heartbeat(req: HeartbeatRequest):
         total_downloads=req.total_downloads,
         data_downloaded_mb=req.data_downloaded_mb
     )
-
-    # If running on Render cloud and client has active Pro, preserve Pro in cloud database
-    if os.environ.get("RENDER") and req.is_pro and not dev_status.get("is_pro"):
-        plan_t = req.plan_type or "1month"
-        grant_device_pro(dev_id, plan_type=plan_t, duration_days=30, expires_at=req.plan_expires_at)
-        dev_status = get_device_license_status(dev_id)
 
     return {
         "success": True,
@@ -2084,92 +2078,6 @@ async def download_setup_installer():
     return RedirectResponse(url="https://raw.githubusercontent.com/eggdl-downloader/eggdl/main/frontend/downloads/EggDL_Setup.exe", status_code=302)
 
 # --- Admin Remote Control API ---
-@app.get("/api/admin/overview")
-def enrich_device_item(dev: dict) -> dict:
-    import math
-    from datetime import datetime
-    now = datetime.now()
-    dev_id = dev.get("device_id")
-    
-    local_st = {}
-    try:
-        if dev_id:
-            local_st = get_device_license_status(dev_id)
-    except Exception:
-        pass
-        
-    plan_type = (dev.get("plan_type") or local_st.get("plan_type") or "trial").lower().strip()
-    is_blocked = bool(dev.get("is_blocked") or local_st.get("is_blocked"))
-    
-    # 1. Blocked / Killed
-    if is_blocked:
-        is_pro = False
-        is_trial = False
-        days_remaining = 0
-        trial_days_remaining = 0
-        status_badge = "🚨 BLOCKED / KILLED"
-        tier = "Suspended / Banned"
-    # 2. Free Trial (7 Days)
-    elif plan_type == "trial":
-        is_pro = False
-        is_trial = True
-        days_remaining = 0
-        trial_days = 7
-        cr_str = dev.get("created_at") or local_st.get("created_at")
-        if cr_str:
-            try:
-                cr_dt = datetime.fromisoformat(str(cr_str)) if 'T' in str(cr_str) else datetime.strptime(str(cr_str)[:19], "%Y-%m-%d %H:%M:%S")
-                passed = max(0, int((now - cr_dt).total_seconds() // 86400))
-                trial_days = max(1, 7 - passed)
-            except Exception:
-                trial_days = 7
-        trial_days_remaining = dev.get("trial_days_remaining") or local_st.get("trial_days_remaining") or trial_days
-        status_badge = f"⏳ Free Trial • {trial_days_remaining} days left"
-        tier = f"7-Day Free Trial ({trial_days_remaining}d left)"
-    # 3. Pro Active Plans (1month, 3month, 6month, 1year, lifetime)
-    elif plan_type in ["1month", "3month", "6month", "1year", "lifetime", "pro"]:
-        is_pro = True
-        is_trial = False
-        trial_days_remaining = 0
-        if plan_type == "lifetime":
-            days_remaining = 99999
-            status_badge = "👑 PRO (Lifetime) • Permanent"
-            tier = "Pro Lifetime"
-        else:
-            dur_map = {"1month": 30, "3month": 90, "6month": 180, "1year": 365, "pro": 30}
-            total_dur = dur_map.get(plan_type, 30)
-            exp_str = dev.get("plan_expires_at") or local_st.get("plan_expires_at")
-            if exp_str:
-                try:
-                    exp_dt = datetime.fromisoformat(str(exp_str)) if 'T' in str(exp_str) else datetime.strptime(str(exp_str)[:19], "%Y-%m-%d %H:%M:%S")
-                    diff_sec = (exp_dt - now).total_seconds()
-                    days_remaining = max(1, math.ceil(diff_sec / 86400)) if diff_sec > 0 else 0
-                except Exception:
-                    days_remaining = total_dur
-            else:
-                days_remaining = dev.get("days_remaining") or local_st.get("days_remaining") or total_dur
-            status_badge = f"⭐ PRO ({plan_type}) • {days_remaining} days left"
-            tier = f"Pro Active ({days_remaining}d left)"
-    # 4. Free / Unlicensed / Expired
-    else:
-        is_pro = False
-        is_trial = False
-        days_remaining = 0
-        trial_days_remaining = 0
-        status_badge = "⚠️ Free Trial Expired"
-        tier = "Unlicensed"
-
-    dev["is_pro"] = is_pro
-    dev["is_trial"] = is_trial
-    dev["is_blocked"] = is_blocked
-    dev["plan_type"] = plan_type
-    dev["days_remaining"] = days_remaining
-    dev["trial_days_remaining"] = trial_days_remaining
-    dev["status_badge"] = status_badge
-    dev["tier"] = tier
-    return dev
-
-@app.get("/api/admin/overview")
 def enrich_device_item(dev: dict) -> dict:
     import math
     from datetime import datetime
@@ -2187,7 +2095,7 @@ def enrich_device_item(dev: dict) -> dict:
         trial_days_remaining = 0
         status_badge = "🚨 BLOCKED / KILLED"
         tier = "Suspended / Banned"
-    # 2. Free Trial (7 Days)
+    # 2. Free Trial (7 Days) - strictly NOT pro
     elif plan_type == "trial":
         is_pro = False
         is_trial = True
@@ -2204,7 +2112,7 @@ def enrich_device_item(dev: dict) -> dict:
         trial_days_remaining = dev.get("trial_days_remaining") or trial_days
         status_badge = f"⏳ Free Trial • {trial_days_remaining} days left"
         tier = f"7-Day Free Trial ({trial_days_remaining}d left)"
-    # 3. Pro Active Plans (1month, 3month, 6month, 1year, lifetime)
+    # 3. Pro Active Plans (1month, 3month, 6month, 1year, lifetime, pro)
     elif plan_type in ["1month", "3month", "6month", "1year", "lifetime", "pro"]:
         is_pro = True
         is_trial = False
@@ -2243,88 +2151,6 @@ def enrich_device_item(dev: dict) -> dict:
         is_trial = False
         days_remaining = 0
         trial_days_remaining = 0
-        status_badge = "⚠️ Free Trial Expired"
-        tier = "Unlicensed"
-
-    dev["is_pro"] = is_pro
-    dev["is_trial"] = is_trial
-    dev["is_blocked"] = is_blocked
-    dev["plan_type"] = plan_type
-    dev["days_remaining"] = days_remaining
-    dev["trial_days_remaining"] = trial_days_remaining
-    dev["status_badge"] = status_badge
-    dev["tier"] = tier
-    return dev
-
-@app.get("/api/admin/overview")
-def enrich_device_item(dev: dict) -> dict:
-    import math
-    from datetime import datetime
-    now = datetime.now()
-    dev_id = dev.get("device_id")
-    
-    # Check local status if available
-    local_st = {}
-    try:
-        if dev_id:
-            local_st = get_device_license_status(dev_id)
-    except Exception:
-        pass
-        
-    is_blocked = bool(dev.get("is_blocked") or local_st.get("is_blocked"))
-    is_pro = bool(dev.get("is_pro") or local_st.get("is_pro"))
-    plan_type = (dev.get("plan_type") or local_st.get("plan_type") or "trial").lower()
-    
-    # 1. Exact days remaining calculation
-    days_remaining = dev.get("days_remaining") or local_st.get("days_remaining") or 0
-    trial_days_remaining = dev.get("trial_days_remaining") or local_st.get("trial_days_remaining") or 0
-    
-    # Known plan durations
-    dur_map = {"1month": 30, "3month": 90, "6month": 180, "1year": 365, "trial": 7, "free": 0}
-    
-    if plan_type == "lifetime":
-        days_remaining = 99999
-    elif is_pro and days_remaining <= 0:
-        total_dur = dur_map.get(plan_type, 30)
-        cr_str = dev.get("created_at") or local_st.get("created_at")
-        if cr_str:
-            try:
-                cr_dt = datetime.fromisoformat(str(cr_str)) if 'T' in str(cr_str) else datetime.strptime(str(cr_str)[:19], "%Y-%m-%d %H:%M:%S")
-                passed = max(0, int((now - cr_dt).total_seconds() // 86400))
-                days_remaining = max(1, total_dur - passed)
-            except Exception:
-                days_remaining = total_dur
-        else:
-            days_remaining = total_dur
-            
-    is_trial = bool(dev.get("is_trial") or local_st.get("is_trial") or (not is_pro and not is_blocked and plan_type == "trial"))
-    if is_trial and trial_days_remaining <= 0:
-        cr_str = dev.get("created_at") or local_st.get("created_at")
-        if cr_str:
-            try:
-                cr_dt = datetime.fromisoformat(str(cr_str)) if 'T' in str(cr_str) else datetime.strptime(str(cr_str)[:19], "%Y-%m-%d %H:%M:%S")
-                passed = max(0, int((now - cr_dt).total_seconds() // 86400))
-                trial_days_remaining = max(1, 7 - passed)
-            except Exception:
-                trial_days_remaining = 7
-        else:
-            trial_days_remaining = 7
-
-    # 2. Status badge formatting
-    if is_blocked:
-        status_badge = "🚨 BLOCKED / KILLED"
-        tier = "Suspended / Banned"
-    elif is_pro:
-        if plan_type == "lifetime" or days_remaining >= 36500:
-            status_badge = "👑 PRO (Lifetime) • Permanent"
-            tier = "Pro Lifetime"
-        else:
-            status_badge = f"⭐ PRO ({plan_type}) • {days_remaining} days left"
-            tier = f"Pro Active ({days_remaining}d left)"
-    elif is_trial:
-        status_badge = f"⏳ Free Trial • {trial_days_remaining} days left"
-        tier = f"7-Day Free Trial ({trial_days_remaining}d left)"
-    else:
         status_badge = "⚠️ Free Trial Expired"
         tier = "Unlicensed"
 
