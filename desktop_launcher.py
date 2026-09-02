@@ -468,6 +468,17 @@ def launch_browser_fallback(target_url: str):
     import webbrowser
     webbrowser.open(target_url)
 
+class DesktopApi:
+    def get_clipboard(self):
+        try:
+            if "backend.app" in sys.modules and hasattr(sys.modules["backend.app"], "get_native_clipboard_text"):
+                return sys.modules["backend.app"].get_native_clipboard_text()
+            elif "app" in sys.modules and hasattr(sys.modules["app"], "get_native_clipboard_text"):
+                return sys.modules["app"].get_native_clipboard_text()
+        except Exception:
+            pass
+        return ""
+
 def main():
     global _MAIN_WINDOW, _TRAY_ICON
     ensure_autostart_registry()
@@ -512,7 +523,7 @@ def main():
     except Exception as tray_err:
         sys.stderr.write(f"[Tray Init Note] {tray_err}\n")
 
-    # Launch native webview on the Main Thread
+    # Launch native webview on the Main Thread with DesktopApi native bridge
     try:
         import webview
         _MAIN_WINDOW = webview.create_window(
@@ -524,7 +535,8 @@ def main():
             background_color="#0B0F19",
             easy_drag=False,
             zoomable=True,
-            hidden=is_tray_start
+            hidden=is_tray_start,
+            js_api=DesktopApi()
         )
         _MAIN_WINDOW.events.closing += on_closing
         webview.start(debug=False, icon=icon_path if os.path.exists(icon_path) else None)

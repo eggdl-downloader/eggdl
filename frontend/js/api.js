@@ -328,8 +328,20 @@ const API = {
   },
 
   async getClipboard() {
+    // 1. Try PyWebView native JS API if available
     try {
-      const res = await fetch(`${this.baseUrl}/api/system/clipboard`, { headers: this.getHeaders() });
+      if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.get_clipboard === 'function') {
+        const clip = await window.pywebview.api.get_clipboard();
+        if (clip) return clip;
+      }
+    } catch (_) {}
+
+    // 2. Fetch from local backend with fast timeout
+    try {
+      const res = await fetch(`${this.baseUrl}/api/system/clipboard`, {
+        headers: this.getHeaders(),
+        signal: AbortSignal.timeout ? AbortSignal.timeout(1500) : undefined
+      });
       if (res.ok) {
         const data = await res.json();
         return data.text || '';

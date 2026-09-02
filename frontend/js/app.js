@@ -494,18 +494,11 @@ const App = {
       urlInput?.focus();
       let text = '';
 
-      // 1. Native Windows Clipboard via Local Backend (Zero "allow localhost" prompts, 100% instant)
+      // 1. Native Windows/System Clipboard via Local Backend / PyWebView Bridge (Zero "allow localhost" prompts, 100% instant)
       try {
         text = await API.getClipboard();
-      } catch (_) {}
-
-      // 2. Fallback only if backend was unreachable
-      if (!text || !text.trim()) {
-        try {
-          if (navigator.clipboard && navigator.clipboard.readText) {
-            text = await navigator.clipboard.readText();
-          }
-        } catch (_) {}
+      } catch (err) {
+        console.warn('Backend clipboard error:', err);
       }
 
       if (text && text.trim()) {

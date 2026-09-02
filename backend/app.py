@@ -467,6 +467,11 @@ async def auth_firebase(req: FirebaseAuthRequest):
         }
     }
 
+def trigger_cloud_license_sync_bg(dev_id: str):
+    """Spawns non-blocking background thread to sync license with cloud without slowing down offline operations."""
+    if not os.environ.get("RENDER"):
+        threading.Thread(target=sync_license_from_cloud, args=(dev_id,), daemon=True).start()
+
 def sync_license_from_cloud(dev_id: str) -> Optional[Dict[str, Any]]:
     """Contacts Cloud Render database, syncs license, plan, duration, and blocks with two-way preservation."""
     if os.environ.get("RENDER"):
@@ -492,7 +497,7 @@ def sync_license_from_cloud(dev_id: str) -> Optional[Dict[str, Any]]:
             data=data_bytes,
             headers={"Content-Type": "application/json", "User-Agent": "EggDL-Client"}
         )
-        with urllib.request.urlopen(remote_req, timeout=10.0) as res:
+        with urllib.request.urlopen(remote_req, timeout=3.5) as res:
             if res.status == 200:
                 cloud_res = json.loads(res.read().decode())
                 
@@ -524,7 +529,7 @@ def sync_license_from_cloud(dev_id: str) -> Optional[Dict[str, Any]]:
 async def get_system_machine_info():
     machine = get_machine_info()
     dev_id = machine["machine_id"]
-    sync_license_from_cloud(dev_id)
+    trigger_cloud_license_sync_bg(dev_id)
     license_status = get_device_license_status(dev_id)
     return {
         "success": True,
@@ -538,9 +543,8 @@ async def telemetry_heartbeat(req: HeartbeatRequest):
     dev_id = req.device_id or get_device_id()
     app_ver = req.app_version or APP_CURRENT_VERSION
     
-    # Sync with cloud if running locally
-    if not os.environ.get("RENDER"):
-        sync_license_from_cloud(dev_id)
+    # Sync with cloud in background if running locally
+    trigger_cloud_license_sync_bg(dev_id)
         
     dev_status = register_or_update_device(
         device_id=dev_id,
@@ -688,7 +692,7 @@ async def auth_me(request: Request):
             os_info=machine["os_info"]
         )
         
-    sync_license_from_cloud(dev_id)
+    trigger_cloud_license_sync_bg(dev_id)
     status = get_device_license_status(dev_id)
     plan_type = status.get("plan_type", "trial")
     plan_info = PLAN_CONFIGS.get(plan_type, PLAN_CONFIGS["trial" if status.get("is_trial") else "free"])
@@ -1772,7 +1776,7 @@ async def check_device_status(req: DeviceCheckRequest):
 
 # --- Native Windows Clipboard (Zero Browser Dialogs, 64-Bit Safe & Zero Crashes) ---
 def get_native_clipboard_text() -> str:
-    # 1. Native Win32 API with 64-bit safe pointer types
+    # 1. Native Win32 API with 64-bit safe pointer types and retry loop
     if sys.platform == "win32":
         try:
             import ctypes
@@ -1793,32 +1797,39 @@ def get_native_clipboard_text() -> str:
             kernel32.GlobalUnlock.restype = wintypes.BOOL
 
             CF_UNICODETEXT = 13
-            if user32.OpenClipboard(None):
-                try:
-                    h_clip = user32.GetClipboardData(CF_UNICODETEXT)
-                    if h_clip:
-                        p_clip = kernel32.GlobalLock(h_clip)
-                        if p_clip:
-                            val = ctypes.c_wchar_p(p_clip).value
-                            kernel32.GlobalUnlock(h_clip)
-                            if val:
-                                return str(val)
-                finally:
-                    user32.CloseClipboard()
+            # Retry up to 5 times if clipboard is briefly held by another process
+            for _ in range(5):
+                if user32.OpenClipboard(None):
+                    try:
+                        h_clip = user32.GetClipboardData(CF_UNICODETEXT)
+                        if h_clip:
+                            p_clip = kernel32.GlobalLock(h_clip)
+                            if p_clip:
+                                val = ctypes.c_wchar_p(p_clip).value
+                                kernel32.GlobalUnlock(h_clip)
+                                if val:
+                                    return str(val)
+                        return ""
+                    finally:
+                        user32.CloseClipboard()
+                time.sleep(0.015)
         except Exception:
             pass
 
-    # 2. Fallback via tkinter if initialized or available
-    try:
-        import tkinter as tk
-        root = tk.Tk()
-        root.withdraw()
-        txt = root.clipboard_get()
-        root.destroy()
-        if txt:
-            return str(txt)
-    except Exception:
-        pass
+    # 2. Fallback via PowerShell on Windows
+    if sys.platform == "win32":
+        try:
+            import subprocess
+            creationflags = 0x08000000
+            res = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", "Get-Clipboard"],
+                capture_output=True, text=True, timeout=1.5,
+                creationflags=creationflags
+            )
+            if res.returncode == 0 and res.stdout:
+                return res.stdout.strip()
+        except Exception:
+            pass
 
     return ""
 
