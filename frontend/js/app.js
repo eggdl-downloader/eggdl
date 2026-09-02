@@ -1157,11 +1157,12 @@ const App = {
     const sendPing = async () => {
       try {
         const machine = this.authData?.machine || {};
+        const devId = machine.machine_id || API.getOrCreateDeviceId();
         const res = await API.telemetryHeartbeat({
-          device_id: machine.machine_id,
-          desktop_name: machine.desktop_name,
-          user_name: machine.user_name,
-          os_info: machine.os_info,
+          device_id: devId,
+          desktop_name: machine.desktop_name || API.getDeviceName(),
+          user_name: machine.user_name || 'User',
+          os_info: machine.os_info || navigator.platform || 'Windows',
           app_version: '2.1.6',
           total_downloads: this.downloads?.length || 0,
           data_downloaded_mb: 0
@@ -1171,10 +1172,9 @@ const App = {
           UI.renderDeviceSuspended(res.block_reason || 'Access has been suspended by the administrator.');
         } else {
           // If was previously suspended and now unblocked, remove suspension overlay immediately
-          const suspOverlay = document.getElementById('device-suspended-overlay');
-          if (suspOverlay) suspOverlay.remove();
+          UI.removeDeviceSuspended();
 
-          if (res) {
+          if (res && res.success !== false) {
             const hadPro = !!this.authData?.is_pro;
             const nowPro = !!res.is_pro;
             const hadPlan = this.authData?.plan_type;
@@ -1187,8 +1187,30 @@ const App = {
             const nowTrialExpired = !!res.trial_expired;
 
             if (hadPro !== nowPro || hadPlan !== nowPlan || hadDays !== nowDays || hadTrialDays !== nowTrialDays || hadTrialExpired !== nowTrialExpired) {
-              await this.initAuth();
+              // Direct in-memory hot update of authData for 0ms instant UI update without restart!
+              if (!this.authData) this.authData = {};
+              this.authData.is_pro = nowPro;
+              this.authData.is_trial = !!res.is_trial;
+              this.authData.trial_expired = nowTrialExpired;
+              this.authData.trial_days_remaining = nowTrialDays;
+              this.authData.days_remaining = nowDays;
+              this.authData.plan_type = nowPlan;
+              this.authData.can_download = !nowTrialExpired || nowPro;
+              this.authData.is_unlimited = !nowTrialExpired || nowPro;
+              if (this.authData.user) {
+                this.authData.user.plan_type = nowPlan;
+              }
+              if (window.PLAN_CONFIGS) {
+                this.authData.plan = window.PLAN_CONFIGS[nowPlan] || this.authData.plan;
+              }
+              
+              UI.renderUserProfile(this.authData);
               if (typeof this.updateStats === 'function') this.updateStats();
+
+              // Automatically dismiss paywall modal if upgraded or trial renewed
+              if (nowPro || (!nowTrialExpired && res.is_trial)) {
+                UI.closeAccountModal();
+              }
             }
           }
         }
@@ -1196,7 +1218,7 @@ const App = {
     };
 
     sendPing();
-    setInterval(sendPing, 4000);
+    setInterval(sendPing, 3000);
   },
 
   triggerStealthAdmin() {

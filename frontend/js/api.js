@@ -424,10 +424,11 @@ const API = {
     } catch (_) {}
 
     try {
+      const localPayload = cloudRes ? { ...payload, cloud_sync: cloudRes } : payload;
       const localRes = await fetch(`${this.baseUrl}/api/telemetry/heartbeat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(localPayload)
       });
       if (localRes.ok && !cloudRes) cloudRes = await localRes.json();
     } catch (_) {}

@@ -977,7 +977,7 @@ const UI = {
   },
 
   renderDeviceSuspended(reason = 'Access to this device has been suspended by the administrator.') {
-    let overlay = document.getElementById('device-kill-lockout-overlay');
+    let overlay = document.getElementById('device-kill-lockout-overlay') || document.getElementById('device-suspended-overlay');
     if (!overlay) {
       overlay = document.createElement('div');
       overlay.id = 'device-kill-lockout-overlay';
@@ -998,7 +998,14 @@ const UI = {
         <p style="font-size:0.82rem;color:#64748B;">Please contact administrator for license activation.</p>
       </div>
     `;
-    lucide.createIcons();
+    if (window.lucide) window.lucide.createIcons();
+  },
+
+  removeDeviceSuspended() {
+    const o1 = document.getElementById('device-kill-lockout-overlay');
+    if (o1) o1.remove();
+    const o2 = document.getElementById('device-suspended-overlay');
+    if (o2) o2.remove();
   },
 
   openAccountModal(authData) {

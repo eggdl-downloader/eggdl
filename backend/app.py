@@ -255,6 +255,7 @@ class HeartbeatRequest(BaseModel):
     plan_type: Optional[str] = None
     plan_expires_at: Optional[str] = None
     license_key: Optional[str] = None
+    cloud_sync: Optional[Dict[str, Any]] = None
 
 class DeviceActionRequest(BaseModel):
     admin_key: str
@@ -543,8 +544,20 @@ async def telemetry_heartbeat(req: HeartbeatRequest):
     dev_id = req.device_id or get_device_id()
     app_ver = req.app_version or APP_CURRENT_VERSION
     
-    # Synchronously sync license from cloud if running locally so heartbeat response is instantly up to date
-    if not os.environ.get("RENDER"):
+    # If client passed cloud_sync payload from Render directly:
+    if req.cloud_sync and not os.environ.get("RENDER"):
+        cs = req.cloud_sync
+        if cs.get("is_blocked"):
+            set_device_blocked(dev_id, blocked=True, reason=cs.get("block_reason") or "Suspended by Admin")
+        else:
+            set_device_blocked(dev_id, blocked=False)
+            if cs.get("is_pro"):
+                grant_device_pro(dev_id, plan_type=cs.get("plan_type", "3month"), duration_days=cs.get("days_remaining", 83), expires_at=cs.get("plan_expires_at"))
+            elif cs.get("plan_type") == "trial":
+                reset_device_trial(dev_id)
+            else:
+                revoke_device_pro(dev_id)
+    elif not os.environ.get("RENDER"):
         sync_license_from_cloud(dev_id)
         
     dev_status = register_or_update_device(
@@ -687,7 +700,8 @@ async def auth_me(request: Request):
             os_info=machine["os_info"]
         )
         
-    trigger_cloud_license_sync_bg(dev_id)
+    if not is_render:
+        sync_license_from_cloud(dev_id)
     status = get_device_license_status(dev_id)
     plan_type = status.get("plan_type", "trial")
     plan_info = PLAN_CONFIGS.get(plan_type, PLAN_CONFIGS["trial" if status.get("is_trial") else "free"])
