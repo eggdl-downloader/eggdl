@@ -10,6 +10,7 @@ const App = {
   authMode: 'login',
 
   async init() {
+    this.initTheme();
     this.bindEvents();
     this.notifiedCompletedTaskIds = new Set();
     this.bindAuthEvents();
@@ -26,6 +27,40 @@ const App = {
     this.checkVersion(false);
     this.initAdminPanel();
     this.startSmoothProgressTicker();
+  },
+
+  initTheme() {
+    const savedTheme = localStorage.getItem('eggdl_theme') || 'slate';
+    this.applyTheme(savedTheme);
+
+    const themeSelector = document.getElementById('theme-selector');
+    const settingTheme = document.getElementById('setting-theme');
+
+    if (themeSelector) {
+      themeSelector.value = savedTheme;
+      themeSelector.addEventListener('change', (e) => {
+        this.applyTheme(e.target.value);
+      });
+    }
+
+    if (settingTheme) {
+      settingTheme.value = savedTheme;
+      settingTheme.addEventListener('change', (e) => {
+        this.applyTheme(e.target.value);
+      });
+    }
+  },
+
+  applyTheme(themeName) {
+    const validThemes = ['slate', 'navy', 'emerald'];
+    const theme = validThemes.includes(themeName) ? themeName : 'slate';
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('eggdl_theme', theme);
+
+    const themeSelector = document.getElementById('theme-selector');
+    const settingTheme = document.getElementById('setting-theme');
+    if (themeSelector && themeSelector.value !== theme) themeSelector.value = theme;
+    if (settingTheme && settingTheme.value !== theme) settingTheme.value = theme;
   },
 
   startSmoothProgressTicker() {

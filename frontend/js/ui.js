@@ -312,31 +312,31 @@ const UI = {
           </div>
         </div>
 
-        <div class="dl-complete-path-container" style="background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 6px 8px 6px 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; transition: all 0.15s ease;">
-          <div class="dl-complete-path-text-area" style="display: flex; align-items: center; gap: 7px; min-width: 0; flex: 1; cursor: pointer;" title="Open containing folder: ${safeDirPath}">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#60A5FA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
-            <span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; color: #94A3B8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${safeDirPath}</span>
+        <div class="dl-complete-path-container">
+          <div class="dl-complete-path-text-area" title="Open containing folder: ${safeDirPath}">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; color: var(--accent-primary);"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+            <span class="dl-complete-path-text">${safeDirPath}</span>
           </div>
-          <button type="button" class="dl-complete-copy-path-btn" title="Copy file path" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 4px 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #94A3B8; transition: all 0.15s ease; flex-shrink: 0;">
+          <button type="button" class="dl-complete-copy-path-btn" title="Copy file path">
             <svg class="dl-complete-copy-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-            <span class="dl-complete-copied-text" style="display: none; font-size: 10px; font-weight: 700; color: #10B981; margin-left: 3px;">Copied!</span>
+            <span class="dl-complete-copied-text" style="display: none; font-size: 10px; font-weight: 700; color: var(--accent-emerald); margin-left: 3px;">Copied!</span>
           </button>
         </div>
       </div>
 
-      <div style="padding: 2px 14px 13px 14px; display: flex; gap: 8px;">
-        <button type="button" class="dl-complete-open-btn" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; background: linear-gradient(180deg, #2563EB 0%, #1D4ED8 100%); color: #FFFFFF; border: 1px solid rgba(255,255,255,0.18); font-size: 12.5px; font-weight: 600; padding: 7.5px 14px; border-radius: 8px; cursor: pointer; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35), inset 0 1px 0 rgba(255,255,255,0.25); transition: all 0.15s ease;">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      <div class="dl-complete-footer">
+        <button type="button" class="dl-complete-open-btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
           <span>Open</span>
         </button>
-        <button type="button" class="dl-complete-folder-btn" style="display: flex; align-items: center; justify-content: center; gap: 6px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); color: #E2E8F0; font-size: 12px; font-weight: 500; padding: 7.5px 13px; border-radius: 8px; cursor: pointer; transition: all 0.15s ease;" title="Open containing folder">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
+        <button type="button" class="dl-complete-folder-btn" title="Open containing folder">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
           <span>Folder</span>
         </button>
       </div>
 
-      <div style="height: 2px; background: rgba(255,255,255,0.06); width: 100%; position: relative;">
-        <div class="dl-complete-progress-fill" style="height: 100%; background: linear-gradient(90deg, #38BDF8, #10B981); width: 100%; animation: dlCompleteProgress 7.5s linear forwards;"></div>
+      <div style="height: 3px; background: var(--bg-input); width: 100%; position: relative;">
+        <div class="dl-complete-progress-fill" style="height: 100%; background: var(--accent-emerald); width: 100%; animation: dlCompleteProgress 7.5s linear forwards;"></div>
       </div>
     `;
 

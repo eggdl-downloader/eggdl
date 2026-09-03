@@ -99,6 +99,14 @@
         </div>
 
         <div class="topbar-actions">
+          <div class="theme-select-wrapper" title="Switch Theme">
+            <i data-lucide="palette" class="theme-icon"></i>
+            <select id="theme-selector" class="theme-select-native" aria-label="Select Theme">
+              <option value="slate">Slate</option>
+              <option value="navy">Navy</option>
+              <option value="emerald">Emerald</option>
+            </select>
+          </div>
           <button class="btn btn-secondary btn-sm" id="install-pwa-btn" title="Install EggDL Desktop / Mobile App" style="display: none;">
             <i data-lucide="download"></i>
             <span>Install App</span>
@@ -113,7 +121,7 @@
           </button>
           <div id="user-header-area">
             <button class="user-pill-btn" id="user-profile-btn" title="Machine License & Product Key">
-              <div class="user-avatar"><i data-lucide="monitor" style="width: 14px; height: 14px;"></i></div>
+              <div class="user-avatar"><i data-lucide="monitor" style="width: 13px; height: 13px;"></i></div>
               <span class="user-name" id="header-pc-name">DESKTOP-PC</span>
               <span class="user-plan-badge trial" id="header-plan-badge">⏳ 7-Day Trial</span>
             </button>
@@ -122,21 +130,21 @@
       </header>
 
       <!-- In-App Notification / Update Notification Banner -->
-      <div id="top-update-banner" style="display: none; background: linear-gradient(90deg, rgba(245, 158, 11, 0.18), rgba(59, 130, 246, 0.18)); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 12px; padding: 12px 18px; margin-bottom: 18px; align-items: center; justify-content: space-between;">
+      <div id="top-update-banner" style="display: none; background: var(--bg-surface); border: 1px solid var(--border-default); border-left: 4px solid var(--accent-amber); border-radius: var(--radius-sm); padding: 10px 16px; margin-bottom: 14px; align-items: center; justify-content: space-between;">
         <div style="display: flex; align-items: center; gap: 12px;">
-          <div style="background: rgba(245, 158, 11, 0.2); color: #F59E0B; width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-            <i data-lucide="sparkles" style="width: 18px; height: 18px;"></i>
+          <div style="background: var(--accent-amber-bg); color: var(--accent-amber); width: 32px; height: 32px; border-radius: var(--radius-xs); display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: 1px solid rgba(245, 158, 11, 0.3);">
+            <i data-lucide="arrow-up-circle" style="width: 18px; height: 18px;"></i>
           </div>
           <div>
-            <div style="font-size: 0.9rem; font-weight: 700; color: #F59E0B;" id="top-update-title">🚀 New EggDL Update Available!</div>
-            <div style="font-size: 0.78rem; color: var(--text-muted);" id="top-update-desc">Upgrade to get True Byte Pause/Resume & GPU H.264 high-speed downloads.</div>
+            <div style="font-size: 0.88rem; font-weight: 700; color: var(--text-main);" id="top-update-title">EggDL Update Available</div>
+            <div style="font-size: 0.76rem; color: var(--text-muted);" id="top-update-desc">Upgrade to get True Byte Pause/Resume & GPU H.264 acceleration.</div>
           </div>
         </div>
         <div style="display: flex; gap: 8px; align-items: center;">
-          <button class="btn btn-primary btn-sm btn-glow" id="top-update-btn">
+          <button class="btn btn-primary btn-sm" id="top-update-btn">
             <i data-lucide="download"></i> Update Now
           </button>
-          <button class="btn btn-secondary btn-sm" id="top-update-dismiss" style="padding: 6px 10px;">
+          <button class="btn btn-secondary btn-sm" id="top-update-dismiss" style="padding: 4px 8px;">
             <i data-lucide="x"></i>
           </button>
         </div>
@@ -365,6 +373,16 @@
             <option value="5">5 downloads</option>
             <option value="10">10 downloads</option>
           </select>
+        </div>
+
+        <div class="form-group">
+          <label for="setting-theme">UI Theme Palette</label>
+          <select id="setting-theme" class="form-control">
+            <option value="slate">Dark Slate (Default)</option>
+            <option value="navy">Material Navy</option>
+            <option value="emerald">Emerald Utility</option>
+          </select>
+          <small class="form-hint">Modular, solid design system with stepped luminance.</small>
         </div>
 
         <!-- App Version & Updates Section -->
