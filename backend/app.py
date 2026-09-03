@@ -45,7 +45,7 @@ try:
         get_device_id, get_machine_info, register_or_update_device,
         get_device_license_status, grant_device_pro, revoke_device_pro,
         reset_device_trial, activate_product_key_for_device, get_all_devices_telemetry,
-        is_device_blocked, set_device_blocked,
+        is_device_blocked, set_device_blocked, delete_device,
         get_all_devices, get_latest_app_release, set_app_release,
         get_trial_and_subscription_status
     )
@@ -67,7 +67,7 @@ except ImportError:
         get_device_id, get_machine_info, register_or_update_device,
         get_device_license_status, grant_device_pro, revoke_device_pro,
         reset_device_trial, activate_product_key_for_device, get_all_devices_telemetry,
-        is_device_blocked, set_device_blocked,
+        is_device_blocked, set_device_blocked, delete_device,
         get_all_devices, get_latest_app_release, set_app_release,
         get_trial_and_subscription_status
     )
