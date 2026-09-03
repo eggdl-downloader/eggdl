@@ -8,15 +8,16 @@
     "is_blocked": 0,
     "block_reason": null,
     "last_seen": "2026-09-01T00:00:59.263965",
-    "created_at": "2026-08-04T22:18:53.022850",
+    "created_at": "2026-08-05T00:20:52.738577",
     "user_name": "Fx World",
     "ip_address": null,
-    "plan_type": "1month",
-    "plan_expires_at": "2026-10-04T00:16:16.630921",
+    "plan_type": "3month",
+    "plan_expires_at": "2026-12-03T00:22:27.887695",
     "is_pro": 1,
     "license_key": null,
     "total_downloads": 0,
-    "data_downloaded_mb": 0.0
+    "data_downloaded_mb": 0.0,
+    "pro_activated_at": null
   },
   {
     "device_id": "EGG-7E211D32E60ABA50",
@@ -35,7 +36,8 @@
     "is_pro": 0,
     "license_key": null,
     "total_downloads": 0,
-    "data_downloaded_mb": 0.0
+    "data_downloaded_mb": 0.0,
+    "pro_activated_at": null
   },
   {
     "device_id": "EGG-5D8D2A22D46A74DD",
@@ -54,7 +56,8 @@
     "is_pro": 1,
     "license_key": "EGGDL-3M-51FA-FD47-5D7B",
     "total_downloads": 3,
-    "data_downloaded_mb": 0.0
+    "data_downloaded_mb": 0.0,
+    "pro_activated_at": null
   },
   {
     "device_id": "EGG-B68272F7F4633BA2",
@@ -73,7 +76,8 @@
     "is_pro": 0,
     "license_key": null,
     "total_downloads": 0,
-    "data_downloaded_mb": 0.0
+    "data_downloaded_mb": 0.0,
+    "pro_activated_at": null
   },
   {
     "device_id": "EGG-653274A6E74E37EF",
@@ -92,7 +96,8 @@
     "is_pro": 1,
     "license_key": null,
     "total_downloads": 0,
-    "data_downloaded_mb": 0.0
+    "data_downloaded_mb": 0.0,
+    "pro_activated_at": null
   },
   {
     "device_id": "EGG-D794FDAABF4D5D8E",
@@ -111,7 +116,8 @@
     "is_pro": 1,
     "license_key": "EGGDL-1M-3C6B-41F7-CF2C",
     "total_downloads": 0,
-    "data_downloaded_mb": 0.0
+    "data_downloaded_mb": 0.0,
+    "pro_activated_at": null
   },
   {
     "device_id": "EGG-FC90DF79884ABAB0",
@@ -130,7 +136,8 @@
     "is_pro": 1,
     "license_key": null,
     "total_downloads": 0,
-    "data_downloaded_mb": 0.0
+    "data_downloaded_mb": 0.0,
+    "pro_activated_at": null
   },
   {
     "device_id": "EGG-BE494EF057B5C366",
@@ -149,7 +156,8 @@
     "is_pro": 0,
     "license_key": null,
     "total_downloads": 0,
-    "data_downloaded_mb": 0.0
+    "data_downloaded_mb": 0.0,
+    "pro_activated_at": null
   },
   {
     "device_id": "EGG-DC7C46E21BBA51EE",
@@ -159,15 +167,36 @@
     "app_version": "2.1.6",
     "is_blocked": 0,
     "block_reason": null,
-    "last_seen": "2026-09-04T00:16:14.620985",
-    "created_at": "2026-09-02T11:54:50.531645",
+    "last_seen": "2026-09-04T00:25:23.625135",
+    "created_at": "2026-09-04T00:19:26.616893",
     "user_name": "Sriman",
     "ip_address": null,
-    "plan_type": "3month",
-    "plan_expires_at": "2026-11-25T18:31:58.995254",
+    "plan_type": "lifetime",
+    "plan_expires_at": null,
     "is_pro": 1,
     "license_key": null,
     "total_downloads": 155,
-    "data_downloaded_mb": 0.0
+    "data_downloaded_mb": 0.0,
+    "pro_activated_at": null
+  },
+  {
+    "device_id": "EGG-TEST-DEVICE-1",
+    "user_email": null,
+    "machine_name": "SRIMAN",
+    "os_info": "Windows 11",
+    "app_version": null,
+    "is_blocked": 0,
+    "block_reason": null,
+    "last_seen": "2026-09-04T00:25:24.162278",
+    "created_at": "2026-09-04T00:25:24.162278",
+    "user_name": "Sriman",
+    "ip_address": null,
+    "plan_type": "1year",
+    "plan_expires_at": "2027-09-04T00:25:24.162278",
+    "is_pro": 1,
+    "license_key": "EGGDL-1Y-FCD9-F314-314A",
+    "total_downloads": 0,
+    "data_downloaded_mb": 0.0,
+    "pro_activated_at": null
   }
 ]

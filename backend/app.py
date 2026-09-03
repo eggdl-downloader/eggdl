@@ -62,7 +62,10 @@ except ImportError:
         create_user, get_user_by_email, get_user_by_id, get_user_by_google_id,
         update_user_plan, create_license_key, get_license_key, activate_license_key,
         create_payment_record, get_user_payments, get_daily_downloads_count,
-        get_device_id, register_device, is_device_blocked, set_device_blocked,
+        get_device_id, get_machine_info, register_or_update_device,
+        get_device_license_status, grant_device_pro, revoke_device_pro,
+        reset_device_trial, activate_product_key_for_device, get_all_devices_telemetry,
+        is_device_blocked, set_device_blocked,
         get_all_devices, get_latest_app_release, set_app_release,
         get_trial_and_subscription_status
     )
@@ -85,7 +88,12 @@ async def add_pna_and_cors_headers(request: Request, call_next):
     if request.method == "OPTIONS":
         response = Response(status_code=204)
     else:
-        response = await call_next(request)
+        try:
+            response = await call_next(request)
+        except HTTPException as he:
+            response = JSONResponse(status_code=he.status_code, content={"detail": he.detail})
+        except Exception as exc:
+            response = JSONResponse(status_code=500, content={"detail": str(exc)})
     response.headers["Access-Control-Allow-Origin"] = origin
     response.headers["Access-Control-Allow-Credentials"] = "true"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH"
@@ -850,14 +858,16 @@ class LicenseImportRequest(BaseModel):
 
 @app.post("/api/license/import-keys")
 async def license_import_keys(req: LicenseImportRequest):
-    duration = PLAN_CONFIGS.get(req.plan_type, {}).get("duration_days", 30)
+    duration = PLAN_CONFIGS.get(req.plan_type, {}).get("duration_days", 365 if req.plan_type == "1year" else 30)
+    imported = 0
     for k in req.keys:
         k_clean = re.sub(r'[\s\r\n]+', '', k).replace('–', '-').replace('—', '-').upper()
         try:
             create_license_key(k_clean, req.plan_type, duration)
-        except Exception:
-            pass
-    return {"success": True, "count": len(req.keys)}
+            imported += 1
+        except Exception as e:
+            print(f"[ImportKey warning]: {e}")
+    return {"success": True, "count": imported}
 
 # --- Payment Processing Endpoint ---
 @app.post("/api/payment/process")

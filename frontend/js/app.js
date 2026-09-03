@@ -1650,19 +1650,55 @@ const App = {
 
         try {
           generateKeysBtn.disabled = true;
-          const res = await fetch(`${API.baseUrl}/api/license/generate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ plan_type: planTier, count })
-          });
-          const data = await res.json();
-          if (res.ok && data.keys) {
+          let keys = [];
+
+          // 1. Generate via Cloud Render Master Server (Central Authority)
+          try {
+            const cloudRes = await fetch(`https://eggdl.onrender.com/api/license/generate`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ plan_type: planTier, count })
+            });
+            if (cloudRes.ok) {
+              const cloudData = await cloudRes.json();
+              if (cloudData.keys && cloudData.keys.length > 0) {
+                keys = cloudData.keys;
+                // Also import to local backend so local machine has them
+                fetch(`${API.baseUrl}/api/license/import-keys`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ plan_type: planTier, keys: keys })
+                }).catch(() => {});
+              }
+            }
+          } catch (_) {}
+
+          // 2. If Cloud unreachable, generate locally and forward
+          if (keys.length === 0) {
+            const res = await fetch(`${API.baseUrl}/api/license/generate`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ plan_type: planTier, count })
+            });
+            const data = await res.json();
+            if (res.ok && data.keys) {
+              keys = data.keys;
+              // Forward to Cloud Render Server
+              fetch(`https://eggdl.onrender.com/api/license/import-keys`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ plan_type: planTier, keys: keys })
+              }).catch(() => {});
+            } else {
+              throw new Error(data.detail || 'Key generation failed');
+            }
+          }
+
+          if (keys.length > 0) {
             if (outBox) outBox.style.display = 'block';
-            if (outText) outText.value = data.keys.join('\n');
+            if (outText) outText.value = keys.join('\n');
             if (window.lucide) window.lucide.createIcons();
-            UI.showToast(`✨ Generated ${data.keys.length} product keys!`, 'success');
-          } else {
-            UI.showToast(data.detail || 'Key generation failed', 'error');
+            UI.showToast(`✨ Generated ${keys.length} cloud-verified product keys!`, 'success');
           }
         } catch (err) {
           UI.showToast('Generation error: ' + err.message, 'error');

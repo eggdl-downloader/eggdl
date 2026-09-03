@@ -25,6 +25,7 @@ DATA_DIR = get_user_data_dir()
 DEFAULT_DOWNLOAD_DIR = str(Path.home() / "Downloads" / "Eggdl Downloads")
 DB_PATH = os.path.join(DATA_DIR, "eggdl.db")
 REGISTRY_FILE = os.path.join(os.path.dirname(__file__), "devices_registry.json")
+KEYS_REGISTRY_FILE = os.path.join(os.path.dirname(__file__), "keys_registry.json")
 
 def export_devices_to_registry():
     """Exports all devices from SQLite into backend/devices_registry.json to guarantee 100% permanence across deploys."""
@@ -83,6 +84,46 @@ def import_devices_from_registry(cursor):
                     """, (d.get("plan_type", "1month"), d.get("plan_expires_at"), d.get("pro_activated_at"), dev_id))
     except Exception as e:
         print(f"[DevicesRegistry] Warning importing registry: {e}")
+
+def export_keys_to_registry():
+    """Exports all license keys from SQLite into backend/keys_registry.json so they survive server deploys/restarts."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT key, plan_type, duration_days, is_used, used_by_user_id, activated_at, created_at FROM license_keys ORDER BY created_at ASC")
+        rows = cursor.fetchall()
+        conn.close()
+        keys = [dict(r) for r in rows]
+        if keys:
+            with open(KEYS_REGISTRY_FILE, "w", encoding="utf-8") as f:
+                json.dump(keys, f, indent=2, default=str)
+    except Exception as e:
+        print(f"[KeysRegistry] Warning exporting keys: {e}")
+
+def import_keys_from_registry(cursor):
+    """Imports license keys from backend/keys_registry.json into SQLite on container boot/init."""
+    if not os.path.exists(KEYS_REGISTRY_FILE):
+        return
+    try:
+        with open(KEYS_REGISTRY_FILE, "r", encoding="utf-8") as f:
+            keys = json.load(f)
+        for k in keys:
+            key_str = k.get("key")
+            if not key_str:
+                continue
+            cursor.execute("SELECT key FROM license_keys WHERE key = ?", (key_str,))
+            existing = cursor.fetchone()
+            if not existing:
+                cursor.execute("""
+                INSERT INTO license_keys (key, plan_type, duration_days, is_used, used_by_user_id, activated_at, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    key_str, k.get("plan_type", "1year"), k.get("duration_days", 365),
+                    int(k.get("is_used", 0)), k.get("used_by_user_id"),
+                    k.get("activated_at"), k.get("created_at") or datetime.now().isoformat()
+                ))
+    except Exception as e:
+        print(f"[KeysRegistry] Warning importing keys: {e}")
 
 def init_db():
     os.makedirs(DEFAULT_DOWNLOAD_DIR, exist_ok=True)
@@ -200,7 +241,8 @@ def init_db():
         ("is_pro", "INTEGER DEFAULT 0"),
         ("license_key", "TEXT"),
         ("total_downloads", "INTEGER DEFAULT 0"),
-        ("data_downloaded_mb", "REAL DEFAULT 0.0")
+        ("data_downloaded_mb", "REAL DEFAULT 0.0"),
+        ("pro_activated_at", "TIMESTAMP")
     ]:
         try:
             cursor.execute(f"ALTER TABLE devices ADD COLUMN {col} {col_type};")
@@ -239,8 +281,9 @@ def init_db():
     VALUES ('2.1.6', '⚡ Ultra-Fast Native MP4 Engine\n🚀 Instant Single-File Output & Zero 99% Lag\n🎬 4K/8K stream download optimizations.', 'https://eggdl.onrender.com/download/setup', 0, 1)
     """)
 
-    # Load persistent devices registry so subscription details are NEVER lost across restarts/deploys
+    # Load persistent devices & keys registry so subscription & product keys are NEVER lost across restarts/deploys
     import_devices_from_registry(cursor)
+    import_keys_from_registry(cursor)
 
     conn.commit()
     conn.close()
@@ -498,6 +541,7 @@ def create_license_key(key: str, plan_type: str, duration_days: int) -> Dict[str
     """, (key, plan_type, duration_days, datetime.now().isoformat()))
     conn.commit()
     conn.close()
+    export_keys_to_registry()
     return {"key": key, "plan_type": plan_type, "duration_days": duration_days}
 
 def get_license_key(key: str) -> Optional[Dict[str, Any]]:
@@ -552,6 +596,7 @@ def activate_license_key(key: str, user_id: str) -> Optional[Dict[str, Any]]:
     """, (user_id, now.isoformat(), key_clean))
     conn.commit()
     conn.close()
+    export_keys_to_registry()
     
     # Update user subscription
     update_user_plan(user_id, plan_type, expires_at, key_clean)
@@ -992,9 +1037,20 @@ def activate_product_key_for_device(device_id: str, license_key: str) -> Dict[st
     WHERE device_id = ?
     """, (plan_type, exp_dt, key_clean, device_id))
     
+    if cursor.rowcount == 0:
+        info = get_machine_info()
+        cursor.execute("""
+        INSERT INTO devices (
+            device_id, machine_name, user_name, os_info, plan_type, plan_expires_at,
+            is_pro, license_key, is_blocked, last_seen, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, 0, ?, ?)
+        """, (device_id, info.get("desktop_name", "DESKTOP-PC"), info.get("user_name", "User"),
+              info.get("os_info", "Windows"), plan_type, exp_dt, key_clean, now.isoformat(), now.isoformat()))
+        
     conn.commit()
     conn.close()
     export_devices_to_registry()
+    export_keys_to_registry()
     return get_device_license_status(device_id)
 
 def is_device_blocked(device_id: str) -> Dict[str, Any]:
