@@ -49,6 +49,12 @@
   --accent-purple: #8B5CF6;
   --accent-purple-bg: #231B32;
 
+  /* Semantic Icon Tokens */
+  --icon-inactive: #8E8EA8;
+  --icon-hover: #FFFFFF;
+  --icon-active: #46F0D2;
+  --icon-destructive: #DA3633;
+
   /* High-Contrast Typography */
   --text-main: #F0F3F6;
   --text-secondary: #9DA7B3;
@@ -67,7 +73,7 @@
   --radius-xl: 8px;
   --radius-full: 9999px;
 
-  /* Elevation (Crisp, No Neon Glow, No AI Tropes) */
+  /* Elevation (Crisp, Zero AI Tropes) */
   --glass-blur: none;
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
   --shadow-md: 0 2px 6px 0 rgba(0, 0, 0, 0.5);
@@ -75,20 +81,20 @@
   --shadow-glow: none;
 }
 
-/* Material Navy Theme */
+/* 1. Material Navy Theme */
 [data-theme="navy"] {
-  --bg-canvas: #0C1017;
-  --bg-surface: #121824;
-  --bg-surface-hover: #1C2638;
-  --bg-surface-active: #1C2638;
-  --bg-surface-elevated: #182232;
-  --bg-input: #0E141F;
-  --bg-sidebar: #0F1520;
+  --bg-canvas: #0A0F1D;
+  --bg-surface: #101827;
+  --bg-surface-hover: #1E293B;
+  --bg-surface-active: #283548;
+  --bg-surface-elevated: #141F36;
+  --bg-input: #080D1A;
+  --bg-sidebar: #0C1322;
 
-  --border-default: #233247;
-  --border-subtle: #1A2536;
-  --border-medium: #233247;
-  --border-bright: #304460;
+  --border-default: #1E2B45;
+  --border-subtle: #162035;
+  --border-medium: #1E2B45;
+  --border-bright: #2D3F63;
   --border-focus: #38BDF8;
   --border-color: var(--border-default);
 
@@ -117,46 +123,238 @@
   --text-dim: #475569;
 }
 
-/* Emerald Utility Theme */
-[data-theme="emerald"] {
-  --bg-canvas: #0B1210;
-  --bg-surface: #121C19;
-  --bg-surface-hover: #1A2B26;
-  --bg-surface-active: #1A2B26;
-  --bg-surface-elevated: #172622;
-  --bg-input: #0D1613;
-  --bg-sidebar: #0F1714;
+/* 2. Solid Mint Theme (Sleek Obsidian & Vibrant Mint) */
+[data-theme="mint"] {
+  --bg-canvas: #0D1117;
+  --bg-surface: #161B22;
+  --bg-surface-hover: #21262D;
+  --bg-surface-active: #30363D;
+  --bg-surface-elevated: #1A202A;
+  --bg-input: #090D12;
+  --bg-sidebar: #11151C;
 
-  --border-default: #223832;
-  --border-subtle: #182A25;
-  --border-medium: #223832;
-  --border-bright: #2E4B43;
-  --border-focus: #10B981;
+  --border-default: #30363D;
+  --border-subtle: #21262D;
+  --border-medium: #30363D;
+  --border-bright: #484F58;
+  --border-focus: #46F0D2;
   --border-color: var(--border-default);
 
-  --accent-primary: #10B981;
-  --accent-primary-hover: #059669;
-  --accent-primary-active: #047857;
-  --accent-text: #022C22;
+  --accent-primary: #46F0D2;
+  --accent-primary-hover: #2DD4BF;
+  --accent-primary-active: #14B8A6;
+  --accent-text: #042F2E;
   --primary: var(--accent-primary);
   --primary-hover: var(--accent-primary-hover);
   --primary-glow: transparent;
 
-  --accent-cyan: #2DD4BF;
-  --accent-cyan-bg: #0D2B27;
-  --accent-emerald: #10B981;
-  --accent-emerald-bg: #102B21;
+  --accent-cyan: #46F0D2;
+  --accent-cyan-bg: #0C2D27;
+  --accent-emerald: #46F0D2;
+  --accent-emerald-bg: #0C2D27;
   --accent-amber: #F59E0B;
   --accent-amber-bg: #2A2111;
   --accent-rose: #EF4444;
   --accent-rose-bg: #2B1517;
-  --accent-purple: #A78BFA;
-  --accent-purple-bg: #231C36;
+  --accent-purple: #C084FC;
+  --accent-purple-bg: #271A38;
 
-  --text-main: #ECFDF5;
-  --text-secondary: #A7F3D0;
-  --text-muted: #6EE7B7;
-  --text-dim: #3D6659;
+  --text-main: #F0F6FC;
+  --text-secondary: #8B949E;
+  --text-muted: #6E7681;
+  --text-dim: #484F58;
+}
+
+/* 3. Nordic Frost Theme (Arctic Precision) */
+[data-theme="frost"] {
+  --bg-canvas: #0B131E;
+  --bg-surface: #111C2B;
+  --bg-surface-hover: #1A283C;
+  --bg-surface-active: #24364F;
+  --bg-surface-elevated: #142234;
+  --bg-input: #080E17;
+  --bg-sidebar: #0E1624;
+
+  --border-default: #22334A;
+  --border-subtle: #172435;
+  --border-medium: #22334A;
+  --border-bright: #354D6E;
+  --border-focus: #00D2FF;
+  --border-color: var(--border-default);
+
+  --accent-primary: #00D2FF;
+  --accent-primary-hover: #00B4DB;
+  --accent-primary-active: #0088A3;
+  --accent-text: #042433;
+  --primary: var(--accent-primary);
+  --primary-hover: var(--accent-primary-hover);
+  --primary-glow: transparent;
+
+  --accent-cyan: #00D2FF;
+  --accent-cyan-bg: #092736;
+  --accent-emerald: #10B981;
+  --accent-emerald-bg: #0D261E;
+  --accent-amber: #FBBF24;
+  --accent-amber-bg: #2E2512;
+  --accent-rose: #F87171;
+  --accent-rose-bg: #30171A;
+  --accent-purple: #818CF8;
+  --accent-purple-bg: #1B1D36;
+
+  --text-main: #F0F9FF;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  --text-dim: #475569;
+}
+
+/* 4. Charcoal Zinc Theme (Pure Monochromatic Titanium) */
+[data-theme="zinc"] {
+  --bg-canvas: #121214;
+  --bg-surface: #18181B;
+  --bg-surface-hover: #27272A;
+  --bg-surface-active: #3F3F46;
+  --bg-surface-elevated: #202024;
+  --bg-input: #0E0E10;
+  --bg-sidebar: #141416;
+
+  --border-default: #2E2E34;
+  --border-subtle: #222227;
+  --border-medium: #2E2E34;
+  --border-bright: #52525B;
+  --border-focus: #E4E4E7;
+  --border-color: var(--border-default);
+
+  --accent-primary: #E4E4E7;
+  --accent-primary-hover: #FAFAFA;
+  --accent-primary-active: #D4D4D8;
+  --accent-text: #09090B;
+  --primary: var(--accent-primary);
+  --primary-hover: var(--accent-primary-hover);
+  --primary-glow: transparent;
+
+  --accent-cyan: #A1A1AA;
+  --accent-cyan-bg: #27272A;
+  --accent-emerald: #10B981;
+  --accent-emerald-bg: #13271F;
+  --accent-amber: #F59E0B;
+  --accent-amber-bg: #2B2313;
+  --accent-rose: #EF4444;
+  --accent-rose-bg: #2B1517;
+  --accent-purple: #D4D4D8;
+  --accent-purple-bg: #27272A;
+
+  --text-main: #FAFAFA;
+  --text-secondary: #A1A1AA;
+  --text-muted: #71717A;
+  --text-dim: #52525B;
+}
+
+/* ==========================================================================
+   Icon Architecture & Standardization Rules
+   ========================================================================== */
+svg.lucide, i[data-lucide], .lucide {
+  stroke-width: 1.75px !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+  filter: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  display: inline-block;
+  vertical-align: middle;
+  transition: color 0.12s ease, stroke 0.12s ease;
+}
+
+/* Inline / Metadata Icons (14px to 16px) */
+.icon-meta,
+.inline-icon,
+.media-preview-meta .small-icon,
+.tag i,
+.speed-badge i,
+.btn-sm i,
+.theme-icon,
+.format-meta i,
+.stat-card-label i,
+.dl-complete-copied-text i {
+  width: 14px !important;
+  height: 14px !important;
+  min-width: 14px !important;
+  min-height: 14px !important;
+}
+
+/* Action / Control Icons (18px to 20px) */
+.icon-action,
+.action-buttons .btn i,
+.btn-icon-only i,
+.btn i,
+.modal-title i,
+.input-icon i,
+.type-icon i,
+.stat-icon-wrapper i {
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  min-height: 18px !important;
+}
+
+/* Navigation / Tab Bar Icons (24px) */
+.icon-nav,
+.nav-item i {
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  min-height: 24px !important;
+}
+
+/* Strict Touch & Click Targets: min 32px x 32px (Desktop), 6px radius */
+.btn-icon-only,
+.action-buttons .btn,
+.modal-close,
+.mobile-menu-toggle {
+  min-width: 32px !important;
+  min-height: 32px !important;
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 6px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  background: transparent;
+  color: var(--icon-inactive) !important;
+  border: 1px solid transparent;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.btn-icon-only:hover,
+.action-buttons .btn:hover,
+.modal-close:hover,
+.mobile-menu-toggle:hover {
+  background: #222730 !important;
+  color: #FFFFFF !important;
+  border-color: var(--border-default) !important;
+}
+
+/* Destructive Actions (Flat Error Red #DA3633) */
+.btn-danger,
+.action-buttons .btn-danger,
+.action-btn.delete,
+.btn-delete {
+  color: #DA3633 !important;
+}
+
+.btn-danger:hover,
+.action-buttons .btn-danger:hover,
+.action-btn.delete:hover,
+.btn-delete:hover {
+  background: #DA3633 !important;
+  color: #FFFFFF !important;
+  border-color: #DA3633 !important;
+}
+
+/* Interactive / Focus Accent (#46F0D2 or theme accent) */
+.nav-item.active i,
+.nav-item.active span {
+  color: var(--accent-primary) !important;
 }
 
 /* Global Reset */
@@ -2154,7 +2352,7 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
 
 .dl-complete-progress-fill {
   height: 100%;
-  background: var(--accent-emerald);
+  background: var(--accent-primary);
   width: 100%;
   animation: dlCompleteProgress 7.5s linear forwards;
 }

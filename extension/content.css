@@ -1,4 +1,70 @@
-/* Pro Downloader - Top-Center Glassmorphism Floating Button (IDM-Style Smart Playback Visibility) */
+/* 5 Modular Utility Themes for Injected Controls */
+:root, [data-theme="slate"] {
+  --bg-canvas: #101216;
+  --bg-surface: #181C22;
+  --bg-surface-hover: #222730;
+  --bg-surface-active: #2A303C;
+  --bg-input: #12151A;
+  --border-default: #2E3540;
+  --border-bright: #3D4654;
+  --accent-primary: #3B82F6;
+  --accent-primary-hover: #2563EB;
+  --accent-text: #FFFFFF;
+}
+
+[data-theme="navy"] {
+  --bg-canvas: #0A0F1D;
+  --bg-surface: #101827;
+  --bg-surface-hover: #1E293B;
+  --bg-surface-active: #283548;
+  --bg-input: #080D1A;
+  --border-default: #1E2B45;
+  --border-bright: #2D3F63;
+  --accent-primary: #38BDF8;
+  --accent-primary-hover: #0EA5E9;
+  --accent-text: #082F49;
+}
+
+[data-theme="mint"] {
+  --bg-canvas: #0D1117;
+  --bg-surface: #161B22;
+  --bg-surface-hover: #21262D;
+  --bg-surface-active: #30363D;
+  --bg-input: #090D12;
+  --border-default: #30363D;
+  --border-bright: #484F58;
+  --accent-primary: #46F0D2;
+  --accent-primary-hover: #2DD4BF;
+  --accent-text: #042F2E;
+}
+
+[data-theme="frost"] {
+  --bg-canvas: #0B131E;
+  --bg-surface: #111C2B;
+  --bg-surface-hover: #1A283C;
+  --bg-surface-active: #24364F;
+  --bg-input: #080E17;
+  --border-default: #22334A;
+  --border-bright: #354D6E;
+  --accent-primary: #00D2FF;
+  --accent-primary-hover: #00B4DB;
+  --accent-text: #042433;
+}
+
+[data-theme="zinc"] {
+  --bg-canvas: #121214;
+  --bg-surface: #18181B;
+  --bg-surface-hover: #27272A;
+  --bg-surface-active: #3F3F46;
+  --bg-input: #0E0E10;
+  --border-default: #2E2E34;
+  --border-bright: #52525B;
+  --accent-primary: #E4E4E7;
+  --accent-primary-hover: #FAFAFA;
+  --accent-text: #09090B;
+}
+
+/* Pro Downloader - Solid Native Floating Button (IDM-Style Smart Playback Visibility) */
 .pro-dl-floating-badge {
   position: absolute !important;
   top: 14px !important;
@@ -12,7 +78,7 @@
   opacity: 0 !important;
   visibility: hidden !important;
   pointer-events: none !important;
-  transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.22s ease !important;
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease !important;
 }
 
 .pro-dl-floating-badge.pro-dl-visible,
@@ -29,30 +95,31 @@
   display: inline-flex !important;
   align-items: center !important;
   gap: 7px !important;
-  background: rgba(12, 17, 29, 0.90) !important;
-  backdrop-filter: blur(18px) saturate(190%) !important;
-  -webkit-backdrop-filter: blur(18px) saturate(190%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  background: var(--bg-surface, #181C22) !important;
+  border: 1px solid var(--border-default, #2E3540) !important;
   color: #FFFFFF !important;
-  padding: 7px 16px !important;
-  border-radius: 24px !important;
+  padding: 6px 14px !important;
+  border-radius: 6px !important;
   font-size: 12px !important;
   font-weight: 700 !important;
   letter-spacing: 0.2px !important;
   cursor: pointer !important;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.65), inset 0 1px 1px rgba(255, 255, 255, 0.35) !important;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  transition: background 0.12s ease, border-color 0.12s ease !important;
 }
 
 .pro-dl-badge-btn:hover {
-  background: linear-gradient(135deg, #3B82F6, #6366F1) !important;
-  border-color: rgba(255, 255, 255, 0.45) !important;
-  transform: translateY(-2px) scale(1.03) !important;
-  box-shadow: 0 12px 35px rgba(59, 130, 246, 0.55), inset 0 1px 1px rgba(255, 255, 255, 0.4) !important;
+  background: var(--bg-surface-hover, #222730) !important;
+  border-color: var(--accent-primary, #3B82F6) !important;
+  transform: none !important;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.55) !important;
 }
 
 .pro-dl-badge-btn svg.pro-dl-icon {
-  stroke: #38BDF8 !important;
+  stroke: var(--accent-primary, #3B82F6) !important;
+  stroke-width: 1.75px !important;
   width: 15px !important;
   height: 15px !important;
   display: block !important;
@@ -68,38 +135,38 @@
   top: 100% !important;
   left: 50% !important;
   transform: translateX(-50%) !important;
-  margin-top: 8px !important;
-  background: rgba(12, 17, 29, 0.96) !important;
-  backdrop-filter: blur(24px) saturate(200%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(200%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.18) !important;
-  border-radius: 14px !important;
+  margin-top: 6px !important;
+  background: var(--bg-surface, #181C22) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid var(--border-default, #2E3540) !important;
+  border-radius: 8px !important;
   width: 320px !important;
   max-height: 380px !important;
   overflow-y: auto !important;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), inset 0 1px 1px rgba(255, 255, 255, 0.2) !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.75) !important;
   padding: 8px !important;
   z-index: 2147483647 !important;
 }
 
 .pro-dl-badge-menu.active {
   display: block !important;
-  animation: proDlFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  animation: proDlFadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 @keyframes proDlFadeIn {
-  from { opacity: 0; transform: translateX(-50%) translateY(-6px) scale(0.96); }
-  to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  from { opacity: 0; transform: translateX(-50%) translateY(-4px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
 .pro-dl-menu-header {
   font-size: 11px !important;
   font-weight: 700 !important;
-  color: #94A3B8 !important;
+  color: var(--text-muted, #94A3B8) !important;
   text-transform: uppercase !important;
   letter-spacing: 0.8px !important;
   padding: 6px 8px !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-bottom: 1px solid var(--border-default, #2E3540) !important;
   margin-bottom: 6px !important;
 }
 
@@ -116,10 +183,10 @@
 }
 
 .pro-dl-spinner {
-  width: 22px !important;
-  height: 22px !important;
-  border: 2.5px solid rgba(0, 210, 255, 0.2) !important;
-  border-top-color: #00D2FF !important;
+  width: 20px !important;
+  height: 20px !important;
+  border: 2px solid rgba(255, 255, 255, 0.15) !important;
+  border-top-color: var(--accent-primary, #3B82F6) !important;
   border-radius: 50% !important;
   animation: proDlSpin 0.7s linear infinite !important;
 }
@@ -133,16 +200,16 @@
   align-items: center !important;
   gap: 10px !important;
   padding: 8px 10px !important;
-  border-radius: 8px !important;
+  border-radius: 6px !important;
   cursor: pointer !important;
-  transition: all 0.15s ease !important;
+  transition: background 0.12s ease !important;
   border: 1px solid transparent !important;
 }
 
 .pro-dl-menu-item:hover {
-  background: rgba(59, 130, 246, 0.18) !important;
-  border-color: rgba(59, 130, 246, 0.35) !important;
-  transform: translateX(2px) !important;
+  background: var(--bg-surface-hover, #222730) !important;
+  border-color: var(--border-default, #2E3540) !important;
+  transform: none !important;
 }
 
 .pro-dl-item-info {
@@ -267,17 +334,16 @@
 .egg-dl-idm-modal {
   width: 500px !important;
   max-width: calc(100vw - 32px) !important;
-  background: rgba(13, 17, 23, 0.98) !important;
-  border: 1px solid rgba(255, 255, 255, 0.16) !important;
-  border-top: 1px solid rgba(255, 255, 255, 0.28) !important;
-  border-radius: 14px !important;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.75), 0 0 1px 1px rgba(255, 255, 255, 0.1) !important;
+  background: var(--bg-surface, #181C22) !important;
+  border: 1px solid var(--border-default, #2E3540) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7) !important;
   color: #F8FAFC !important;
   display: flex !important;
   flex-direction: column !important;
   overflow: hidden !important;
-  transform: scale(0.95) translateY(8px) !important;
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  transform: scale(0.96) translateY(4px) !important;
+  transition: transform 0.15s ease !important;
   box-sizing: border-box !important;
   pointer-events: auto !important;
 }
@@ -291,8 +357,8 @@
   align-items: center !important;
   justify-content: space-between !important;
   padding: 10px 16px !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
-  background: rgba(255, 255, 255, 0.03) !important;
+  border-bottom: 1px solid var(--border-default, #2E3540) !important;
+  background: var(--bg-surface, #181C22) !important;
   cursor: grab !important;
 }
 
@@ -316,34 +382,33 @@
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  transition: all 0.15s ease !important;
+  transition: all 0.12s ease !important;
 }
 
 .egg-dl-idm-ctrl-btn:hover {
-  background: rgba(255, 255, 255, 0.12) !important;
+  background: var(--bg-surface-hover, #222730) !important;
   color: #FFFFFF !important;
 }
 
 .egg-dl-idm-ctrl-btn.close:hover {
-  background: rgba(239, 68, 68, 0.3) !important;
-  color: #EF4444 !important;
+  background: #DA3633 !important;
+  color: #FFFFFF !important;
 }
 
 /* Save As Editable Input Row */
 .egg-dl-idm-save-row {
-  background: rgba(0, 0, 0, 0.45) !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  border-radius: 8px !important;
+  background: var(--bg-input, #12151A) !important;
+  border: 1px solid var(--border-default, #2E3540) !important;
+  border-radius: 6px !important;
   padding: 7px 12px !important;
   display: flex !important;
   align-items: center !important;
   gap: 10px !important;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+  transition: border-color 0.15s ease !important;
 }
 
 .egg-dl-idm-save-row:focus-within {
-  border-color: rgba(59, 130, 246, 0.75) !important;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25), 0 0 14px rgba(59, 130, 246, 0.2) !important;
+  border-color: var(--accent-primary, #3B82F6) !important;
 }
 
 .egg-dl-idm-save-label {
@@ -377,73 +442,70 @@
 }
 
 .egg-dl-idm-path-input::selection {
-  background: rgba(59, 130, 246, 0.45) !important;
+  background: var(--accent-primary, #3B82F6) !important;
   color: #FFFFFF !important;
 }
 
-/* Glowing & Clean Footer Buttons */
+/* Solid Native Action Buttons */
 .egg-dl-idm-browser-btn {
-  background: rgba(255, 255, 255, 0.08) !important;
-  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  background: var(--bg-surface-hover, #222730) !important;
+  border: 1px solid var(--border-default, #2E3540) !important;
   color: #F1F5F9 !important;
   font-size: 12px !important;
   font-weight: 600 !important;
   padding: 7px 14px !important;
-  border-radius: 8px !important;
+  border-radius: 6px !important;
   cursor: pointer !important;
-  transition: all 0.18s ease !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25) !important;
+  transition: background 0.12s ease !important;
+  box-shadow: none !important;
 }
 
 .egg-dl-idm-browser-btn:hover {
-  background: rgba(255, 255, 255, 0.16) !important;
-  border-color: rgba(255, 255, 255, 0.35) !important;
+  background: #2D3440 !important;
   color: #FFFFFF !important;
-  box-shadow: 0 0 14px rgba(255, 255, 255, 0.2) !important;
-  transform: translateY(-1px) !important;
+  transform: none !important;
 }
 
 .egg-dl-idm-cancel-btn {
-  background: rgba(239, 68, 68, 0.14) !important;
-  border: 1px solid rgba(239, 68, 68, 0.32) !important;
-  color: #FCA5A5 !important;
+  background: rgba(218, 54, 51, 0.12) !important;
+  border: 1px solid rgba(218, 54, 51, 0.4) !important;
+  color: #F87171 !important;
   font-size: 12px !important;
   font-weight: 600 !important;
   padding: 7px 15px !important;
-  border-radius: 8px !important;
+  border-radius: 6px !important;
   cursor: pointer !important;
-  transition: all 0.18s ease !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2) !important;
+  transition: all 0.12s ease !important;
+  box-shadow: none !important;
 }
 
 .egg-dl-idm-cancel-btn:hover {
-  background: rgba(239, 68, 68, 0.26) !important;
-  border-color: rgba(239, 68, 68, 0.55) !important;
+  background: #DA3633 !important;
+  border-color: #DA3633 !important;
   color: #FFFFFF !important;
-  box-shadow: 0 0 14px rgba(239, 68, 68, 0.4) !important;
-  transform: translateY(-1px) !important;
+  transform: none !important;
 }
 
 .egg-dl-idm-start-btn {
   display: flex !important;
   align-items: center !important;
   gap: 6px !important;
-  background: linear-gradient(180deg, #2563EB 0%, #1D4ED8 100%) !important;
-  color: #FFFFFF !important;
-  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  background: var(--accent-primary, #3B82F6) !important;
+  color: var(--accent-text, #FFFFFF) !important;
+  border: 1px solid var(--accent-primary-hover, #2563EB) !important;
   font-size: 12.5px !important;
   font-weight: 700 !important;
   padding: 7px 16px !important;
-  border-radius: 8px !important;
+  border-radius: 6px !important;
   cursor: pointer !important;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
-  transition: all 0.18s ease !important;
+  box-shadow: none !important;
+  transition: background 0.12s ease !important;
 }
 
 .egg-dl-idm-start-btn:hover {
-  background: linear-gradient(180deg, #3B82F6 0%, #2563EB 100%) !important;
-  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.6), 0 0 16px rgba(59, 130, 246, 0.4) !important;
-  transform: translateY(-1px) !important;
+  background: var(--accent-primary-hover, #2563EB) !important;
+  box-shadow: none !important;
+  transform: none !important;
 }
 
 /* Minimized Dock Capsule */
@@ -452,24 +514,24 @@
   bottom: 24px !important;
   right: 24px !important;
   z-index: 2147483647 !important;
-  background: rgba(13, 17, 23, 0.96) !important;
-  border: 1px solid rgba(255, 255, 255, 0.18) !important;
-  border-radius: 30px !important;
+  background: var(--bg-surface, #181C22) !important;
+  border: 1px solid var(--border-default, #2E3540) !important;
+  border-radius: 6px !important;
   padding: 8px 16px !important;
   display: flex !important;
   align-items: center !important;
   gap: 10px !important;
-  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.75) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6) !important;
   cursor: pointer !important;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  transition: background 0.12s ease !important;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
   user-select: none !important;
 }
 
 .egg-dl-idm-dock-capsule:hover {
-  transform: translateY(-2px) scale(1.02) !important;
-  border-color: rgba(59, 130, 246, 0.6) !important;
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.85) !important;
+  transform: none !important;
+  border-color: var(--accent-primary, #3B82F6) !important;
+  background: var(--bg-surface-hover, #222730) !important;
 }
 
 

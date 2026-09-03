@@ -52,10 +52,18 @@ const App = {
   },
 
   applyTheme(themeName) {
-    const validThemes = ['slate', 'navy', 'emerald'];
+    const validThemes = ['slate', 'navy', 'mint', 'frost', 'zinc'];
     const theme = validThemes.includes(themeName) ? themeName : 'slate';
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('eggdl_theme', theme);
+
+    // Broadcast theme to extension and in-page dialogs
+    try {
+      window.postMessage({ type: 'eggdl_set_theme', theme }, '*');
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        chrome.storage.local.set({ eggdl_theme: theme });
+      }
+    } catch (_) {}
 
     const themeSelector = document.getElementById('theme-selector');
     const settingTheme = document.getElementById('setting-theme');

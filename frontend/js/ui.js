@@ -318,25 +318,25 @@ const UI = {
             <span class="dl-complete-path-text">${safeDirPath}</span>
           </div>
           <button type="button" class="dl-complete-copy-path-btn" title="Copy file path">
-            <svg class="dl-complete-copy-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-            <span class="dl-complete-copied-text" style="display: none; font-size: 10px; font-weight: 700; color: var(--accent-emerald); margin-left: 3px;">Copied!</span>
+            <svg class="dl-complete-copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+            <span class="dl-complete-copied-text" style="display: none; font-size: 10px; font-weight: 700; color: var(--accent-primary); margin-left: 3px;">Copied!</span>
           </button>
         </div>
       </div>
 
       <div class="dl-complete-footer">
         <button type="button" class="dl-complete-open-btn">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
           <span>Open</span>
         </button>
         <button type="button" class="dl-complete-folder-btn" title="Open containing folder">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
           <span>Folder</span>
         </button>
       </div>
 
       <div style="height: 3px; background: var(--bg-input); width: 100%; position: relative;">
-        <div class="dl-complete-progress-fill" style="height: 100%; background: var(--accent-emerald); width: 100%; animation: dlCompleteProgress 7.5s linear forwards;"></div>
+        <div class="dl-complete-progress-fill" style="height: 100%; background: var(--accent-primary); width: 100%; animation: dlCompleteProgress 7.5s linear forwards;"></div>
       </div>
     `;
 
@@ -970,17 +970,6 @@ const UI = {
       UI.openAccountModal(authData);
     });
 
-    // Topbar Status Greeting
-    const engineTextEl = document.getElementById('engine-status-text');
-    if (engineTextEl) {
-      if (isPro) {
-        engineTextEl.innerHTML = `EggDL Pro Engine <span class="engine-dot-ready">⚡</span> <span style="font-size:0.75rem; color:#10B981; font-weight:600;">(Unlimited Turbo)</span>`;
-      } else if (isTrial) {
-        engineTextEl.innerHTML = `EggDL Trial Ready <span class="engine-dot-ready">⚡</span> <span style="font-size:0.75rem; color:#F59E0B; font-weight:600;">(${trialDaysLeft} Days Remaining)</span>`;
-      } else {
-        engineTextEl.innerHTML = `EggDL Engine <span style="font-size:0.75rem; color:#EF4444; font-weight:600;">(Trial Expired • Activate Key)</span>`;
-      }
-    }
     lucide.createIcons();
   },
 

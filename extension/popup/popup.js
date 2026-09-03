@@ -7,6 +7,30 @@ document.addEventListener('DOMContentLoaded', async () => {
   const sniffFullBtn = document.getElementById('sniff-full-btn');
   const downloadAllBtn = document.getElementById('download-all-btn');
   const overlayToggle = document.getElementById('overlay-toggle');
+  const themeSelector = document.getElementById('ext-theme-selector');
+
+  function applyPopupTheme(theme) {
+    const validThemes = ['slate', 'navy', 'mint', 'frost', 'zinc'];
+    const t = validThemes.includes(theme) ? theme : 'slate';
+    document.documentElement.setAttribute('data-theme', t);
+    if (themeSelector && themeSelector.value !== t) themeSelector.value = t;
+  }
+
+  if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+    chrome.storage.local.get({ eggdl_theme: 'slate' }, (items) => {
+      applyPopupTheme(items?.eggdl_theme);
+    });
+  }
+
+  if (themeSelector) {
+    themeSelector.addEventListener('change', (e) => {
+      const chosen = e.target.value;
+      applyPopupTheme(chosen);
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        chrome.storage.local.set({ eggdl_theme: chosen });
+      }
+    });
+  }
 
   function isExtensionValid() {
     try {

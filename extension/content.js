@@ -25,6 +25,40 @@
     } catch (_) {}
   }
 
+  let activeEggTheme = 'slate';
+
+  if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+    chrome.storage.local.get({ eggdl_theme: 'slate' }, (items) => {
+      if (items && items.eggdl_theme) {
+        activeEggTheme = items.eggdl_theme;
+        document.querySelectorAll('.pro-dl-floating-badge, .egg-dl-idm-backdrop').forEach(el => {
+          el.setAttribute('data-theme', activeEggTheme);
+        });
+      }
+    });
+
+    chrome.storage.onChanged.addListener((changes) => {
+      if (changes.eggdl_theme) {
+        activeEggTheme = changes.eggdl_theme.newValue || 'slate';
+        document.querySelectorAll('.pro-dl-floating-badge, .egg-dl-idm-backdrop').forEach(el => {
+          el.setAttribute('data-theme', activeEggTheme);
+        });
+      }
+    });
+  }
+
+  window.addEventListener('message', (e) => {
+    if (e.data && e.data.type === 'eggdl_set_theme' && e.data.theme) {
+      activeEggTheme = e.data.theme;
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        chrome.storage.local.set({ eggdl_theme: e.data.theme });
+      }
+      document.querySelectorAll('.pro-dl-floating-badge, .egg-dl-idm-backdrop').forEach(el => {
+        el.setAttribute('data-theme', activeEggTheme);
+      });
+    }
+  });
+
   function safeSendMessage(message, callback) {
     if (!isExtensionValid()) {
       cleanupInvalidatedExtension();
@@ -175,12 +209,13 @@
 
       badge = document.createElement('div');
       badge.className = 'pro-dl-floating-badge';
+      badge.setAttribute('data-theme', activeEggTheme);
       const targetUrl = getMediaSourceUrl(video);
       badge.dataset.targetUrl = targetUrl;
 
       badge.innerHTML = `
         <div class="pro-dl-badge-btn" title="Download media egg in full resolution (144p - 8K)">
-          <svg class="pro-dl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <svg class="pro-dl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
@@ -617,6 +652,7 @@
 
     const backdrop = document.createElement('div');
     backdrop.className = 'egg-dl-idm-backdrop';
+    backdrop.setAttribute('data-theme', activeEggTheme);
 
     const url = downloadInfo.url;
     const mime = (downloadInfo.mime || '').toLowerCase();
@@ -657,39 +693,39 @@
         catBadgeColor = '#C084FC';
         catBg = 'rgba(192, 132, 252, 0.12)';
         catBorder = 'rgba(192, 132, 252, 0.25)';
-        catIcon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C084FC" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg>';
+        catIcon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C084FC" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg>';
       } else if (['mp3', 'm4a', 'wav', 'flac', 'aac', 'ogg', 'opus'].includes(extLower) || mime.includes('audio') || downloadInfo.is_audio_only) {
         catLabel = 'Audio File';
         catBadgeColor = '#FBBF24';
         catBg = 'rgba(251, 191, 36, 0.12)';
         catBorder = 'rgba(251, 191, 36, 0.25)';
-        catIcon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>';
+        catIcon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>';
       } else if (['zip', 'rar', '7z', 'tar', 'gz', 'iso'].includes(extLower) || mime.includes('zip') || mime.includes('compressed')) {
         catLabel = 'Compressed Archive';
         catBadgeColor = '#FB7185';
         catBg = 'rgba(251, 113, 133, 0.12)';
         catBorder = 'rgba(251, 113, 133, 0.25)';
-        catIcon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FB7185" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>';
+        catIcon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FB7185" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>';
       } else if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(extLower) || mime.includes('image')) {
         catLabel = 'Image File';
         catBadgeColor = '#F472B6';
         catBg = 'rgba(244, 114, 182, 0.12)';
         catBorder = 'rgba(244, 114, 182, 0.25)';
-        catIcon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F472B6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>';
+        catIcon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F472B6" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>';
       } else if (['exe', 'msi', 'dmg', 'apk', 'appimage', 'deb'].includes(extLower)) {
         catLabel = 'Application';
         catBadgeColor = '#38BDF8';
         catBg = 'rgba(56, 189, 248, 0.12)';
         catBorder = 'rgba(56, 189, 248, 0.25)';
-        catIcon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>';
+        catIcon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>';
       } else if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt'].includes(extLower) || mime.includes('pdf')) {
         catLabel = 'Document';
         catBadgeColor = '#34D399';
         catBg = 'rgba(52, 211, 153, 0.12)';
         catBorder = 'rgba(52, 211, 153, 0.25)';
-        catIcon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#34D399" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>';
+        catIcon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#34D399" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>';
       } else {
-        catIcon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>';
+        catIcon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>';
       }
       return { ext, catLabel, catBadgeColor, catBg, catBorder, catIcon };
     }
@@ -708,19 +744,19 @@
           </div>
           <div class="egg-dl-idm-window-controls">
             <button type="button" class="egg-dl-idm-ctrl-btn egg-dl-idm-min-btn" title="Minimize">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
             </button>
             <button type="button" class="egg-dl-idm-ctrl-btn close egg-dl-idm-close-btn" title="Close">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
           </div>
         </div>
 
-        <!-- Body Content with Professional Spacing -->
+        <!-- Body Content with Modular Stepped Spacing -->
         <div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 11px;">
           <!-- File Details Row with Inline File Size -->
           <div style="display: flex; align-items: center; gap: 12px;">
-            <div class="egg-dl-idm-cat-box" style="width: 38px; height: 38px; border-radius: 9px; background: ${meta.catBg}; border: 1px solid ${meta.catBorder}; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+            <div class="egg-dl-idm-cat-box" style="width: 38px; height: 38px; border-radius: 6px; background: ${meta.catBg}; border: 1px solid ${meta.catBorder}; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
               ${meta.catIcon}
             </div>
             <div style="flex: 1; min-width: 0;">
@@ -731,15 +767,15 @@
                 <span class="egg-dl-idm-cat-label" style="color: #CBD5E1; font-weight: 600; flex-shrink: 0;">${meta.catLabel}</span>
                 ${inlineSizeText ? `
                   <span style="color: #64748B; flex-shrink: 0;">•</span>
-                  <span class="egg-dl-idm-size-label" style="color: #10B981; font-weight: 700; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${inlineSizeText}</span>
+                  <span class="egg-dl-idm-size-label" style="color: var(--accent-primary, #38BDF8); font-weight: 700; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${inlineSizeText}</span>
                 ` : ''}
               </div>
             </div>
           </div>
 
           <!-- URL / Source Line -->
-          <div style="background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; padding: 6px 10px; display: flex; align-items: center; gap: 8px;">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#60A5FA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          <div style="background: var(--bg-input, #12151A); border: 1px solid var(--border-default, #2E3540); border-radius: 6px; padding: 6px 10px; display: flex; align-items: center; gap: 8px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary, #38BDF8)" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
             <span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; color: #94A3B8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;" title="${url}">${url}</span>
           </div>
 
@@ -752,8 +788,8 @@
           </div>
         </div>
 
-        <!-- Footer Action Buttons with Vivid Glowing States -->
-        <div style="padding: 10px 16px 14px 16px; display: flex; align-items: center; justify-content: flex-end; gap: 9px; border-top: 1px solid rgba(255,255,255,0.06); background: rgba(0,0,0,0.15);">
+        <!-- Footer Action Buttons with Solid Native Styling -->
+        <div style="padding: 10px 16px 14px 16px; display: flex; align-items: center; justify-content: flex-end; gap: 9px; border-top: 1px solid var(--border-default, #2E3540); background: var(--bg-surface, #181C22);">
           <button type="button" class="egg-dl-idm-browser-btn">
             Download with Browser
           </button>
@@ -761,7 +797,7 @@
             Cancel
           </button>
           <button type="button" class="egg-dl-idm-start-btn">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
             <span>Start Download</span>
           </button>
         </div>
