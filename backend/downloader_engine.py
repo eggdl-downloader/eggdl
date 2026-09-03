@@ -7,8 +7,37 @@ import aiohttp
 import mimetypes
 import re
 import urllib.parse
+import tempfile
+import shutil
 from pathlib import Path
 from typing import Dict, List, Optional, Callable, Any
+
+def clean_stale_legacy_temp_dirs():
+    """Scans and completely cleans any orphaned .pro_dl_* or .eggdl_* temporary chunk folders from downloads directories."""
+    candidate_dirs = [
+        str(Path.home() / "Downloads"),
+        str(Path.home() / "Downloads" / "Eggdl Downloads"),
+        str(Path.home() / "Downloads" / "EggDL"),
+        os.path.join(tempfile.gettempdir(), "EggDL_Chunks"),
+        os.path.join(tempfile.gettempdir(), "EggDL")
+    ]
+    for c_dir in candidate_dirs:
+        try:
+            if not os.path.exists(c_dir):
+                continue
+            for entry in os.listdir(c_dir):
+                if entry.startswith(".pro_dl_") or entry.startswith(".eggdl_") or entry.startswith("pro_dl_") or entry.startswith(".eggdl_chunk_"):
+                    p = os.path.join(c_dir, entry)
+                    if os.path.isdir(p):
+                        shutil.rmtree(p, ignore_errors=True)
+                    elif os.path.isfile(p):
+                        try: os.remove(p)
+                        except Exception: pass
+        except Exception:
+            pass
+
+# Clean on import
+clean_stale_legacy_temp_dirs()
 
 # Map file extensions to categories
 CATEGORY_MAP = {
@@ -216,7 +245,7 @@ class DownloadTask:
         self.segments: List[Segment] = []
         self._is_paused = False
         self._is_canceled = False
-        self._temp_dir = os.path.join(target_dir, f".pro_dl_{task_id}")
+        self._temp_dir = os.path.join(tempfile.gettempdir(), "EggDL_Chunks", f".eggdl_chunk_{task_id}")
         self._last_time = 0.0
         self._last_bytes = 0
         self._speed_samples = []
@@ -507,10 +536,8 @@ class DownloadTask:
 
     def _cleanup_temp(self):
         try:
-            if os.path.exists(self._temp_dir):
-                for f in os.listdir(self._temp_dir):
-                    os.remove(os.path.join(self._temp_dir, f))
-                os.rmdir(self._temp_dir)
+            if hasattr(self, "_temp_dir") and self._temp_dir and os.path.exists(self._temp_dir):
+                shutil.rmtree(self._temp_dir, ignore_errors=True)
         except Exception:
             pass
 

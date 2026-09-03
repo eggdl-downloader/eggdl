@@ -138,8 +138,16 @@ const UI = {
       .replace(/'/g, '&#039;');
   },
 
+  _lastSoundPlayTime: 0,
+
   playTechyCompletionSound() {
     try {
+      const now = Date.now();
+      if (now - this._lastSoundPlayTime < 2500) {
+        return; // Ignore rapid duplicate audio playback calls within 2.5 seconds
+      }
+      this._lastSoundPlayTime = now;
+
       if (window.DOWNLOAD_COMPLETE_AUDIO) {
         const snd = new Audio(window.DOWNLOAD_COMPLETE_AUDIO);
         snd.volume = 0.85;

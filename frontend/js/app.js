@@ -257,9 +257,11 @@ const App = {
       }
 
       if (task.status === 'completed') {
-        const taskId = task.id || task.filename;
-        if (taskId && !this.notifiedCompletedTaskIds.has(taskId)) {
-          this.notifiedCompletedTaskIds.add(taskId);
+        const taskId = task.id;
+        const taskName = task.filename;
+        if ((taskId && !this.notifiedCompletedTaskIds.has(taskId)) || (taskName && !this.notifiedCompletedTaskIds.has(taskName))) {
+          if (taskId) this.notifiedCompletedTaskIds.add(taskId);
+          if (taskName) this.notifiedCompletedTaskIds.add(taskName);
           delete this.activeTasks[task.id];
           UI.renderActiveTasks(this.activeTasks);
           UI.showDownloadCompleteNotification(task);
@@ -270,9 +272,11 @@ const App = {
     } else if (msg.type === 'task_completed') {
       const task = msg.task;
       if (task) {
-        const taskId = task.id || task.filename;
-        if (taskId && !this.notifiedCompletedTaskIds.has(taskId)) {
-          this.notifiedCompletedTaskIds.add(taskId);
+        const taskId = task.id;
+        const taskName = task.filename;
+        if ((taskId && !this.notifiedCompletedTaskIds.has(taskId)) || (taskName && !this.notifiedCompletedTaskIds.has(taskName))) {
+          if (taskId) this.notifiedCompletedTaskIds.add(taskId);
+          if (taskName) this.notifiedCompletedTaskIds.add(taskName);
           delete this.activeTasks[task.id];
           UI.renderActiveTasks(this.activeTasks);
           UI.showDownloadCompleteNotification(task);
