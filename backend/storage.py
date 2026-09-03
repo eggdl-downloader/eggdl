@@ -24,6 +24,65 @@ def get_user_data_dir() -> str:
 DATA_DIR = get_user_data_dir()
 DEFAULT_DOWNLOAD_DIR = str(Path.home() / "Downloads" / "Eggdl Downloads")
 DB_PATH = os.path.join(DATA_DIR, "eggdl.db")
+REGISTRY_FILE = os.path.join(os.path.dirname(__file__), "devices_registry.json")
+
+def export_devices_to_registry():
+    """Exports all devices from SQLite into backend/devices_registry.json to guarantee 100% permanence across deploys."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM devices ORDER BY created_at ASC")
+        rows = cursor.fetchall()
+        conn.close()
+        devices = []
+        for r in rows:
+            d = dict(r)
+            devices.append(d)
+        if devices:
+            with open(REGISTRY_FILE, "w", encoding="utf-8") as f:
+                json.dump(devices, f, indent=2, default=str)
+    except Exception as e:
+        print(f"[DevicesRegistry] Warning exporting registry: {e}")
+
+def import_devices_from_registry(cursor):
+    """Imports devices from backend/devices_registry.json into SQLite on container boot/init."""
+    if not os.path.exists(REGISTRY_FILE):
+        return
+    try:
+        with open(REGISTRY_FILE, "r", encoding="utf-8") as f:
+            devices = json.load(f)
+        for d in devices:
+            dev_id = d.get("device_id")
+            if not dev_id:
+                continue
+            cursor.execute("SELECT device_id, is_pro, plan_type, plan_expires_at FROM devices WHERE device_id = ?", (dev_id,))
+            existing = cursor.fetchone()
+            if not existing:
+                cursor.execute("""
+                INSERT INTO devices (
+                    device_id, machine_name, user_name, os_info, app_version, ip_address,
+                    plan_type, plan_expires_at, pro_activated_at, is_pro, is_blocked, block_reason,
+                    total_downloads, data_downloaded_mb, last_seen, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    dev_id, d.get("machine_name") or d.get("desktop_name"), d.get("user_name"), d.get("os_info"),
+                    d.get("app_version", "2.1.6"), d.get("ip_address"),
+                    d.get("plan_type", "trial"), d.get("plan_expires_at"), d.get("pro_activated_at"),
+                    int(d.get("is_pro", 0)), int(d.get("is_blocked", 0)), d.get("block_reason"),
+                    d.get("total_downloads", 0), d.get("data_downloaded_mb", 0.0),
+                    d.get("last_seen") or datetime.now().isoformat(),
+                    d.get("created_at") or datetime.now().isoformat()
+                ))
+            else:
+                # If registry has active Pro and database has non-pro, update to active Pro
+                existing_is_pro = existing[1] if isinstance(existing, (tuple, list)) else existing["is_pro"]
+                if d.get("is_pro") and not existing_is_pro:
+                    cursor.execute("""
+                    UPDATE devices SET is_pro = 1, plan_type = ?, plan_expires_at = ?, pro_activated_at = ?
+                    WHERE device_id = ?
+                    """, (d.get("plan_type", "1month"), d.get("plan_expires_at"), d.get("pro_activated_at"), dev_id))
+    except Exception as e:
+        print(f"[DevicesRegistry] Warning importing registry: {e}")
 
 def init_db():
     os.makedirs(DEFAULT_DOWNLOAD_DIR, exist_ok=True)
@@ -180,75 +239,8 @@ def init_db():
     VALUES ('2.1.6', '⚡ Ultra-Fast Native MP4 Engine\n🚀 Instant Single-File Output & Zero 99% Lag\n🎬 4K/8K stream download optimizations.', 'https://eggdl.onrender.com/download/setup', 0, 1)
     """)
 
-    # Seed historical devices so they are NEVER lost on initial container setup
-    seed_devices = [
-        {
-            "device_id": "EGG-DC7C46E21BBA51EE",
-            "machine_name": "SRIMAN",
-            "user_name": "Sriman",
-            "os_info": "Windows 11",
-            "app_version": "2.1.6",
-            "plan_type": "3month",
-            "plan_expires_at": (datetime.now() + timedelta(days=83)).isoformat(),
-            "is_pro": 1,
-            "is_blocked": 0,
-            "total_downloads": 116
-        },
-        {
-            "device_id": "EGG-60D638A88A20B92B",
-            "machine_name": "FXWORLD",
-            "user_name": "Fx World",
-            "os_info": "Windows 11",
-            "app_version": "2.1.6",
-            "plan_type": "trial",
-            "plan_expires_at": (datetime.now() + timedelta(days=7)).isoformat(),
-            "is_pro": 0,
-            "is_blocked": 0,
-            "total_downloads": 0
-        },
-        {
-            "device_id": "EGG-BE494EF057B5C366",
-            "machine_name": "DESKTOP-WIN-7293",
-            "user_name": "Sriman Work Account",
-            "os_info": "Windows 11",
-            "app_version": "2.1.6",
-            "plan_type": "trial",
-            "plan_expires_at": None,
-            "is_pro": 0,
-            "is_blocked": 0,
-            "total_downloads": 0
-        },
-        {
-            "device_id": "EGG-5D8D2A22D46A74DD",
-            "machine_name": "SRIMAN-WORK",
-            "user_name": "Sriman",
-            "os_info": "Windows 11",
-            "app_version": "2.1.3",
-            "plan_type": "lifetime",
-            "plan_expires_at": None,
-            "is_pro": 1,
-            "is_blocked": 1,
-            "block_reason": "Suspended by Administrator",
-            "total_downloads": 3
-        }
-    ]
-
-    for sd in seed_devices:
-        cursor.execute("SELECT device_id FROM devices WHERE device_id = ?", (sd["device_id"],))
-        existing = cursor.fetchone()
-        if not existing:
-            cursor.execute("""
-            INSERT INTO devices (
-                device_id, machine_name, user_name, os_info, app_version,
-                plan_type, plan_expires_at, is_pro, is_blocked, block_reason, total_downloads, last_seen, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            """, (
-                sd["device_id"], sd["machine_name"], sd["user_name"], sd["os_info"], sd["app_version"],
-                sd["plan_type"], sd["plan_expires_at"], sd["is_pro"], sd["is_blocked"], sd.get("block_reason"),
-                sd.get("total_downloads", 0)
-            ))
-        # Note: If existing device is found, preserve its subscription/trial/block status completely!
-        # NEVER overwrite or reset an existing device's plan during init_db!
+    # Load persistent devices registry so subscription details are NEVER lost across restarts/deploys
+    import_devices_from_registry(cursor)
 
     conn.commit()
     conn.close()
@@ -702,6 +694,8 @@ def register_or_update_device(
         
     conn.commit()
     conn.close()
+    if not row:
+        export_devices_to_registry()
     return get_device_license_status(device_id)
 
 def get_device_license_status(device_id: str) -> Dict[str, Any]:
@@ -904,6 +898,7 @@ def grant_device_pro(device_id: str, plan_type: str = "lifetime", duration_days:
         
     conn.commit()
     conn.close()
+    export_devices_to_registry()
     return get_device_license_status(device_id)
 
 def revoke_device_pro(device_id: str) -> Dict[str, Any]:
@@ -921,6 +916,7 @@ def revoke_device_pro(device_id: str) -> Dict[str, Any]:
     """, (past_date, past_date, device_id))
     conn.commit()
     conn.close()
+    export_devices_to_registry()
     return get_device_license_status(device_id)
 
 def reset_device_trial(device_id: str) -> Dict[str, Any]:
@@ -946,6 +942,7 @@ def reset_device_trial(device_id: str) -> Dict[str, Any]:
         """, (device_id, info["desktop_name"], info["user_name"], info["os_info"], now, now))
     conn.commit()
     conn.close()
+    export_devices_to_registry()
     return get_device_license_status(device_id)
 
 def delete_device(device_id: str) -> bool:
@@ -997,6 +994,7 @@ def activate_product_key_for_device(device_id: str, license_key: str) -> Dict[st
     
     conn.commit()
     conn.close()
+    export_devices_to_registry()
     return get_device_license_status(device_id)
 
 def is_device_blocked(device_id: str) -> Dict[str, Any]:
@@ -1024,6 +1022,7 @@ def set_device_blocked(device_id: str, blocked: bool = True, reason: str = "Lice
         """, (device_id, info["desktop_name"], info["user_name"], info["os_info"], 1 if blocked else 0, reason if blocked else None, now, now))
     conn.commit()
     conn.close()
+    export_devices_to_registry()
 
 def get_all_devices_telemetry() -> List[Dict[str, Any]]:
     """Returns telemetry of all registered devices with live online/offline calculation, days remaining & past 7 days retention."""

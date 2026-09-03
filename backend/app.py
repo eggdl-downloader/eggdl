@@ -514,13 +514,30 @@ def sync_license_from_cloud(dev_id: str) -> Optional[Dict[str, Any]]:
                     if cloud_res.get("is_pro"):
                         plan_t = cloud_res.get("plan_type", "3month")
                         exp_at = cloud_res.get("plan_expires_at")
-                        days_left = cloud_res.get("days_remaining", 83)
+                        days_left = cloud_res.get("days_remaining", 30)
                         grant_device_pro(dev_id, plan_type=plan_t, duration_days=days_left, expires_at=exp_at)
                     elif cloud_res.get("plan_type") == "trial" and not cloud_res.get("trial_expired"):
-                        if not local_status.get("is_trial") or local_status.get("is_pro"):
-                            reset_device_trial(dev_id)
+                        # If local machine is NOT Pro, sync trial status
+                        if not local_status.get("is_pro"):
+                            if not local_status.get("is_trial"):
+                                reset_device_trial(dev_id)
                     else:
-                        revoke_device_pro(dev_id)
+                        # Only revoke if local machine was NOT Pro or if local Pro actually expired
+                        if local_status.get("is_pro"):
+                            exp_at = local_status.get("plan_expires_at")
+                            if exp_at:
+                                try:
+                                    exp_dt = datetime.fromisoformat(str(exp_at).replace("Z", "+00:00"))
+                                    if exp_dt.tzinfo is None:
+                                        still_active = datetime.now() < exp_dt
+                                    else:
+                                        still_active = datetime.now(timezone.utc) < exp_dt
+                                    if not still_active:
+                                        revoke_device_pro(dev_id)
+                                except Exception:
+                                    pass
+                        else:
+                            revoke_device_pro(dev_id)
 
                 return cloud_res
     except Exception:
@@ -556,10 +573,13 @@ async def telemetry_heartbeat(req: HeartbeatRequest):
                 grant_device_pro(dev_id, plan_type=cs.get("plan_type", "3month"), duration_days=cs.get("days_remaining", 83), expires_at=cs.get("plan_expires_at"))
             elif cs.get("plan_type") == "trial" and not cs.get("trial_expired"):
                 local_st = get_device_license_status(dev_id)
-                if not local_st.get("is_trial") or local_st.get("is_pro"):
-                    reset_device_trial(dev_id)
+                if not local_st.get("is_pro"):
+                    if not local_st.get("is_trial"):
+                        reset_device_trial(dev_id)
             else:
-                revoke_device_pro(dev_id)
+                local_st = get_device_license_status(dev_id)
+                if not local_st.get("is_pro"):
+                    revoke_device_pro(dev_id)
     elif not os.environ.get("RENDER"):
         sync_license_from_cloud(dev_id)
         
@@ -572,6 +592,24 @@ async def telemetry_heartbeat(req: HeartbeatRequest):
         total_downloads=req.total_downloads,
         data_downloaded_mb=req.data_downloaded_mb
     )
+
+    # CRITICAL: If client sends an active Pro subscription that is missing in cloud DB (e.g. cloud restarted)
+    # Adopt client's active Pro plan into cloud DB and save to persistent registry!
+    if req.is_pro and not dev_status.get("is_pro") and not dev_status.get("is_blocked"):
+        exp_at = req.plan_expires_at
+        is_valid = True
+        if exp_at:
+            try:
+                exp_dt = datetime.fromisoformat(str(exp_at).replace("Z", "+00:00"))
+                if exp_dt.tzinfo is None:
+                    is_valid = datetime.now() < exp_dt
+                else:
+                    is_valid = datetime.now(timezone.utc) < exp_dt
+            except Exception:
+                is_valid = True
+        if is_valid:
+            grant_device_pro(dev_id, plan_type=req.plan_type or "1month", expires_at=req.plan_expires_at)
+            dev_status = get_device_license_status(dev_id)
 
     return {
         "success": True,
