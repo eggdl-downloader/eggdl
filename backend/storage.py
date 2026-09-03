@@ -806,10 +806,23 @@ def get_device_license_status(device_id: str) -> Dict[str, Any]:
             }
         else:
             try:
-                exp_dt = datetime.fromisoformat(str(plan_expires_at))
-                if exp_dt > now:
-                    seconds_left = (exp_dt - now).total_seconds()
-                    days_left = max(1, math.ceil(seconds_left / 86400))
+                clean_exp = str(plan_expires_at).replace("Z", "+00:00")
+                if "T" in clean_exp:
+                    exp_dt = datetime.fromisoformat(clean_exp)
+                else:
+                    exp_dt = datetime.strptime(clean_exp[:19], "%Y-%m-%d %H:%M:%S")
+
+                now_cmp = datetime.now()
+                if exp_dt.tzinfo is not None:
+                    from datetime import timezone
+                    now_cmp = datetime.now(timezone.utc)
+                elif hasattr(now_cmp, 'tzinfo') and now_cmp.tzinfo is not None:
+                    now_cmp = now_cmp.replace(tzinfo=None)
+
+                if exp_dt > now_cmp:
+                    seconds_left = (exp_dt - now_cmp).total_seconds()
+                    # Full days remaining (e.g. 89 for 90d, 29 for 30d, 364 for 365d)
+                    days_left = max(0, int(seconds_left // 86400))
                     return {
                         "device_id": device_id,
                         "desktop_name": dev.get("machine_name") or "DESKTOP-PC",
@@ -863,7 +876,7 @@ def get_device_license_status(device_id: str) -> Dict[str, Any]:
     trial_end = created_dt + timedelta(days=TRIAL_DAYS)
     if now < trial_end:
         seconds_left = (trial_end - now).total_seconds()
-        days_left = max(1, math.ceil(seconds_left / 86400))
+        days_left = max(0, int(seconds_left // 86400))
         return {
             "device_id": device_id,
             "desktop_name": dev.get("machine_name") or "DESKTOP-PC",

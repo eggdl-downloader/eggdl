@@ -1118,10 +1118,8 @@ const UI = {
         try {
           const expTime = new Date(dev.plan_expires_at).getTime();
           const nowTime = Date.now();
-          const diffDays = Math.ceil((expTime - nowTime) / (1000 * 86400));
-          if (diffDays > 0) {
-            daysLeft = diffDays;
-          }
+          const diffDays = Math.max(0, Math.floor((expTime - nowTime) / (1000 * 86400)));
+          daysLeft = diffDays;
         } catch (_) {}
       }
       

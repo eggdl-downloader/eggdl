@@ -880,5 +880,14 @@
     "used_by_user_id": null,
     "activated_at": null,
     "created_at": "2026-09-04T00:11:40.153561"
+  },
+  {
+    "key": "EGGDL-6M-023A-7009-D5DF",
+    "plan_type": "6month",
+    "duration_days": 180,
+    "is_used": 0,
+    "used_by_user_id": null,
+    "activated_at": null,
+    "created_at": "2026-09-04T00:41:29.474004"
   }
 ]
