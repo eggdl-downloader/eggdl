@@ -394,21 +394,8 @@ const App = {
       settingSegments.value = this.settings.max_segments_per_download;
     }
 
-    // Video Encoder Settings
-    const toggle = document.getElementById('toggle-video-encoder');
-    const storedEnc = localStorage.getItem('eggdl_video_encoder_enabled');
-    const isEnc = storedEnc !== null ? (storedEnc === 'true') : (this.settings.video_encoder_enabled === true);
-    if (toggle) {
-      toggle.checked = isEnc;
-      this.updateVideoEncoderUI(isEnc);
-    }
-
-    const storedCodec = localStorage.getItem('eggdl_video_codec') || this.settings.video_codec || 'h264';
-    const radio = document.querySelector(`input[name="video_codec_selection"][value="${storedCodec}"]`);
-    if (radio) {
-      radio.checked = true;
-      this.updateSelectedCodecCard(storedCodec);
-    }
+    // Video Encoder Settings - strictly populate from saved settings
+    this.populateAdvancedSettingsModal();
   },
 
   updateCategoryCounts() {
@@ -647,12 +634,15 @@ const App = {
 
     // Settings
     document.getElementById('open-settings-btn')?.addEventListener('click', () => {
+      this.applySettingsUI();
       document.getElementById('settings-modal').style.display = 'flex';
     });
     document.getElementById('close-settings-btn')?.addEventListener('click', () => {
+      this.applySettingsUI();
       document.getElementById('settings-modal').style.display = 'none';
     });
     document.getElementById('cancel-settings-btn')?.addEventListener('click', () => {
+      this.applySettingsUI();
       document.getElementById('settings-modal').style.display = 'none';
     });
     document.getElementById('save-settings-btn')?.addEventListener('click', () => this.saveSettings());
@@ -660,14 +650,20 @@ const App = {
 
     // Advanced Settings
     document.getElementById('open-advanced-settings-btn')?.addEventListener('click', () => {
+      this.populateAdvancedSettingsModal();
       document.getElementById('advanced-settings-modal').style.display = 'flex';
       if (window.lucide) window.lucide.createIcons();
     });
     document.getElementById('close-advanced-settings-btn')?.addEventListener('click', () => {
-      document.getElementById('advanced-settings-modal').style.display = 'none';
+      this.closeAdvancedSettingsModal();
     });
     document.getElementById('cancel-advanced-settings-btn')?.addEventListener('click', () => {
-      document.getElementById('advanced-settings-modal').style.display = 'none';
+      this.closeAdvancedSettingsModal();
+    });
+    document.getElementById('advanced-settings-modal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'advanced-settings-modal') {
+        this.closeAdvancedSettingsModal();
+      }
     });
     document.getElementById('save-advanced-settings-btn')?.addEventListener('click', () => this.saveAdvancedSettings());
 
@@ -734,9 +730,9 @@ const App = {
 
   async startDownloadTask(payload) {
     try {
-      const storedEnc = localStorage.getItem('eggdl_video_encoder_enabled');
-      const isEnc = storedEnc !== null ? (storedEnc === 'true') : (this.settings?.video_encoder_enabled === true);
-      const selectedCodec = localStorage.getItem('eggdl_video_codec') || this.settings?.video_codec || 'h264';
+      // Strictly use verified saved preferences from this.settings (never unsaved UI clicks)
+      const isEnc = this.settings?.video_encoder_enabled === true;
+      const selectedCodec = this.settings?.video_codec || 'h264';
 
       const fullPayload = {
         video_encoder_enabled: isEnc,
@@ -929,13 +925,34 @@ const App = {
     });
   },
 
+  populateAdvancedSettingsModal() {
+    const isEnc = Boolean(this.settings?.video_encoder_enabled);
+    const selectedCodec = this.settings?.video_codec || 'h264';
+
+    const toggle = document.getElementById('toggle-video-encoder');
+    if (toggle) {
+      toggle.checked = isEnc;
+      this.updateVideoEncoderUI(isEnc);
+    }
+
+    const radio = document.querySelector(`input[name="video_codec_selection"][value="${selectedCodec}"]`);
+    if (radio) {
+      radio.checked = true;
+      this.updateSelectedCodecCard(selectedCodec);
+    }
+  },
+
+  closeAdvancedSettingsModal() {
+    // Revert form state back to last saved preferences so any unsaved clicks are completely discarded
+    this.populateAdvancedSettingsModal();
+    const modal = document.getElementById('advanced-settings-modal');
+    if (modal) modal.style.display = 'none';
+  },
+
   async saveAdvancedSettings() {
     const toggle = document.getElementById('toggle-video-encoder');
     const enabled = Boolean(toggle?.checked);
     const selectedCodec = document.querySelector('input[name="video_codec_selection"]:checked')?.value || 'h264';
-
-    localStorage.setItem('eggdl_video_encoder_enabled', enabled ? 'true' : 'false');
-    localStorage.setItem('eggdl_video_codec', selectedCodec);
 
     try {
       const res = await API.saveSettings({
@@ -943,11 +960,18 @@ const App = {
         video_codec: selectedCodec
       });
       if (res.success) {
-        UI.showToast(enabled ? `Video Encoder active (${selectedCodec.toUpperCase()})` : 'Video Encoder disabled (Fast native downloads active)', 'success');
-        document.getElementById('advanced-settings-modal').style.display = 'none';
+        if (!this.settings) this.settings = {};
+        this.settings.video_encoder_enabled = enabled;
+        this.settings.video_codec = selectedCodec;
+        localStorage.setItem('eggdl_video_encoder_enabled', enabled ? 'true' : 'false');
+        localStorage.setItem('eggdl_video_codec', selectedCodec);
+
+        UI.showToast(enabled ? `Preferences saved: Video Encoder active (${selectedCodec.toUpperCase()})` : 'Preferences saved: Video Encoder disabled (Fast native downloads active)', 'success');
+        const modal = document.getElementById('advanced-settings-modal');
+        if (modal) modal.style.display = 'none';
       }
     } catch (e) {
-      UI.showToast('Failed to save advanced settings', 'error');
+      UI.showToast('Failed to save preferences', 'error');
     }
   },
 
