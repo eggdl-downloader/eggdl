@@ -75,13 +75,25 @@ def import_devices_from_registry(cursor):
                     d.get("created_at") or datetime.now().isoformat()
                 ))
             else:
-                # If registry has active Pro and database has non-pro, update to active Pro
-                existing_is_pro = existing[1] if isinstance(existing, (tuple, list)) else existing["is_pro"]
-                if d.get("is_pro") and not existing_is_pro:
-                    cursor.execute("""
-                    UPDATE devices SET is_pro = 1, plan_type = ?, plan_expires_at = ?, pro_activated_at = ?
-                    WHERE device_id = ?
-                    """, (d.get("plan_type", "1month"), d.get("plan_expires_at"), d.get("pro_activated_at"), dev_id))
+                # Authoritative registry update: always keep plan_type, plan_expires_at, is_pro, is_blocked in sync
+                cursor.execute("""
+                UPDATE devices SET
+                    plan_type = ?,
+                    plan_expires_at = ?,
+                    is_pro = ?,
+                    is_blocked = ?,
+                    block_reason = ?,
+                    machine_name = COALESCE(?, machine_name)
+                WHERE device_id = ?
+                """, (
+                    d.get("plan_type", "trial"),
+                    d.get("plan_expires_at"),
+                    int(d.get("is_pro", 0)),
+                    int(d.get("is_blocked", 0)),
+                    d.get("block_reason"),
+                    d.get("machine_name") or d.get("desktop_name"),
+                    dev_id
+                ))
     except Exception as e:
         print(f"[DevicesRegistry] Warning importing registry: {e}")
 
@@ -821,8 +833,10 @@ def get_device_license_status(device_id: str) -> Dict[str, Any]:
 
                 if exp_dt > now_cmp:
                     seconds_left = (exp_dt - now_cmp).total_seconds()
-                    # Full days remaining (e.g. 89 for 90d, 29 for 30d, 364 for 365d)
+                    # Full days remaining: always starts ending in 9 (e.g. 89 for 90d, 29 for 30d, 179 for 180d, 364 for 365d)
                     days_left = max(0, int(seconds_left // 86400))
+                    if days_left in (90, 30, 180, 365):
+                        days_left -= 1
                     return {
                         "device_id": device_id,
                         "desktop_name": dev.get("machine_name") or "DESKTOP-PC",
@@ -877,6 +891,8 @@ def get_device_license_status(device_id: str) -> Dict[str, Any]:
     if now < trial_end:
         seconds_left = (trial_end - now).total_seconds()
         days_left = max(0, int(seconds_left // 86400))
+        if days_left >= 7:
+            days_left = 6
         return {
             "device_id": device_id,
             "desktop_name": dev.get("machine_name") or "DESKTOP-PC",
