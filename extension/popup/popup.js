@@ -99,10 +99,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if (!isValidUrl) {
     pageTitleEl.innerText = "EggDL Downloader";
-    countBadge.innerText = "0 Eggs";
+    countBadge.innerText = "0 Streams";
     streamList.innerHTML = `
       <div style="padding: 16px 12px; text-align: center; color: #94A3B8; font-size: 12px;">
-        Open a video page (YouTube, Instagram, TikTok) to detect media eggs.
+        Open a video page (YouTube, Instagram, TikTok) to detect media streams.
       </div>
     `;
     emptyState.style.display = 'block';

@@ -85,15 +85,9 @@
       <!-- Top Bar -->
       <header class="topbar">
         <div class="topbar-search-status">
-          <button class="btn-icon mobile-menu-toggle" id="mobile-menu-btn" title="Toggle Navigation">
-            <i data-lucide="menu"></i>
-          </button>
-          <div class="status-indicator online">
-            <span class="dot"></span>
-          </div>
-          <div class="speed-badge" id="global-speed-badge">
-            <i data-lucide="activity" class="pulse-icon"></i>
-            <span id="global-speed-text">0.0 KB/s</span>
+          <div class="realtime-speed-badge" id="global-speed-badge" title="Realtime Download Throughput">
+            <span class="speed-label"><i data-lucide="activity" class="pulse-icon"></i> Realtime Speed:</span>
+            <span class="speed-value" id="global-speed-text">0.0 KB/s</span>
           </div>
         </div>
 
@@ -243,13 +237,13 @@
           <table class="downloads-table">
             <thead>
               <tr>
-                <th class="th-type" style="width: 68px; padding-left: 16px;">Type</th>
+                <th class="th-type" style="width: 54px; padding-left: 14px;">Type</th>
                 <th class="th-file">File / Name</th>
-                <th class="th-size" style="width: 100px;">Size</th>
-                <th class="th-progress" style="width: 125px;">Progress</th>
-                <th class="th-status" style="width: 115px;">Status</th>
-                <th class="th-date" style="width: 135px;">Date</th>
-                <th class="th-actions" style="width: 175px; text-align: right; padding-right: 16px;">Actions</th>
+                <th class="th-size" style="width: 90px;">Size</th>
+                <th class="th-progress" style="width: 120px;">Progress</th>
+                <th class="th-status" style="width: 130px; padding: 10px 10px;">Status</th>
+                <th class="th-date" style="width: 145px; padding: 10px 14px;">Date</th>
+                <th class="th-actions" style="width: 200px; text-align: right; padding-right: 18px; padding-left: 8px;">Actions</th>
               </tr>
             </thead>
             <tbody id="downloads-tbody">

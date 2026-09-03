@@ -264,35 +264,34 @@
   bottom: 24px !important;
   right: 24px !important;
   z-index: 2147483647 !important;
-  background: rgba(13, 17, 23, 0.82) !important;
-  background-image: linear-gradient(135deg, rgba(30, 58, 138, 0.28) 0%, rgba(13, 17, 23, 0.88) 100%) !important;
-  backdrop-filter: blur(24px) saturate(190%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  border-top: 1px solid rgba(255, 255, 255, 0.24) !important;
-  color: #F8FAFC !important;
-  padding: 8px 18px !important;
-  border-radius: 30px !important;
+  background: #181C22 !important;
+  background-image: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid #2E3540 !important;
+  color: #FFFFFF !important;
+  padding: 7px 14px !important;
+  border-radius: 6px !important;
   font-size: 13px !important;
   font-weight: 600 !important;
   letter-spacing: -0.01em !important;
-  box-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.65), 0 0 1px 1px rgba(255, 255, 255, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45) !important;
+  transition: all 0.2s ease !important;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
   display: flex !important;
   align-items: center !important;
-  gap: 7px !important;
+  gap: 8px !important;
   user-select: none !important;
   pointer-events: none !important;
   opacity: 0 !important;
-  transform: translateY(8px) scale(0.96) !important;
+  transform: translateY(6px) scale(0.98) !important;
 }
 
 .pro-dl-inpage-toast.error {
-  background: rgba(220, 38, 38, 0.85) !important;
-  background-image: none !important;
-  border-color: rgba(252, 165, 165, 0.3) !important;
-  box-shadow: 0 14px 36px -6px rgba(0, 0, 0, 0.7) !important;
+  background: #1C1214 !important;
+  border-color: #DA3633 !important;
+  color: #F87171 !important;
+  box-shadow: 0 6px 20px rgba(218, 54, 51, 0.25) !important;
 }
 
 .pro-dl-inpage-toast.active {

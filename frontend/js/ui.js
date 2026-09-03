@@ -379,11 +379,11 @@ const UI = {
       const statusClass = effectiveStatus;
       
       let statusLabel = effectiveStatus;
-      if (effectiveStatus === 'completed') statusLabel = '<span class="status-icon">✓</span> Completed';
-      else if (effectiveStatus === 'downloading') statusLabel = '<span class="status-icon">⬇</span> Downloading';
-      else if (effectiveStatus === 'paused') statusLabel = '<span class="status-icon">⏸</span> Paused';
-      else if (effectiveStatus === 'error') statusLabel = '<span class="status-icon">✕</span> Error';
-      else if (effectiveStatus === 'canceled') statusLabel = '<span class="status-icon">■</span> Stopped';
+      if (effectiveStatus === 'completed') statusLabel = '<i data-lucide="check"></i> <span>Completed</span>';
+      else if (effectiveStatus === 'downloading') statusLabel = '<i data-lucide="download"></i> <span>Downloading</span>';
+      else if (effectiveStatus === 'paused') statusLabel = '<i data-lucide="pause"></i> <span>Paused</span>';
+      else if (effectiveStatus === 'error') statusLabel = '<i data-lucide="x"></i> <span>Error</span>';
+      else if (effectiveStatus === 'canceled') statusLabel = '<i data-lucide="square"></i> <span>Stopped</span>';
       
       const title = item.title || item.filename || 'Download';
       const cleanUrl = (item.url && item.url.startsWith('data:')) ? 'data:image/... [Embedded Image Data]' : (item.url || '');

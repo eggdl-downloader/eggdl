@@ -361,10 +361,10 @@ const App = {
     const completedList = this.downloads.filter(d => d.status === 'completed');
 
     const activeEl = document.getElementById('stat-active-count');
-    if (activeEl) activeEl.innerText = `${activeList.length} Eggs`;
+    if (activeEl) activeEl.innerText = `${activeList.length} Active`;
 
     const completedEl = document.getElementById('stat-completed-count');
-    if (completedEl) completedEl.innerText = `${completedList.length} Eggs`;
+    if (completedEl) completedEl.innerText = `${completedList.length} Completed`;
   },
 
   async loadSettings() {
@@ -459,7 +459,7 @@ const App = {
   async openFile(taskId, filePath = null) {
     try {
       await API.openFile(taskId, filePath);
-      UI.showToast('🥚 Opening media egg in system player...', 'info');
+      UI.showToast('Opening file in system player...', 'info');
     } catch (e) {
       UI.showToast(e.message || 'Could not open file', 'error');
     }

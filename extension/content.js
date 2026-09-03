@@ -214,13 +214,13 @@
       badge.dataset.targetUrl = targetUrl;
 
       badge.innerHTML = `
-        <div class="pro-dl-badge-btn" title="Download media egg in full resolution (144p - 8K)">
+        <div class="pro-dl-badge-btn" title="Download video in full resolution (144p - 8K)">
           <svg class="pro-dl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          <span>Download Egg</span>
+          <span>Download Video</span>
         </div>
         <div class="pro-dl-badge-menu"></div>
       `;
@@ -376,7 +376,7 @@
 
   function loadMediaMenu(menu, video) {
     const targetUrl = getMediaSourceUrl(video);
-    const pageTitle = document.title || "Video Egg";
+    const pageTitle = document.title || "Video File";
 
     // 1. Instant cache hit
     if (inPageInspectCache.has(targetUrl)) {
@@ -444,7 +444,7 @@
     }
 
     let html = `
-      <div class="pro-dl-menu-header">🥚 Media Eggs (${videoOpts.length} Available)</div>
+      <div class="pro-dl-menu-header">Available Video Streams (${videoOpts.length} Options)</div>
     `;
 
     videoOpts.forEach(opt => {
@@ -532,7 +532,7 @@
     }
 
     let html = `
-      <div class="pro-dl-menu-header">🥚 Media Eggs (${streams.length} Available)</div>
+      <div class="pro-dl-menu-header">Available Streams (${streams.length} Options)</div>
     `;
 
     if (streams.length === 0) {
@@ -586,11 +586,11 @@
 
     if (isSuccess && (!msg || msg.toLowerCase().includes('started') || msg.includes('🥚'))) {
       toast.innerHTML = `
-        <span style="color: #F8FAFC; font-weight: 600; font-size: 13px;">Download started</span>
-        <span style="font-size: 13px; line-height: 1;">⚡</span>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-primary, #38BDF8); flex-shrink: 0;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        <span style="font-weight: 600; font-size: 13px; color: #FFFFFF;">Download started</span>
       `;
     } else {
-      toast.innerHTML = `<span style="color: #F8FAFC; font-weight: 600; font-size: 13px;">${msg}</span>`;
+      toast.innerHTML = `<span style="font-weight: 600; font-size: 13px; color: #FFFFFF;">${msg}</span>`;
     }
 
     document.body.appendChild(toast);
@@ -600,8 +600,8 @@
 
     setTimeout(() => {
       toast.classList.remove('active');
-      setTimeout(() => toast.remove(), 350);
-    }, 2800);
+      setTimeout(() => toast.remove(), 250);
+    }, 2600);
   }
 
   // --- IDM-STYLE DRAGGABLE & MINIMIZABLE DOWNLOAD INTERCEPTION MODAL WITH EXTENSION PRESERVATION & CLEAN SPACING ---

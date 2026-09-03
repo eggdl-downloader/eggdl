@@ -579,7 +579,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
     if (tab && tab.id) {
       if (dlRes && dlRes.success) {
-        injectInPageToast(tab.id, "🥚 Download started in EggDL!");
+        injectInPageToast(tab.id, "Download started in EggDL!");
         if (dlRes.task_id) {
           monitorDownloadTask(tab.id, dlRes.task_id);
         }
@@ -600,7 +600,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
   if (tab && tab.id) {
     if (dlRes && dlRes.success) {
-      injectInPageToast(tab.id, "🥚 Download started in EggDL!");
+      injectInPageToast(tab.id, "Download started in EggDL!");
       if (dlRes.task_id) {
         monitorDownloadTask(tab.id, dlRes.task_id);
       }
