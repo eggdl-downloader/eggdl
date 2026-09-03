@@ -1253,7 +1253,8 @@ const App = {
 
   async handleActivateLicense() {
     const input = document.getElementById('license-key-input');
-    const key = input?.value.trim();
+    const rawVal = input?.value || '';
+    const key = rawVal.replace(/\s+/g, '').replace(/[–—]/g, '-').trim().toUpperCase();
     const feedbackMsg = document.getElementById('license-feedback-msg');
     const btn = document.getElementById('activate-license-btn');
 
@@ -1591,6 +1592,7 @@ const App = {
           if (res.ok && data.keys) {
             if (outBox) outBox.style.display = 'block';
             if (outText) outText.value = data.keys.join('\n');
+            if (window.lucide) window.lucide.createIcons();
             UI.showToast(`✨ Generated ${data.keys.length} product keys!`, 'success');
           } else {
             UI.showToast(data.detail || 'Key generation failed', 'error');
@@ -1599,6 +1601,22 @@ const App = {
           UI.showToast('Generation error: ' + err.message, 'error');
         } finally {
           generateKeysBtn.disabled = false;
+        }
+      };
+    }
+
+    const copyKeysBtn = document.getElementById('btn-admin-copy-keys');
+    if (copyKeysBtn) {
+      copyKeysBtn.onclick = () => {
+        const outText = document.getElementById('admin-generated-keys-output');
+        if (outText && outText.value) {
+          navigator.clipboard.writeText(outText.value).then(() => {
+            UI.showToast('📋 All product keys copied to clipboard!', 'success');
+          }).catch(() => {
+            outText.select();
+            document.execCommand('copy');
+            UI.showToast('📋 All product keys copied!', 'success');
+          });
         }
       };
     }

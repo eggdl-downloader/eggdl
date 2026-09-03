@@ -437,22 +437,28 @@ const API = {
   },
 
   async activateMachineKey(licenseKey, deviceId = null) {
+    const cleanKey = (licenseKey || '').replace(/\s+/g, '').replace(/[–—]/g, '-').trim().toUpperCase();
     let res = null;
+    // Try local activation first
     try {
-      res = await fetch(`https://eggdl.onrender.com/api/license/activate-machine-key`, {
+      res = await fetch(`${this.baseUrl}/api/license/activate-machine-key`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ license_key: licenseKey, device_id: deviceId })
+        body: JSON.stringify({ license_key: cleanKey, device_id: deviceId })
       });
     } catch (_) {}
 
+    // If local returned 400 or failed, try cloud Render server
     if (!res || !res.ok) {
       try {
-        res = await fetch(`${this.baseUrl}/api/license/activate-machine-key`, {
+        const cloudRes = await fetch(`https://eggdl.onrender.com/api/license/activate-machine-key`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ license_key: licenseKey, device_id: deviceId })
+          body: JSON.stringify({ license_key: cleanKey, device_id: deviceId })
         });
+        if (cloudRes.ok) {
+          res = cloudRes;
+        }
       } catch (_) {}
     }
 

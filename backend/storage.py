@@ -3,6 +3,7 @@ import sys
 import shutil
 import sqlite3
 import json
+import re
 import secrets
 from datetime import datetime
 from pathlib import Path
@@ -797,6 +798,26 @@ def get_device_license_status(device_id: str) -> Dict[str, Any]:
             except Exception:
                 pass
                 
+    # If device was revoked or marked expired, immediately return expired trial status
+    if plan_type in ["expired", "revoked", "free"]:
+        return {
+            "device_id": device_id,
+            "desktop_name": dev.get("machine_name") or "DESKTOP-PC",
+            "user_name": dev.get("user_name") or "User",
+            "is_blocked": False,
+            "block_reason": None,
+            "is_pro": False,
+            "is_trial": False,
+            "trial_expired": True,
+            "can_download": False,
+            "is_unlimited": False,
+            "days_remaining": 0,
+            "trial_days_remaining": 0,
+            "plan_type": "expired",
+            "plan_expires_at": None,
+            "license_key": None
+        }
+
     # Check 7-Day Free Trial based on device created_at
     dev_created = dev.get("created_at") or now.isoformat()
     try:
@@ -841,7 +862,7 @@ def get_device_license_status(device_id: str) -> Dict[str, Any]:
             "is_unlimited": False,
             "days_remaining": 0,
             "trial_days_remaining": 0,
-            "plan_type": "free",
+            "plan_type": "expired",
             "plan_expires_at": None
         }
 
@@ -895,14 +916,16 @@ def grant_device_pro(device_id: str, plan_type: str = "lifetime", duration_days:
 def revoke_device_pro(device_id: str) -> Dict[str, Any]:
     conn = get_db_connection()
     cursor = conn.cursor()
+    past_date = (datetime.now() - timedelta(days=30)).isoformat()
     cursor.execute("""
     UPDATE devices SET
         is_pro = 0,
-        plan_type = 'free',
-        plan_expires_at = NULL,
+        plan_type = 'expired',
+        plan_expires_at = ?,
+        created_at = ?,
         license_key = NULL
     WHERE device_id = ?
-    """, (device_id,))
+    """, (past_date, past_date, device_id))
     conn.commit()
     conn.close()
     return get_device_license_status(device_id)
@@ -944,9 +967,9 @@ def delete_device(device_id: str) -> bool:
 def activate_product_key_for_device(device_id: str, license_key: str) -> Dict[str, Any]:
     conn = get_db_connection()
     cursor = conn.cursor()
-    key_clean = license_key.strip().upper()
+    key_clean = re.sub(r'[\s\r\n]+', '', license_key).replace('–', '-').replace('—', '-').upper()
     
-    cursor.execute("SELECT * FROM license_keys WHERE key = ?", (key_clean,))
+    cursor.execute("SELECT * FROM license_keys WHERE REPLACE(REPLACE(REPLACE(key, ' ', ''), '–', '-'), '—', '-') = ?", (key_clean,))
     row = cursor.fetchone()
     
     if not row:

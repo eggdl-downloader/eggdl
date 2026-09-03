@@ -553,7 +553,7 @@ async def telemetry_heartbeat(req: HeartbeatRequest):
             set_device_blocked(dev_id, blocked=False)
             if cs.get("is_pro"):
                 grant_device_pro(dev_id, plan_type=cs.get("plan_type", "3month"), duration_days=cs.get("days_remaining", 83), expires_at=cs.get("plan_expires_at"))
-            elif cs.get("plan_type") == "trial":
+            elif cs.get("plan_type") == "trial" and not cs.get("trial_expired"):
                 reset_device_trial(dev_id)
             else:
                 revoke_device_pro(dev_id)
@@ -578,17 +578,19 @@ async def telemetry_heartbeat(req: HeartbeatRequest):
         "block_reason": dev_status.get("block_reason"),
         "is_pro": dev_status.get("is_pro", False),
         "is_trial": dev_status.get("is_trial", False),
-        "trial_expired": dev_status.get("trial_expired", False),
-        "trial_days_remaining": dev_status.get("trial_days_remaining", 0),
+        "trial_expired": dev_status.get("trial_expired", True),
+        "can_download": dev_status.get("can_download", False),
+        "is_unlimited": dev_status.get("is_unlimited", False),
         "days_remaining": dev_status.get("days_remaining", 0),
-        "plan_type": dev_status.get("plan_type", "trial"),
+        "trial_days_remaining": dev_status.get("trial_days_remaining", 0),
+        "plan_type": dev_status.get("plan_type", "expired"),
         "plan_expires_at": dev_status.get("plan_expires_at")
     }
 
 @app.post("/api/license/activate-machine-key")
 async def activate_machine_key(req: MachineKeyActivateRequest):
     dev_id = req.device_id or get_device_id()
-    key = req.license_key.strip().upper()
+    key = re.sub(r'[\s\r\n]+', '', req.license_key).replace('–', '-').replace('—', '-').upper()
     if not key:
         raise HTTPException(status_code=400, detail="Please enter a valid product key.")
         
@@ -780,12 +782,41 @@ async def license_generate(req: LicenseGenerateRequest):
         create_license_key(k, req.plan_type, duration)
         generated.append(k)
         
+    # If generating on local client, also register them to Cloud Render Server so anyone can activate them
+    if not os.environ.get("RENDER"):
+        try:
+            import urllib.request
+            data_bytes = json.dumps({"plan_type": req.plan_type, "keys": generated}).encode()
+            remote_req = urllib.request.Request(
+                f"{CLOUD_API_URL}/api/license/import-keys",
+                data=data_bytes,
+                headers={"Content-Type": "application/json", "User-Agent": "EggDL-Admin"}
+            )
+            urllib.request.urlopen(remote_req, timeout=4)
+        except Exception:
+            pass
+
     return {
         "success": True,
         "plan_type": req.plan_type,
         "duration_days": duration,
         "keys": generated
     }
+
+class LicenseImportRequest(BaseModel):
+    plan_type: str
+    keys: List[str]
+
+@app.post("/api/license/import-keys")
+async def license_import_keys(req: LicenseImportRequest):
+    duration = PLAN_CONFIGS.get(req.plan_type, {}).get("duration_days", 30)
+    for k in req.keys:
+        k_clean = re.sub(r'[\s\r\n]+', '', k).replace('–', '-').replace('—', '-').upper()
+        try:
+            create_license_key(k_clean, req.plan_type, duration)
+        except Exception:
+            pass
+    return {"success": True, "count": len(req.keys)}
 
 # --- Payment Processing Endpoint ---
 @app.post("/api/payment/process")
