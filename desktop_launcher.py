@@ -216,6 +216,9 @@ _MAIN_WINDOW = None
 _TRAY_ICON = None
 _IS_EXITING = False
 
+def on_open_eggdl(icon=None, item=None):
+    show_main_window()
+
 def show_main_window():
     global _MAIN_WINDOW
     if _MAIN_WINDOW:
@@ -228,9 +231,26 @@ def show_main_window():
         try:
             import ctypes
             hwnd = ctypes.windll.user32.FindWindowW(None, "EggDL - Ultra Turbo Downloader")
+            if not hwnd:
+                def enum_cb(h, l):
+                    length = ctypes.windll.user32.GetWindowTextLengthW(h)
+                    if length > 0:
+                        buff = ctypes.create_unicode_buffer(length + 1)
+                        ctypes.windll.user32.GetWindowTextW(h, buff, length + 1)
+                        if "EggDL" in buff.value:
+                            l.append(h)
+                    return True
+                hwnds = []
+                WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.py_object)
+                ctypes.windll.user32.EnumWindows(WNDENUMPROC(enum_cb), hwnds)
+                if hwnds:
+                    hwnd = hwnds[0]
+
             if hwnd:
                 ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                ctypes.windll.user32.ShowWindow(hwnd, 5)  # SW_SHOW
                 ctypes.windll.user32.SetForegroundWindow(hwnd)
+                ctypes.windll.user32.BringWindowToTop(hwnd)
         except Exception:
             pass
 
@@ -505,6 +525,8 @@ def main():
             img = Image.new('RGB', (64, 64), color=(59, 130, 246))
 
         menu = pystray.Menu(
+            pystray.MenuItem("🥚 Open EggDL", on_open_eggdl, default=True),
+            pystray.Menu.SEPARATOR,
             pystray.MenuItem("📁 Open Downloads", on_open_downloads),
             pystray.MenuItem("🔑 License Details", on_license_details),
             pystray.MenuItem("🔄 Restart App", on_restart_app),
@@ -516,8 +538,7 @@ def main():
             "EggDL",
             img,
             "EggDL - Ultra Turbo Downloader (Active)",
-            menu=menu,
-            default_action=show_main_window
+            menu=menu
         )
         _TRAY_ICON.run_detached()
     except Exception as tray_err:
