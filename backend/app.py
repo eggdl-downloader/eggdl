@@ -516,8 +516,9 @@ def sync_license_from_cloud(dev_id: str) -> Optional[Dict[str, Any]]:
                         exp_at = cloud_res.get("plan_expires_at")
                         days_left = cloud_res.get("days_remaining", 83)
                         grant_device_pro(dev_id, plan_type=plan_t, duration_days=days_left, expires_at=exp_at)
-                    elif cloud_res.get("plan_type") == "trial":
-                        reset_device_trial(dev_id)
+                    elif cloud_res.get("plan_type") == "trial" and not cloud_res.get("trial_expired"):
+                        if not local_status.get("is_trial") or local_status.get("is_pro"):
+                            reset_device_trial(dev_id)
                     else:
                         revoke_device_pro(dev_id)
 
@@ -554,7 +555,9 @@ async def telemetry_heartbeat(req: HeartbeatRequest):
             if cs.get("is_pro"):
                 grant_device_pro(dev_id, plan_type=cs.get("plan_type", "3month"), duration_days=cs.get("days_remaining", 83), expires_at=cs.get("plan_expires_at"))
             elif cs.get("plan_type") == "trial" and not cs.get("trial_expired"):
-                reset_device_trial(dev_id)
+                local_st = get_device_license_status(dev_id)
+                if not local_st.get("is_trial") or local_st.get("is_pro"):
+                    reset_device_trial(dev_id)
             else:
                 revoke_device_pro(dev_id)
     elif not os.environ.get("RENDER"):
