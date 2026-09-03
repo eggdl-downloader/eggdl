@@ -603,9 +603,8 @@ async def telemetry_heartbeat(req: HeartbeatRequest):
         data_downloaded_mb=req.data_downloaded_mb
     )
 
-    # CRITICAL: If client sends an active Pro subscription that is missing in cloud DB (e.g. cloud restarted)
-    # Adopt client's active Pro plan into cloud DB and save to persistent registry!
-    if req.is_pro and not dev_status.get("is_pro") and not dev_status.get("is_blocked"):
+    # Only adopt client state on local instances if needed; Render Cloud is the authoritative master
+    if not os.environ.get("RENDER") and req.is_pro and not dev_status.get("is_pro") and not dev_status.get("is_blocked"):
         exp_at = req.plan_expires_at
         is_valid = True
         if exp_at:
@@ -2235,27 +2234,22 @@ def enrich_device_item(dev: dict) -> dict:
             status_badge = "👑 PRO (Lifetime) • Permanent"
             tier = "Pro Lifetime"
         else:
-            dur_map = {"1month": 30, "3month": 90, "6month": 180, "1year": 365, "pro": 30}
-            total_dur = dur_map.get(plan_type, 30)
-            exp_str = dev.get("plan_expires_at")
-            if exp_str:
-                try:
-                    exp_dt = datetime.fromisoformat(str(exp_str)) if 'T' in str(exp_str) else datetime.strptime(str(exp_str)[:19], "%Y-%m-%d %H:%M:%S")
-                    diff_sec = (exp_dt - now).total_seconds()
-                    days_remaining = max(1, math.ceil(diff_sec / 86400)) if diff_sec > 0 else 0
-                except Exception:
-                    days_remaining = total_dur
-            else:
-                cr_str = dev.get("created_at")
-                if cr_str:
+            days_remaining = dev.get("days_remaining")
+            if days_remaining is None:
+                exp_str = dev.get("plan_expires_at")
+                if exp_str:
                     try:
-                        cr_dt = datetime.fromisoformat(str(cr_str)) if 'T' in str(cr_str) else datetime.strptime(str(cr_str)[:19], "%Y-%m-%d %H:%M:%S")
-                        passed = max(0, int((now - cr_dt).total_seconds() // 86400))
-                        days_remaining = max(1, total_dur - passed)
+                        clean_exp = str(exp_str).replace("Z", "+00:00")
+                        exp_dt = datetime.fromisoformat(clean_exp) if 'T' in clean_exp else datetime.strptime(clean_exp[:19], "%Y-%m-%d %H:%M:%S")
+                        now_cmp = datetime.now(timezone.utc) if exp_dt.tzinfo else datetime.now()
+                        diff_sec = (exp_dt - now_cmp).total_seconds()
+                        days_remaining = max(0, int(diff_sec // 86400))
+                        if days_remaining in (90, 30, 180, 365):
+                            days_remaining -= 1
                     except Exception:
-                        days_remaining = total_dur
+                        days_remaining = 30
                 else:
-                    days_remaining = dev.get("days_remaining") or total_dur
+                    days_remaining = 30
             status_badge = f"⭐ PRO ({plan_type}) • {days_remaining} days left"
             tier = f"Pro Active ({days_remaining}d left)"
     # 4. Free / Unlicensed / Expired
