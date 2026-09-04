@@ -1703,14 +1703,27 @@ const App = {
                 if (pSub) pSub.innerText = 'EggDL is ready to install the new update.';
                 if (installBtn) {
                   installBtn.style.display = 'inline-flex';
+                  installBtn.disabled = false;
+                  installBtn.innerHTML = '<i data-lucide="refresh-cw"></i> Restart & Install Now';
                   installBtn.onclick = async () => {
                     installBtn.disabled = true;
                     installBtn.innerHTML = '<i data-lucide="loader-2" class="spin"></i> Restarting EggDL...';
                     if (window.lucide) window.lucide.createIcons();
                     UI.showToast('🚀 Launching update installer...', 'success', 5000);
                     try {
-                      await API.installUpdate();
-                    } catch (_) {}
+                      const res = await API.installUpdate();
+                      if (res && res.success === false) {
+                        installBtn.disabled = false;
+                        installBtn.innerHTML = '<i data-lucide="refresh-cw"></i> Try Install Again';
+                        if (window.lucide) window.lucide.createIcons();
+                        UI.showToast(res.message || 'Could not launch installer. Click to retry.', 'error', 4000);
+                      }
+                    } catch (err) {
+                      installBtn.disabled = false;
+                      installBtn.innerHTML = '<i data-lucide="refresh-cw"></i> Try Install Again';
+                      if (window.lucide) window.lucide.createIcons();
+                      UI.showToast('Failed to launch installer. Click to retry.', 'error', 4000);
+                    }
                   };
                 }
                 if (window.lucide) window.lucide.createIcons();

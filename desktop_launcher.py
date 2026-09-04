@@ -81,7 +81,7 @@ def check_single_instance():
         except Exception:
             pass
 
-check_single_instance()
+# check_single_instance is invoked exclusively under __name__ == '__main__'
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if getattr(sys, 'frozen', False):
@@ -495,6 +495,16 @@ class DesktopApi:
             pass
         return ""
 
+    def install_update(self):
+        try:
+            for mod_name in ["backend.app", "app"]:
+                if mod_name in sys.modules and hasattr(sys.modules[mod_name], "update_mgr"):
+                    sys.modules[mod_name].update_mgr.launch_installer()
+                    return {"success": True, "message": "Update installer launched"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+        return {"success": False, "error": "Update manager not found"}
+
 def main():
     global _MAIN_WINDOW, _TRAY_ICON
     ensure_autostart_registry()
@@ -573,4 +583,5 @@ def main():
 if __name__ == "__main__":
     import multiprocessing
     multiprocessing.freeze_support()
+    check_single_instance()
     main()

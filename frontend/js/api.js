@@ -379,11 +379,29 @@ const API = {
   },
 
   async installUpdate() {
-    const res = await fetch(`${this.baseUrl}/api/system/update/install`, {
-      method: 'POST',
-      headers: this.getHeaders()
-    });
-    return res.json();
+    try {
+      if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.install_update === 'function') {
+        const nativeRes = await window.pywebview.api.install_update();
+        if (nativeRes && nativeRes.success) return nativeRes;
+      }
+    } catch (_) {}
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const res = await fetch(`${this.baseUrl}/api/system/update/install`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        return await res.json();
+      }
+      return { success: false, message: `Server error: ${res.status}` };
+    } catch (err) {
+      return { success: false, message: err.message || 'Connection error' };
+    }
   },
 
   async checkDeviceStatus(userEmail = null) {

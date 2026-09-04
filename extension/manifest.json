@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "EggDL",
-  "version": "2.1.6",
+  "version": "2.1.7",
   "description": "High-speed video & media downloader for web, YouTube, Facebook, Instagram, and more.",
   "permissions": [
     "activeTab",

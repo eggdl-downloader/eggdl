@@ -2110,21 +2110,18 @@ class UpdateDownloadManager:
         }
 
     def launch_installer(self):
-        if self.status != "ready" or not os.path.exists(self.target_file):
-            raise Exception("Update installer is not ready.")
-        
-        target_exe = os.path.abspath(self.target_file)
-        
-        # Release single instance mutex if held
-        try:
-            import ctypes
-            import desktop_launcher
-            if hasattr(desktop_launcher, "_INSTANCE_MUTEX") and desktop_launcher._INSTANCE_MUTEX:
-                ctypes.windll.kernel32.CloseHandle(desktop_launcher._INSTANCE_MUTEX)
-        except Exception:
-            pass
+        target_exe = os.path.abspath(self.target_file) if self.target_file else ""
+        if not target_exe or not os.path.exists(target_exe):
+            # Fallback: check temp directory for downloaded installer
+            import glob
+            import tempfile
+            candidates = glob.glob(os.path.join(tempfile.gettempdir(), "EggDL_Update_*.exe"))
+            if candidates:
+                target_exe = max(candidates, key=os.path.getmtime)
+            else:
+                raise Exception("Update installer is not ready.")
 
-        # Use a detached batch script to wait for full process termination, install silently, and relaunch
+        # Detached batch script to wait for clean exit, terminate old process, run installer, and restart
         try:
             import tempfile
             bat_path = os.path.join(tempfile.gettempdir(), "eggdl_apply_update.bat")
@@ -2137,8 +2134,6 @@ ping 127.0.0.1 -n 2 > nul
 set "NEW_EXE=%LOCALAPPDATA%\\EggDL\\EggDL.exe"
 if exist "%NEW_EXE%" (
     start "" "%NEW_EXE%"
-) else (
-    start "" "{target_exe}"
 )
 del "%~f0"
 ''')
@@ -2147,9 +2142,13 @@ del "%~f0"
         except Exception:
             flags = subprocess.DETACHED_PROCESS if os.name == 'nt' else 0
             subprocess.Popen([target_exe, "/SILENT", "/SP-", "/CLOSEAPPLICATIONS", "/FORCECLOSEAPPLICATIONS"], creationflags=flags, close_fds=True)
-        
-        # Terminate immediately so no files or ports are locked
-        os._exit(0)
+
+        # Allow FastAPI to cleanly deliver the HTTP response before process exits
+        def _delayed_exit():
+            time.sleep(0.8)
+            os._exit(0)
+
+        threading.Thread(target=_delayed_exit, daemon=True).start()
 
 update_mgr = UpdateDownloadManager()
 

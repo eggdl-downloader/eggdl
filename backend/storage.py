@@ -67,7 +67,7 @@ def import_devices_from_registry(cursor):
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     dev_id, d.get("machine_name") or d.get("desktop_name"), d.get("user_name"), d.get("os_info"),
-                    d.get("app_version", "2.1.6"), d.get("ip_address"),
+                    d.get("app_version", "2.1.7"), d.get("ip_address"),
                     d.get("plan_type", "trial"), d.get("plan_expires_at"), d.get("pro_activated_at"),
                     int(d.get("is_pro", 0)), int(d.get("is_blocked", 0)), d.get("block_reason"),
                     d.get("total_downloads", 0), d.get("data_downloaded_mb", 0.0),
