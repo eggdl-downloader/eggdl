@@ -118,20 +118,20 @@ const UI = {
   },
 
   getResolutionTag(resolution) {
-    if (!resolution) return { class: 'tag-720p hd', text: '720p HD' };
+    if (!resolution) return { class: 'hd', text: 'HD' };
     const res = resolution.toLowerCase();
-    if (res.includes('best') || res.includes('auto')) return { class: 'tag-best', text: 'Best' };
-    if (res.includes('4320') || res.includes('8k')) return { class: 'tag-8k uhd', text: '8K UHD' };
-    if (res.includes('2160') || res.includes('4k')) return { class: 'tag-4k uhd', text: '4K UHD' };
-    if (res.includes('1440') || res.includes('2k')) return { class: 'tag-2k qhd', text: '2K QHD' };
-    if (res.includes('1080')) return { class: 'tag-1080p fhd', text: '1080p FHD' };
-    if (res.includes('720')) return { class: 'tag-720p hd', text: '720p HD' };
-    if (res.includes('480')) return { class: 'tag-sd sd', text: '480p SD' };
-    if (res.includes('360')) return { class: 'tag-sd sd', text: '360p SD' };
-    if (res.includes('240')) return { class: 'tag-sd sd', text: '240p' };
-    if (res.includes('144')) return { class: 'tag-sd sd', text: '144p' };
-    if (res.includes('audio')) return { class: 'tag-audio audio', text: 'AUDIO' };
-    return { class: 'tag-720p hd', text: resolution };
+    if (res.includes('best') || res.includes('auto')) return { class: 'best', text: 'Best' };
+    if (res.includes('4320') || res.includes('8k')) return { class: 'uhd-8k', text: '8K UHD' };
+    if (res.includes('2160') || res.includes('4k')) return { class: 'uhd', text: '4K UHD' };
+    if (res.includes('1440') || res.includes('2k')) return { class: 'qhd', text: '2K QHD' };
+    if (res.includes('1080')) return { class: 'fhd', text: '1080p FHD' };
+    if (res.includes('720')) return { class: 'hd', text: '720p HD' };
+    if (res.includes('480')) return { class: 'sd', text: '480p' };
+    if (res.includes('360')) return { class: 'sd', text: '360p' };
+    if (res.includes('240')) return { class: 'sd', text: '240p' };
+    if (res.includes('144')) return { class: 'sd', text: '144p' };
+    if (res.includes('audio') || res.includes('mp3') || res.includes('m4a')) return { class: 'audio', text: 'AUDIO' };
+    return { class: 'hd', text: resolution };
   },
 
   escapeHtml(str) {
@@ -586,12 +586,10 @@ const UI = {
 
     if (result.type === 'stream') {
       const data = result.data;
-      const videoOpts = data.video_options || [];
-      let audioOpts = data.audio_options || [];
 
-      // Guarantee audio options are always available even if yt-dlp only returned video
-      if (audioOpts.length === 0) {
-        audioOpts = [
+      // Ensure audio options fallback if empty
+      if (!data.audio_options || data.audio_options.length === 0) {
+        data.audio_options = [
           {
             format_id: 'ba/best',
             label: 'Original Audio (Best Quality)',
@@ -601,61 +599,54 @@ const UI = {
           },
           {
             format_id: 'mp3_320',
-            label: 'MP3 Audio (Studio Quality 320kbps)',
+            label: 'Audio Only - MP3 (Studio Quality 320kbps)',
             ext: 'mp3',
-            filesize_str: 'Extracted MP3',
+            filesize_str: 'HQ MP3',
             filesize: null
           }
         ];
       }
 
-      const videoCount = videoOpts.length;
-      const audioCount = audioOpts.length;
-
       modalBody.innerHTML = `
         <div class="media-preview-box">
           ${data.thumbnail ? `<img class="media-modal-thumb" src="${data.thumbnail}" alt="Thumbnail">` : ''}
           <div class="media-preview-info">
-            <h3 title="${UI.escapeHtml(data.title)}">${UI.escapeHtml(data.title)}</h3>
+            <h3 title="${this.escapeHtml(data.title || 'Video')}">${data.title || 'Video'}</h3>
             <div class="media-preview-meta">
-              <span><i data-lucide="clock" class="small-icon"></i> ${data.duration_str || 'Online'}</span>
-              <span><i data-lucide="user" class="small-icon"></i> ${UI.escapeHtml(data.uploader || 'Online Media')}</span>
+              <span><i data-lucide="clock" class="small-icon"></i> ${data.duration_str || '--:--'}</span>
+              <span><i data-lucide="user" class="small-icon"></i> ${data.uploader || 'Stream'}</span>
             </div>
           </div>
         </div>
 
         <div class="format-tabs">
-          <button type="button" class="format-tab-btn active" onclick="UI.switchFormatTab('video')">
-            <span>🎬 Video Qualities</span> <span class="badge" style="font-size:0.72rem;padding:1px 6px;border-radius:10px;background:rgba(255,255,255,0.08);">${videoCount}</span>
-          </button>
-          <button type="button" class="format-tab-btn" onclick="UI.switchFormatTab('audio')">
-            <span>🎵 Audio (MP3 / M4A)</span> <span class="badge" style="font-size:0.72rem;padding:1px 6px;border-radius:10px;background:rgba(255,255,255,0.08);">${audioCount}</span>
-          </button>
+          <button type="button" class="format-tab-btn active" onclick="UI.switchFormatTab('video')">🎬 Video Qualities</button>
+          <button type="button" class="format-tab-btn" onclick="UI.switchFormatTab('audio')">🎵 Audio (MP3 / M4A)</button>
         </div>
 
-        <div id="tab-video-content" class="format-tab-content">
-          ${videoOpts.length === 0 ? '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:0.85rem;">No video streams found.</div>' : videoOpts.map((opt, i) => {
+        <div id="tab-video-content" class="format-grid">
+          ${(data.video_options || []).map((opt, i) => {
             const tag = UI.getResolutionTag(opt.resolution || opt.label);
             return `
               <div class="format-item ${i === 0 ? 'selected' : ''}" data-format-id="${opt.format_id}" data-type="video" data-filesize="${opt.filesize || ''}" onclick="UI.selectFormatItem(this)">
                 <div class="format-label">
                   <span class="res-tag ${tag.class}">${tag.text}</span>
-                  <span class="format-title" title="${UI.escapeHtml(opt.label)}">${UI.escapeHtml(opt.label)}</span>
+                  <span class="format-name" title="${this.escapeHtml(opt.label)}">${opt.label}</span>
                 </div>
-                <div class="format-meta">${opt.ext.toUpperCase()} • ${opt.filesize_str || 'Direct'}</div>
+                <div class="format-meta">${opt.ext.toUpperCase()} • ${opt.filesize_str || 'Auto'}</div>
               </div>
             `;
           }).join('')}
         </div>
 
-        <div id="tab-audio-content" class="format-tab-content hidden-tab-content" style="display: none;">
-          ${audioOpts.length === 0 ? '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:0.85rem;">No audio streams found.</div>' : audioOpts.map((opt, i) => `
-            <div class="format-item ${i === 0 ? 'selected' : ''}" data-format-id="${opt.format_id}" data-type="audio" data-ext="${opt.ext || 'mp3'}" data-filesize="${opt.filesize || ''}" onclick="UI.selectFormatItem(this)">
+        <div id="tab-audio-content" class="format-grid tab-hidden" style="display: none;">
+          ${(data.audio_options || []).map((opt, i) => `
+            <div class="format-item ${i === 0 ? 'selected' : ''}" data-format-id="${opt.format_id}" data-type="audio" data-ext="${opt.ext}" data-filesize="${opt.filesize || ''}" onclick="UI.selectFormatItem(this)">
               <div class="format-label">
-                <span class="res-tag tag-audio audio">MP3/M4A</span>
-                <span class="format-title" title="${UI.escapeHtml(opt.label)}">${UI.escapeHtml(opt.label)}</span>
+                <span class="res-tag audio">MP3/M4A</span>
+                <span class="format-name" title="${this.escapeHtml(opt.label)}">${opt.label}</span>
               </div>
-              <div class="format-meta">${(opt.ext || 'mp3').toUpperCase()} • ${opt.filesize_str || 'Audio Stream'}</div>
+              <div class="format-meta">${opt.ext.toUpperCase()} • ${opt.filesize_str || 'HQ Audio'}</div>
             </div>
           `).join('')}
         </div>
@@ -770,33 +761,23 @@ const UI = {
     if (type === 'video') {
       btns[0]?.classList.add('active');
       if (videoTab) {
-        videoTab.classList.remove('hidden-tab-content');
+        videoTab.classList.remove('tab-hidden');
         videoTab.style.display = 'flex';
       }
       if (audioTab) {
-        audioTab.classList.add('hidden-tab-content');
+        audioTab.classList.add('tab-hidden');
         audioTab.style.display = 'none';
       }
-      // Ensure one item is selected in video tab
-      if (!videoTab?.querySelector('.format-item.selected')) {
-        videoTab?.querySelector('.format-item')?.classList.add('selected');
-      }
-      audioTab?.querySelectorAll('.format-item').forEach(i => i.classList.remove('selected'));
     } else {
       btns[1]?.classList.add('active');
       if (videoTab) {
-        videoTab.classList.add('hidden-tab-content');
+        videoTab.classList.add('tab-hidden');
         videoTab.style.display = 'none';
       }
       if (audioTab) {
-        audioTab.classList.remove('hidden-tab-content');
+        audioTab.classList.remove('tab-hidden');
         audioTab.style.display = 'flex';
       }
-      // Ensure one item is selected in audio tab
-      if (!audioTab?.querySelector('.format-item.selected')) {
-        audioTab?.querySelector('.format-item')?.classList.add('selected');
-      }
-      videoTab?.querySelectorAll('.format-item').forEach(i => i.classList.remove('selected'));
     }
   },
 

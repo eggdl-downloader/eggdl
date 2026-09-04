@@ -1875,72 +1875,69 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
 /* Modal Format Tab Switches */
 .format-tabs {
   display: flex !important;
-  background: var(--bg-input) !important;
-  border: 1px solid var(--border-default) !important;
-  border-radius: var(--radius-sm) !important;
-  padding: 4px !important;
-  gap: 6px !important;
-  margin-top: 14px !important;
-  margin-bottom: 12px !important;
+  flex-direction: row !important;
+  background: var(--bg-input);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xs);
+  padding: 4px;
+  gap: 6px;
+  margin-bottom: 2px;
 }
 
 .format-tab-btn {
   flex: 1 !important;
-  padding: 8px 12px !important;
-  background: transparent !important;
-  border: 1px solid transparent !important;
-  border-radius: var(--radius-xs) !important;
-  color: var(--text-muted) !important;
-  font-family: var(--font-sans) !important;
-  font-size: 0.82rem !important;
-  font-weight: 700 !important;
-  cursor: pointer !important;
-  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1) !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  gap: 6px !important;
-  user-select: none !important;
+  padding: 8px 14px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  user-select: none;
 }
 
 .format-tab-btn:hover {
-  color: var(--text-main) !important;
-  background: rgba(255, 255, 255, 0.05) !important;
+  color: #FFFFFF;
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .format-tab-btn.active {
-  background: var(--bg-surface-active) !important;
-  color: var(--accent-primary) !important;
-  border-color: rgba(70, 240, 210, 0.35) !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35) !important;
+  background: var(--accent-primary);
+  color: var(--accent-text);
+  box-shadow: var(--shadow-sm);
+  border-color: var(--accent-primary);
 }
 
-.format-grid,
-.format-tab-content {
+.format-grid {
   display: flex !important;
   flex-direction: column !important;
-  gap: 7px !important;
+  gap: 6px !important;
   max-height: 280px !important;
   overflow-y: auto !important;
   overflow-x: hidden !important;
-  padding: 2px 4px 4px 2px !important;
+  padding: 4px 2px !important;
+  width: 100% !important;
   box-sizing: border-box !important;
 }
 
-.format-grid.hidden-tab-content,
-.format-tab-content.hidden-tab-content {
+.format-grid.tab-hidden,
+.format-grid[style*="display: none"] {
   display: none !important;
 }
 
-.format-grid::-webkit-scrollbar,
-.format-tab-content::-webkit-scrollbar {
-  width: 5px !important;
+.format-grid::-webkit-scrollbar {
+  width: 5px;
 }
-
-.format-grid::-webkit-scrollbar-thumb,
-.format-tab-content::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.16) !important;
-  border-radius: 4px !important;
+.format-grid::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
 }
 
 .format-item {
@@ -1951,12 +1948,12 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   padding: 10px 14px !important;
   background: var(--bg-surface) !important;
   border: 1px solid var(--border-default) !important;
-  border-radius: var(--radius-sm) !important;
+  border-radius: 8px !important;
   cursor: pointer !important;
   transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1) !important;
-  box-sizing: border-box !important;
-  min-width: 0 !important;
   width: 100% !important;
+  box-sizing: border-box !important;
+  flex-shrink: 0 !important;
 }
 
 .format-item:hover {
@@ -1968,7 +1965,7 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
 .format-item.selected {
   background: rgba(70, 240, 210, 0.08) !important;
   border-color: var(--accent-primary) !important;
-  box-shadow: 0 0 0 1px var(--accent-primary), 0 3px 12px rgba(0, 0, 0, 0.35) !important;
+  box-shadow: 0 0 10px rgba(70, 240, 210, 0.25) !important;
 }
 
 .format-label {
@@ -1977,12 +1974,13 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   gap: 10px !important;
   min-width: 0 !important;
   flex: 1 !important;
+  overflow: hidden !important;
 }
 
-.format-title {
+.format-name {
   font-size: 0.84rem !important;
   font-weight: 600 !important;
-  color: var(--text-main) !important;
+  color: #F8FAFC !important;
   white-space: nowrap !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
@@ -1990,80 +1988,92 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
 
 .format-meta {
   font-size: 0.74rem !important;
-  font-family: var(--font-mono) !important;
+  font-family: var(--font-mono), monospace !important;
   font-variant-numeric: tabular-nums !important;
   color: var(--text-muted) !important;
   white-space: nowrap !important;
   flex-shrink: 0 !important;
-  background: rgba(255, 255, 255, 0.04) !important;
-  padding: 3px 8px !important;
-  border-radius: 4px !important;
-  border: 1px solid var(--border-default) !important;
 }
 
-/* Luxury Quality Badges */
+/* ==========================================================================
+   PREMIUM QUALITY BADGES (MATCHING EXTENSION LUXURY METALLIC GRADIENTS)
+   ========================================================================== */
 .res-tag {
+  font-family: var(--font-mono), monospace !important;
   font-size: 0.68rem !important;
   font-weight: 800 !important;
-  font-family: var(--font-mono) !important;
-  letter-spacing: 0.5px !important;
-  padding: 2px 7px !important;
+  padding: 3px 7px !important;
   border-radius: 4px !important;
-  min-width: 44px !important;
+  letter-spacing: 0.4px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 42px !important;
   text-align: center !important;
   white-space: nowrap !important;
-  flex-shrink: 0 !important;
   text-transform: uppercase !important;
   user-select: none !important;
+  flex-shrink: 0 !important;
 }
 
-.res-tag.uhd, .res-tag.tag-4k {
+/* 4K ULTRA HD - Radiant Metallic Gold / Amber Luxury Badge */
+.res-tag.uhd {
   background: linear-gradient(135deg, #FF9500 0%, #F59E0B 50%, #D97706 100%) !important;
   color: #0F1117 !important;
   border: 1px solid #FDE047 !important;
-  box-shadow: 0 0 8px rgba(245, 158, 11, 0.4) !important;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.7) !important;
   font-weight: 900 !important;
 }
 
-.res-tag.tag-8k {
+/* 8K ULTRA HD - Majestic Purple / Fuchsia Jewel */
+.res-tag.uhd-8k {
   background: linear-gradient(135deg, #A855F7 0%, #D946EF 50%, #EC4899 100%) !important;
   color: #FFFFFF !important;
   border: 1px solid #F0ABFC !important;
   box-shadow: 0 0 8px rgba(217, 70, 239, 0.4) !important;
+  font-weight: 900 !important;
 }
 
-.res-tag.tag-best {
+/* BEST QUALITY - Mint / Electric Cyan */
+.res-tag.best {
   background: linear-gradient(135deg, #10B981 0%, #06B6D4 100%) !important;
   color: #042F2E !important;
   border: 1px solid #67E8F9 !important;
   box-shadow: 0 0 6px rgba(6, 182, 212, 0.35) !important;
+  font-weight: 800 !important;
 }
 
-.res-tag.qhd, .res-tag.tag-2k {
+/* 2K QHD (1440p) - Electric Sky Blue */
+.res-tag.qhd {
   background: linear-gradient(135deg, #0284C7 0%, #38BDF8 100%) !important;
   color: #082F49 !important;
   border: 1px solid #7DD3FC !important;
+  font-weight: 800 !important;
 }
 
-.res-tag.fhd, .res-tag.tag-1080p {
+/* 1080p FHD - Vibrant Indigo / Cobalt */
+.res-tag.fhd {
   background: linear-gradient(135deg, #4F46E5 0%, #6366F1 100%) !important;
   color: #FFFFFF !important;
   border: 1px solid #A5B4FC !important;
 }
 
-.res-tag.hd, .res-tag.tag-720p {
+/* 720p HD - Emerald Tech */
+.res-tag.hd {
   background: linear-gradient(135deg, #059669 0%, #10B981 100%) !important;
   color: #FFFFFF !important;
   border: 1px solid #6EE7B7 !important;
 }
 
-.res-tag.sd, .res-tag.tag-sd {
+/* SD (480p, 360p, 240p, 144p) - Matte Titanium / Slate */
+.res-tag.sd {
   background: rgba(148, 163, 184, 0.12) !important;
   color: #94A3B8 !important;
   border: 1px solid rgba(148, 163, 184, 0.25) !important;
 }
 
-.res-tag.audio, .res-tag.tag-audio {
+/* AUDIO (MP3 / M4A / FLAC) - Rose / Coral */
+.res-tag.audio {
   background: linear-gradient(135deg, #E11D48 0%, #F43F5E 60%, #FB7185 100%) !important;
   color: #FFFFFF !important;
   border: 1px solid #FDA4AF !important;
@@ -3541,7 +3551,7 @@ html, body {
   display: none;
 }
 
-/* Format Selector Pills Single-Line Horizontal Scroll Container */
+/* Format Selector Pills Horizontal Scroll Container */
 .format-pills-container {
   display: flex !important;
   flex-direction: row !important;
@@ -4434,6 +4444,7 @@ html, body {
     max-width: 240px !important;
     flex-shrink: 0 !important;
     scroll-snap-align: start !important;
+    box-sizing: border-box !important;
   }
 }
 

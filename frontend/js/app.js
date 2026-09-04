@@ -727,28 +727,14 @@ const App = {
       document.getElementById('settings-modal').style.display = 'flex';
     });
 
-    // Material 3 TopAppBar Clipboard Auto-Detect Chip
+    // Material 3 TopAppBar Clipboard Auto-Detect Chip (Native OS clipboard via backend bridge - Zero localhost prompts)
     const clipChip = document.getElementById('m3-clipboard-chip');
     const checkClipboardForChip = async () => {
       try {
         let text = '';
-        // 1. Native Windows/OS Clipboard via local backend or PyWebView (100% silent, zero browser permission prompt)
         if (typeof API !== 'undefined' && API.getClipboard) {
           text = await API.getClipboard();
         }
-
-        // 2. In pure browser context, ONLY read if permission is ALREADY granted (never trigger browser permission modal)
-        if (!text && typeof navigator !== 'undefined' && navigator.clipboard?.readText) {
-          try {
-            if (navigator.permissions?.query) {
-              const perm = await navigator.permissions.query({ name: 'clipboard-read' });
-              if (perm.state === 'granted') {
-                text = await navigator.clipboard.readText();
-              }
-            }
-          } catch (_) {}
-        }
-
         if (text && (text.startsWith('http://') || text.startsWith('https://') || text.startsWith('magnet:'))) {
           if (clipChip) {
             const chipText = document.getElementById('m3-clipboard-chip-text');
@@ -767,7 +753,7 @@ const App = {
           if (clipChip) clipChip.style.display = 'none';
         }
       } catch (e) {
-        // Silent catch
+        // Silent catch for permissions
       }
     };
     window.addEventListener('focus', checkClipboardForChip);
