@@ -762,21 +762,33 @@ const UI = {
       btns[0]?.classList.add('active');
       if (videoTab) {
         videoTab.classList.remove('tab-hidden');
-        videoTab.style.display = 'flex';
+        videoTab.style.setProperty('display', 'flex', 'important');
       }
       if (audioTab) {
         audioTab.classList.add('tab-hidden');
-        audioTab.style.display = 'none';
+        audioTab.style.setProperty('display', 'none', 'important');
+      }
+      // Ensure selection is inside visible tab
+      const currentSelected = document.querySelector('#inspect-modal .format-item.selected');
+      if (!currentSelected || currentSelected.closest('#tab-video-content') === null) {
+        document.querySelectorAll('#inspect-modal .format-item').forEach(i => i.classList.remove('selected'));
+        videoTab?.querySelector('.format-item')?.classList.add('selected');
       }
     } else {
       btns[1]?.classList.add('active');
       if (videoTab) {
         videoTab.classList.add('tab-hidden');
-        videoTab.style.display = 'none';
+        videoTab.style.setProperty('display', 'none', 'important');
       }
       if (audioTab) {
         audioTab.classList.remove('tab-hidden');
-        audioTab.style.display = 'flex';
+        audioTab.style.setProperty('display', 'flex', 'important');
+      }
+      // Ensure selection is inside visible tab
+      const currentSelected = document.querySelector('#inspect-modal .format-item.selected');
+      if (!currentSelected || currentSelected.closest('#tab-audio-content') === null) {
+        document.querySelectorAll('#inspect-modal .format-item').forEach(i => i.classList.remove('selected'));
+        audioTab?.querySelector('.format-item')?.classList.add('selected');
       }
     }
   },
