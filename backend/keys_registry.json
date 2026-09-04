@@ -889,5 +889,23 @@
     "used_by_user_id": null,
     "activated_at": null,
     "created_at": "2026-09-04T00:41:29.474004"
+  },
+  {
+    "key": "EGGDL-3M-5D14-5A01-6C1C",
+    "plan_type": "3month",
+    "duration_days": 90,
+    "is_used": 0,
+    "used_by_user_id": null,
+    "activated_at": null,
+    "created_at": "2026-09-04T23:58:40.440289"
+  },
+  {
+    "key": "EGGDL-TEST-VIP-2026",
+    "plan_type": "lifetime",
+    "duration_days": 36500,
+    "is_used": 0,
+    "used_by_user_id": null,
+    "activated_at": null,
+    "created_at": "2026-09-05T00:58:54.825941"
   }
 ]

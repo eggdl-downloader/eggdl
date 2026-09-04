@@ -83,6 +83,7 @@ app = FastAPI(title="EggDL API", version="2.0.0")
 
 APP_CURRENT_VERSION = "2.1.7"
 CLOUD_API_URL = os.environ.get("CLOUD_API_URL", "https://eggdl.onrender.com")
+FIREBASE_DB_URL = "https://eggdl-app-default-rtdb.firebaseio.com"
 
 @app.middleware("http")
 async def add_pna_and_cors_headers(request: Request, call_next):
@@ -488,13 +489,73 @@ def trigger_cloud_license_sync_bg(dev_id: str):
         threading.Thread(target=sync_license_from_cloud, args=(dev_id,), daemon=True).start()
 
 def sync_license_from_cloud(dev_id: str) -> Optional[Dict[str, Any]]:
-    """Contacts Cloud Render database, syncs license, plan, duration, and blocks with two-way preservation."""
+    """Syncs license state directly with Firebase Cloud Database (Hardware Licensing) in real-time."""
     if os.environ.get("RENDER"):
         return None
     try:
         import urllib.request
         info = get_machine_info()
         local_status = get_device_license_status(dev_id)
+        
+        # 1. First priority: Direct Firebase Hardware Licensing
+        clean_dev_id = dev_id.replace("/", "_").replace(".", "_")
+        fb_url = f"{FIREBASE_DB_URL}/devices/{clean_dev_id}.json"
+        
+        # Check if remote record exists in Firebase
+        fb_req = urllib.request.Request(fb_url, headers={"User-Agent": "EggDL-Client"})
+        try:
+            with urllib.request.urlopen(fb_req, timeout=3.0) as res:
+                if res.status == 200:
+                    fb_data = json.loads(res.read().decode())
+                    if fb_data and isinstance(fb_data, dict):
+                        # REMOTE COMMAND FROM FIREBASE:
+                        # A) Block/Kill Check
+                        if fb_data.get("is_blocked"):
+                            set_device_blocked(dev_id, blocked=True, reason=fb_data.get("block_reason") or "Suspended by Admin")
+                            return fb_data
+                        else:
+                            set_device_blocked(dev_id, blocked=False)
+
+                        # B) Pro Status Check
+                        if fb_data.get("is_pro"):
+                            plan_t = fb_data.get("plan_type", "lifetime")
+                            exp_at = fb_data.get("plan_expires_at")
+                            days_left = fb_data.get("days_remaining", 9999 if plan_t == "lifetime" else 30)
+                            grant_device_pro(dev_id, plan_type=plan_t, duration_days=days_left, expires_at=exp_at)
+                            return fb_data
+                        elif fb_data.get("plan_type") == "trial" and not fb_data.get("trial_expired"):
+                            if not local_status.get("is_pro"):
+                                reset_device_trial(dev_id)
+                            return fb_data
+                        elif fb_data.get("plan_type") in ["expired", "free", "revoked"]:
+                            revoke_device_pro(dev_id)
+                            return fb_data
+                    else:
+                        # Register new device in Firebase with current local state
+                        init_payload = {
+                            "device_id": dev_id,
+                            "desktop_name": info.get("desktop_name", "DESKTOP-PC"),
+                            "user_name": info.get("user_name", "User"),
+                            "os_info": info.get("os_info", "Windows"),
+                            "app_version": APP_CURRENT_VERSION,
+                            "is_pro": bool(local_status.get("is_pro")),
+                            "plan_type": local_status.get("plan_type", "trial"),
+                            "plan_expires_at": local_status.get("plan_expires_at"),
+                            "is_blocked": False,
+                            "created_at": datetime.now().isoformat(),
+                            "last_seen": datetime.now().isoformat()
+                        }
+                        put_req = urllib.request.Request(
+                            fb_url,
+                            data=json.dumps(init_payload).encode(),
+                            headers={"Content-Type": "application/json"},
+                            method="PUT"
+                        )
+                        urllib.request.urlopen(put_req, timeout=3.0)
+        except Exception as fb_err:
+            pass
+
+        # 2. Secondary fallback: Legacy Render endpoint (if configured)
         payload = {
             "device_id": dev_id,
             "desktop_name": info.get("desktop_name", "SRIMAN"),
@@ -512,11 +573,9 @@ def sync_license_from_cloud(dev_id: str) -> Optional[Dict[str, Any]]:
             data=data_bytes,
             headers={"Content-Type": "application/json", "User-Agent": "EggDL-Client"}
         )
-        with urllib.request.urlopen(remote_req, timeout=3.5) as res:
+        with urllib.request.urlopen(remote_req, timeout=3.0) as res:
             if res.status == 200:
                 cloud_res = json.loads(res.read().decode())
-                
-                # PERSIST CLOUD STATE TO LOCAL SQLITE DB SAFELY
                 if cloud_res.get("is_blocked"):
                     set_device_blocked(dev_id, blocked=True, reason=cloud_res.get("block_reason") or "Suspended by Admin")
                 else:
@@ -526,29 +585,6 @@ def sync_license_from_cloud(dev_id: str) -> Optional[Dict[str, Any]]:
                         exp_at = cloud_res.get("plan_expires_at")
                         days_left = cloud_res.get("days_remaining", 30)
                         grant_device_pro(dev_id, plan_type=plan_t, duration_days=days_left, expires_at=exp_at)
-                    elif cloud_res.get("plan_type") == "trial" and not cloud_res.get("trial_expired"):
-                        # If local machine is NOT Pro, sync trial status
-                        if not local_status.get("is_pro"):
-                            if not local_status.get("is_trial"):
-                                reset_device_trial(dev_id)
-                    else:
-                        # Only revoke if local machine was NOT Pro or if local Pro actually expired
-                        if local_status.get("is_pro"):
-                            exp_at = local_status.get("plan_expires_at")
-                            if exp_at:
-                                try:
-                                    exp_dt = datetime.fromisoformat(str(exp_at).replace("Z", "+00:00"))
-                                    if exp_dt.tzinfo is None:
-                                        still_active = datetime.now() < exp_dt
-                                    else:
-                                        still_active = datetime.now(timezone.utc) < exp_dt
-                                    if not still_active:
-                                        revoke_device_pro(dev_id)
-                                except Exception:
-                                    pass
-                        else:
-                            revoke_device_pro(dev_id)
-
                 return cloud_res
     except Exception:
         pass
@@ -672,7 +708,82 @@ async def activate_machine_key(req: MachineKeyActivateRequest):
             "plan_type": plan_type
         }
     except Exception as local_err:
-        # 2. If not found locally and running on desktop app, query Cloud Render Server
+        # 2. Check Firebase Cloud Licenses first (Hardware licensing)
+        try:
+            import urllib.request
+            clean_key = key.replace("/", "_").replace(".", "_")
+            fb_key_url = f"{FIREBASE_DB_URL}/licenses/{clean_key}.json"
+            fb_req = urllib.request.Request(fb_key_url, headers={"User-Agent": "EggDL-Client"})
+            with urllib.request.urlopen(fb_req, timeout=4.0) as res:
+                if res.status == 200:
+                    lic_data = json.loads(res.read().decode())
+                    if lic_data and isinstance(lic_data, dict):
+                        # Check key status
+                        if lic_data.get("status") == "blocked":
+                            raise HTTPException(status_code=400, detail="This product key has been revoked by administrator.")
+                        
+                        bound_hwid = lic_data.get("bound_machine_id")
+                        max_devs = lic_data.get("max_devices", 1)
+                        if bound_hwid and bound_hwid != dev_id and max_devs <= 1:
+                            raise HTTPException(status_code=400, detail="This product key is already bound to another PC.")
+                            
+                        plan_t = lic_data.get("plan", lic_data.get("plan_type", "lifetime"))
+                        duration = 36500 if plan_t == "lifetime" else 30
+                        if plan_t == "3month": duration = 90
+                        elif plan_t == "6month": duration = 180
+                        elif plan_t == "1year": duration = 365
+
+                        # Bind to this machine in Firebase
+                        bind_payload = {
+                            **lic_data,
+                            "bound_machine_id": dev_id,
+                            "activated_at": datetime.now().isoformat(),
+                            "status": "active"
+                        }
+                        bind_req = urllib.request.Request(
+                            fb_key_url,
+                            data=json.dumps(bind_payload).encode(),
+                            headers={"Content-Type": "application/json"},
+                            method="PUT"
+                        )
+                        urllib.request.urlopen(bind_req, timeout=3.0)
+
+                        # Update device state in Firebase
+                        clean_dev_id = dev_id.replace("/", "_").replace(".", "_")
+                        dev_url = f"{FIREBASE_DB_URL}/devices/{clean_dev_id}.json"
+                        dev_update = {
+                            "device_id": dev_id,
+                            "is_pro": True,
+                            "plan_type": plan_t,
+                            "is_blocked": False,
+                            "license_key": key,
+                            "last_seen": datetime.now().isoformat()
+                        }
+                        patch_req = urllib.request.Request(
+                            dev_url,
+                            data=json.dumps(dev_update).encode(),
+                            headers={"Content-Type": "application/json"},
+                            method="PATCH"
+                        )
+                        urllib.request.urlopen(patch_req, timeout=3.0)
+
+                        # Grant Pro locally
+                        updated_status = grant_device_pro(dev_id, plan_type=plan_t, duration_days=duration)
+                        create_license_key(key, plan_t, duration)
+                        plan_info = PLAN_CONFIGS.get(plan_t, PLAN_CONFIGS["lifetime"])
+                        return {
+                            "success": True,
+                            "message": f"✨ Product key verified with Cloud & activated successfully for this PC ({updated_status.get('desktop_name')})!",
+                            "license": updated_status,
+                            "plan": plan_info,
+                            "plan_type": plan_t
+                        }
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+
+        # 3. Fallback: Query Cloud Render Server if available
         if not os.environ.get("RENDER"):
             try:
                 import urllib.request

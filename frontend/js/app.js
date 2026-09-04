@@ -165,6 +165,12 @@ const App = {
       UI.renderUserProfile(this.authData);
       this.cleanAutofillSearch();
 
+      // Start Real-Time Firebase Hardware Licensing Stream
+      const machineId = this.authData?.machine?.machine_id || API.getOrCreateDeviceId();
+      if (machineId && window.FirebaseLicensing) {
+        window.FirebaseLicensing.init(machineId);
+      }
+
       // If 7-Day Free Trial has expired and user is not Pro, automatically show the paywall & product key modal
       if (this.authData && this.authData.trial_expired && !this.authData.is_pro) {
         setTimeout(() => {

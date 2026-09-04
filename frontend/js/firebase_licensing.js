@@ -1,0 +1,114 @@
+﻿// EggDL Firebase Real-Time Hardware Licensing Client
+// 100% Hardware-Bound (HWID). Zero Google Login. Instant <3s Admin Control.
+
+const FirebaseLicensing = {
+  dbUrl: 'https://eggdl-app-default-rtdb.firebaseio.com',
+  eventSource: null,
+  activeMachineId: null,
+
+  init(machineId) {
+    if (!machineId) return;
+    this.activeMachineId = machineId.replace(/[\/\.]/g, '_');
+    this.startRealtimeStream();
+  },
+
+  startRealtimeStream() {
+    if (!this.activeMachineId) return;
+    if (this.eventSource) {
+      try { this.eventSource.close(); } catch (_) {}
+    }
+
+    // Firebase Realtime Database SSE / Streaming Protocol
+    const streamUrl = ${this.dbUrl}/devices/.json;
+    
+    try {
+      this.eventSource = new EventSource(streamUrl);
+
+      this.eventSource.addEventListener('put', (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload && payload.data) {
+            this.handleRemoteUpdate(payload.data);
+          }
+        } catch (_) {}
+      });
+
+      this.eventSource.addEventListener('patch', (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload && payload.data) {
+            this.handleRemoteUpdate(payload.data);
+          }
+        } catch (_) {}
+      });
+
+      this.eventSource.onerror = () => {
+        // Auto reconnection handled by EventSource
+      };
+    } catch (_) {
+      setInterval(() => this.pollStatus(), 5000);
+    }
+  },
+
+  async handleRemoteUpdate(data) {
+    if (!data || typeof data !== 'object') return;
+
+    // 1. Instant 3-Second Kill / Block Check
+    if (data.is_blocked) {
+      const reason = data.block_reason || 'Access suspended by master administrator.';
+      if (window.UI && typeof UI.renderDeviceSuspended === 'function') {
+        UI.renderDeviceSuspended(reason);
+      }
+      if (window.App && App.authData) {
+        App.authData.is_blocked = true;
+        App.authData.can_download = false;
+        App.authData.is_pro = false;
+      }
+      return;
+    } else {
+      if (window.UI && typeof UI.removeDeviceSuspended === 'function') {
+        UI.removeDeviceSuspended();
+      }
+    }
+
+    // 2. Instant 3-Second Pro Grant / Revoke Check
+    if (window.App) {
+      let changed = false;
+      const isPro = !!data.is_pro;
+      const planType = data.plan_type || 'trial';
+
+      if (App.authData) {
+        if (App.authData.is_pro !== isPro || App.authData.plan_type !== planType) {
+          App.authData.is_pro = isPro;
+          App.authData.plan_type = planType;
+          App.authData.can_download = isPro || !data.trial_expired;
+          App.authData.days_remaining = data.days_remaining || (isPro ? 9999 : 0);
+          changed = true;
+        }
+      }
+
+      if (changed && window.UI) {
+        UI.renderUserProfile(App.authData);
+        if (isPro) {
+          UI.showToast(✨ Subscription updated: Pro Activated!, 'success');
+          UI.closeAccountModal();
+        } else if (planType === 'expired') {
+          UI.showToast(⚠️ License status changed: Expired, 'warning');
+        }
+      }
+    }
+  },
+
+  async pollStatus() {
+    if (!this.activeMachineId) return;
+    try {
+      const res = await fetch(${this.dbUrl}/devices/.json);
+      if (res.ok) {
+        const data = await res.json();
+        if (data) this.handleRemoteUpdate(data);
+      }
+    } catch (_) {}
+  }
+};
+
+window.FirebaseLicensing = FirebaseLicensing;
