@@ -1,6 +1,20 @@
 const API = {
-  baseUrl: '',
+  baseUrl: (localStorage.getItem('eggdl_backend_url') || '').replace(/\/+$/, ''),
   tokenKey: 'eggdl_auth_token',
+
+  setBaseUrl(url) {
+    if (url && url.trim()) {
+      this.baseUrl = url.trim().replace(/\/+$/, '');
+      localStorage.setItem('eggdl_backend_url', this.baseUrl);
+    } else {
+      this.baseUrl = '';
+      localStorage.removeItem('eggdl_backend_url');
+    }
+  },
+
+  getBaseUrl() {
+    return this.baseUrl || (localStorage.getItem('eggdl_backend_url') || '').replace(/\/+$/, '');
+  },
 
   getOrCreateDeviceId() {
     return localStorage.getItem('eggdl_hwid') || '';

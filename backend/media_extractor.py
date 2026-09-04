@@ -418,7 +418,8 @@ class MediaExtractor:
             "cachedir": False,
             "extractor_args": {
                 "youtube": {
-                    "player_client": ["android", "ios", "web"],
+                    "player_client": ["visionos", "web_embedded", "android", "ios"],
+                    "player_skip": ["configs", "webpage"],
                 }
             },
             "http_headers": {
@@ -450,7 +451,7 @@ class MediaExtractor:
                         "socket_timeout": 15,
                         "extractor_args": {
                             "youtube": {
-                                "player_client": ["android", "ios"],
+                                "player_client": ["visionos", "tv", "web_embedded"],
                             }
                         },
                     }
@@ -817,7 +818,8 @@ class StreamDownloadTask:
             "cachedir": False,
             "extractor_args": {
                 "youtube": {
-                    "player_client": ["android", "ios", "web"],
+                    "player_client": ["visionos", "web_embedded", "android", "ios"],
+                    "player_skip": ["configs", "webpage"],
                 }
             },
             "format_sort": ["res", "fps", "vcodec:h264", "acodec:m4a", "ext:mp4:m4a"],

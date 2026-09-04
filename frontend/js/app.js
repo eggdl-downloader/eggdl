@@ -238,8 +238,27 @@ const App = {
   },
 
   initWebSocket() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    let wsUrl;
+    const base = API.getBaseUrl();
+    if (base) {
+      try {
+        const u = new URL(base);
+        const protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
+        wsUrl = `${protocol}//${u.host}/ws`;
+      } catch (_) {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        wsUrl = `${protocol}//${window.location.host}/ws`;
+      }
+    } else {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      wsUrl = `${protocol}//${window.location.host}/ws`;
+    }
+
+    try {
+      if (this.ws) {
+        try { this.ws.close(); } catch (_) {}
+      }
+    } catch (_) {}
 
     this.ws = new WebSocket(wsUrl);
 
@@ -417,6 +436,32 @@ const App = {
     const settingSegments = document.getElementById('setting-segments');
     if (settingSegments && this.settings.max_segments_per_download) {
       settingSegments.value = this.settings.max_segments_per_download;
+    }
+
+    // Backend Server Connection UI State
+    const backendBadge = document.getElementById('backend-server-badge');
+    const localConfig = document.getElementById('local-server-config');
+    const backendInput = document.getElementById('setting-backend-url');
+    const curBackend = API.getBaseUrl();
+    if (backendInput) {
+      backendInput.value = curBackend;
+    }
+    if (curBackend) {
+      if (backendBadge) {
+        backendBadge.innerHTML = '🟢 Local PC Backend';
+        backendBadge.style.color = '#38BDF8';
+        backendBadge.style.borderColor = 'rgba(56, 189, 248, 0.4)';
+        backendBadge.style.background = 'rgba(56, 189, 248, 0.15)';
+      }
+      if (localConfig) localConfig.style.display = 'block';
+    } else {
+      if (backendBadge) {
+        backendBadge.innerHTML = '🟢 Cloud Server';
+        backendBadge.style.color = '#10B981';
+        backendBadge.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+        backendBadge.style.background = 'rgba(16, 185, 129, 0.15)';
+      }
+      if (localConfig) localConfig.style.display = 'none';
     }
 
     // Video Encoder Settings - strictly populate from saved settings
@@ -740,6 +785,65 @@ const App = {
     });
     document.getElementById('save-settings-btn')?.addEventListener('click', () => this.saveSettings());
     document.getElementById('btn-check-updates')?.addEventListener('click', () => this.checkVersion(true));
+
+    // Backend Server Mode Buttons
+    const btnCloud = document.getElementById('btn-backend-cloud');
+    const btnLocal = document.getElementById('btn-backend-local');
+    const localConfig = document.getElementById('local-server-config');
+    const backendInput = document.getElementById('setting-backend-url');
+    const testBtn = document.getElementById('btn-test-backend');
+
+    btnCloud?.addEventListener('click', () => {
+      API.setBaseUrl('');
+      this.applySettingsUI();
+      if (window.AndroidApp?.reloadWithUrl) {
+        window.AndroidApp.reloadWithUrl('https://eggdl.onrender.com');
+      } else if (window.AndroidApp?.setCustomServerUrl) {
+        window.AndroidApp.setCustomServerUrl('');
+      }
+      this.initWebSocket();
+      this.loadDownloads();
+      UI.showToast('Switched to Cloud Server (Render)', 'success');
+    });
+
+    btnLocal?.addEventListener('click', () => {
+      if (localConfig) localConfig.style.display = 'block';
+      if (backendInput) backendInput.focus();
+    });
+
+    testBtn?.addEventListener('click', async () => {
+      let url = backendInput?.value.trim() || '';
+      if (!url) {
+        UI.showToast('Please enter your desktop PC URL (e.g. http://192.168.1.100:8000)', 'warning');
+        return;
+      }
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        url = 'http://' + url;
+        if (backendInput) backendInput.value = url;
+      }
+      testBtn.disabled = true;
+      testBtn.innerText = 'Testing...';
+      try {
+        const testRes = await fetch(`${url}/api/auth/me`, { mode: 'cors', cache: 'no-cache' });
+        if (testRes.ok) {
+          API.setBaseUrl(url);
+          if (window.AndroidApp?.setCustomServerUrl) {
+            window.AndroidApp.setCustomServerUrl(url);
+          }
+          this.applySettingsUI();
+          this.initWebSocket();
+          this.loadDownloads();
+          UI.showToast('Connected to Local Desktop Backend!', 'success');
+        } else {
+          throw new Error('Server returned status ' + testRes.status);
+        }
+      } catch (err) {
+        UI.showToast('Could not reach desktop server: ' + (err.message || 'Connection refused'), 'error', 4000);
+      } finally {
+        testBtn.disabled = false;
+        testBtn.innerText = 'Connect';
+      }
+    });
 
     // Advanced Settings
     document.getElementById('open-advanced-settings-btn')?.addEventListener('click', () => {

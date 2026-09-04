@@ -92,8 +92,8 @@ def setup_project():
         f.write('''<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.eggdl.downloader"
-    android:versionCode="219"
-    android:versionName="2.1.9">
+    android:versionCode="220"
+    android:versionName="2.2.0">
 
     <uses-sdk
         android:minSdkVersion="24"
@@ -153,6 +153,7 @@ import android.app.Activity;
 import android.app.DownloadManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
@@ -162,6 +163,7 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
+import android.webkit.JavascriptInterface;
 import android.webkit.URLUtil;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
@@ -222,7 +224,7 @@ public class MainActivity extends Activity {
         settings.setDisplayZoomControls(false);
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-        settings.setUserAgentString(settings.getUserAgentString() + " EggDL-Android/2.1.8");
+        settings.setUserAgentString(settings.getUserAgentString() + " EggDL-Android/2.2.0");
 
         mWebView.setVerticalScrollBarEnabled(true);
         mWebView.setHorizontalScrollBarEnabled(false);
@@ -233,6 +235,36 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             CookieManager.getInstance().setAcceptThirdPartyCookies(mWebView, true);
         }
+
+        mWebView.addJavascriptInterface(new Object() {
+            @JavascriptInterface
+            public void setCustomServerUrl(String url) {
+                SharedPreferences sp = getSharedPreferences("eggdl_config", MODE_PRIVATE);
+                sp.edit().putString("custom_server_url", url).apply();
+            }
+
+            @JavascriptInterface
+            public String getCustomServerUrl() {
+                SharedPreferences sp = getSharedPreferences("eggdl_config", MODE_PRIVATE);
+                return sp.getString("custom_server_url", "");
+            }
+
+            @JavascriptInterface
+            public void reloadWithUrl(final String url) {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        SharedPreferences sp = getSharedPreferences("eggdl_config", MODE_PRIVATE);
+                        sp.edit().putString("custom_server_url", url).apply();
+                        if (url != null && !url.trim().isEmpty()) {
+                            mWebView.loadUrl(url.trim());
+                        } else {
+                            mWebView.loadUrl(APP_URL);
+                        }
+                    }
+                });
+            }
+        }, "AndroidApp");
 
         mWebView.setWebViewClient(new WebViewClient() {
             @Override
@@ -277,7 +309,13 @@ public class MainActivity extends Activity {
             }
         });
 
-        mWebView.loadUrl(APP_URL);
+        SharedPreferences sp = getSharedPreferences("eggdl_config", MODE_PRIVATE);
+        String customUrl = sp.getString("custom_server_url", "");
+        if (customUrl != null && !customUrl.trim().isEmpty()) {
+            mWebView.loadUrl(customUrl.trim());
+        } else {
+            mWebView.loadUrl(APP_URL);
+        }
     }
 
     private void handleIncomingIntent(Intent intent) {
