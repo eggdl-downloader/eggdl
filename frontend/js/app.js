@@ -1600,6 +1600,15 @@ const App = {
                         installBtn.innerHTML = '<i data-lucide="refresh-cw"></i> Try Install Again';
                         if (window.lucide) window.lucide.createIcons();
                         UI.showToast(res.message || 'Could not launch installer. Click to retry.', 'error', 4000);
+                      } else {
+                        // After 8 seconds, if window is still alive, show fallback option
+                        setTimeout(() => {
+                          if (pSub) pSub.innerHTML = 'Installer launched in background. If EggDL does not restart automatically, please close this window and launch EggDL from your desktop.';
+                          installBtn.disabled = false;
+                          installBtn.innerHTML = '<i data-lucide="external-link"></i> Launch Installer Manually';
+                          if (window.lucide) window.lucide.createIcons();
+                          installBtn.onclick = () => API.installUpdate();
+                        }, 8000);
                       }
                     } catch (err) {
                       installBtn.disabled = false;

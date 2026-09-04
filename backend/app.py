@@ -2129,7 +2129,7 @@ class UpdateDownloadManager:
                 f.write(f'''@echo off
 ping 127.0.0.1 -n 2 > nul
 taskkill /F /IM EggDL.exe > nul 2>&1
-start "" /wait "{target_exe}" /SILENT /SP- /CLOSEAPPLICATIONS /FORCECLOSEAPPLICATIONS /NORESTART
+start "" /wait "{target_exe}" /VERYSILENT /SUPPRESSMSGBOXES /SP- /CLOSEAPPLICATIONS /FORCECLOSEAPPLICATIONS /NORESTART
 ping 127.0.0.1 -n 2 > nul
 set "NEW_EXE=%LOCALAPPDATA%\\EggDL\\EggDL.exe"
 if exist "%NEW_EXE%" (
@@ -2141,7 +2141,7 @@ del "%~f0"
             subprocess.Popen(["cmd.exe", "/c", bat_path], creationflags=flags, close_fds=True)
         except Exception:
             flags = subprocess.DETACHED_PROCESS if os.name == 'nt' else 0
-            subprocess.Popen([target_exe, "/SILENT", "/SP-", "/CLOSEAPPLICATIONS", "/FORCECLOSEAPPLICATIONS"], creationflags=flags, close_fds=True)
+            subprocess.Popen([target_exe, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/SP-", "/CLOSEAPPLICATIONS", "/FORCECLOSEAPPLICATIONS"], creationflags=flags, close_fds=True)
 
         # Allow FastAPI to cleanly deliver the HTTP response before process exits
         def _delayed_exit():
