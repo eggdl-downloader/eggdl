@@ -4511,3 +4511,56 @@ html, body {
   color: var(--text-main);
 }
 
+/* Compact & Proportional Choose Download Quality Modal (No Oversized Stretching) */
+#inspect-modal .modal-card {
+  max-width: 540px !important;
+  width: 92% !important;
+  margin: auto !important;
+  border-radius: 14px !important;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.75) !important;
+}
+
+#inspect-modal .modal-body {
+  padding: 14px 18px !important;
+  gap: 12px !important;
+  max-height: 72vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  box-sizing: border-box !important;
+}
+
+#inspect-modal .media-preview-box {
+  padding: 10px 12px !important;
+  gap: 12px !important;
+  border-radius: 10px !important;
+  background: var(--bg-surface-active) !important;
+  border: 1px solid var(--border-default) !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+#inspect-modal .media-preview-info h3 {
+  font-size: 0.86rem !important;
+  font-weight: 600 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 380px !important;
+}
+
+#inspect-modal .format-tabs {
+  margin: 4px 0 2px 0 !important;
+  width: 100% !important;
+  display: flex !important;
+}
+
+#inspect-modal .format-grid {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  max-height: 290px !important;
+  overflow-y: auto !important;
+  padding-right: 4px !important;
+  width: 100% !important;
+}
+

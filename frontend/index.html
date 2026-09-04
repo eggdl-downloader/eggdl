@@ -94,11 +94,6 @@
             <span class="speed-label"><i data-lucide="activity" class="pulse-icon"></i> Realtime Speed:</span>
             <span class="speed-value" id="global-speed-text">0.0 KB/s</span>
           </div>
-          <!-- M3 TopAppBar Center Clipboard Auto-Detect Chip -->
-          <div class="m3-clipboard-chip" id="m3-clipboard-chip" style="display: none;" title="Tap to paste detected link">
-            <i data-lucide="clipboard-copy"></i>
-            <span id="m3-clipboard-chip-text">Paste Link</span>
-          </div>
         </div>
 
         <div class="topbar-actions">
@@ -423,33 +418,6 @@
             <option value="zinc">Charcoal Zinc</option>
           </select>
           <small class="form-hint" style="margin-top: 6px; display: block;">Instant visual theme change across mobile and desktop.</small>
-        </div>
-
-        <!-- Backend Server Mode (Local Desktop PC vs Cloud) -->
-        <div class="form-group" style="border-top: 1px solid var(--border-color); padding-top: 14px; margin-top: 14px;">
-          <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <span>Backend Server Mode</span>
-            <span class="badge" id="backend-server-badge" style="font-size: 0.74rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; background: rgba(16, 185, 129, 0.15); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.3);">🟢 Cloud Server</span>
-          </label>
-          <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-            <button type="button" class="btn btn-secondary btn-sm" id="btn-backend-cloud" style="flex: 1; font-size: 0.8rem; justify-content: center;">
-              <i data-lucide="cloud"></i> Cloud (Render)
-            </button>
-            <button type="button" class="btn btn-secondary btn-sm" id="btn-backend-local" style="flex: 1; font-size: 0.8rem; justify-content: center;">
-              <i data-lucide="monitor"></i> Local PC
-            </button>
-          </div>
-          <div id="local-server-config" style="display: none; margin-top: 8px;">
-            <div style="display: flex; gap: 6px;">
-              <input type="text" id="setting-backend-url" class="form-control font-mono" placeholder="http://192.168.1.100:8000" style="font-size: 0.82rem; height: 38px;">
-              <button type="button" class="btn btn-primary btn-sm" id="btn-test-backend" style="white-space: nowrap; height: 38px; padding: 0 12px;">
-                Connect
-              </button>
-            </div>
-            <small class="form-hint" style="margin-top: 4px; display: block; font-size: 0.74rem;">
-              Enter your desktop PC's IP and port (e.g. <code>http://192.168.1.X:8000</code>). Mobile connects directly to your desktop engine over Wi-Fi!
-            </small>
-          </div>
         </div>
 
         <!-- App Version & Updates Section -->
