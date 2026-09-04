@@ -82,7 +82,6 @@ except ImportError:
 app = FastAPI(title="EggDL API", version="2.0.0")
 
 APP_CURRENT_VERSION = "2.1.7"
-CLOUD_API_URL = os.environ.get("CLOUD_API_URL", "https://eggdl.onrender.com")
 FIREBASE_DB_URL = "https://eggdl-app-default-rtdb.firebaseio.com"
 
 @app.middleware("http")
@@ -554,38 +553,6 @@ def sync_license_from_cloud(dev_id: str) -> Optional[Dict[str, Any]]:
                         urllib.request.urlopen(put_req, timeout=3.0)
         except Exception as fb_err:
             pass
-
-        # 2. Secondary fallback: Legacy Render endpoint (if configured)
-        payload = {
-            "device_id": dev_id,
-            "desktop_name": info.get("desktop_name", "SRIMAN"),
-            "user_name": info.get("user_name", "User"),
-            "os_info": info.get("os_info", "Windows"),
-            "app_version": APP_CURRENT_VERSION,
-            "is_pro": bool(local_status.get("is_pro")),
-            "plan_type": local_status.get("plan_type", "trial"),
-            "plan_expires_at": local_status.get("plan_expires_at"),
-            "license_key": local_status.get("license_key")
-        }
-        data_bytes = json.dumps(payload).encode()
-        remote_req = urllib.request.Request(
-            f"{CLOUD_API_URL}/api/telemetry/heartbeat",
-            data=data_bytes,
-            headers={"Content-Type": "application/json", "User-Agent": "EggDL-Client"}
-        )
-        with urllib.request.urlopen(remote_req, timeout=3.0) as res:
-            if res.status == 200:
-                cloud_res = json.loads(res.read().decode())
-                if cloud_res.get("is_blocked"):
-                    set_device_blocked(dev_id, blocked=True, reason=cloud_res.get("block_reason") or "Suspended by Admin")
-                else:
-                    set_device_blocked(dev_id, blocked=False)
-                    if cloud_res.get("is_pro"):
-                        plan_t = cloud_res.get("plan_type", "3month")
-                        exp_at = cloud_res.get("plan_expires_at")
-                        days_left = cloud_res.get("days_remaining", 30)
-                        grant_device_pro(dev_id, plan_type=plan_t, duration_days=days_left, expires_at=exp_at)
-                return cloud_res
     except Exception:
         pass
     return None
@@ -686,20 +653,29 @@ async def activate_machine_key(req: MachineKeyActivateRequest):
         plan_type = updated_status.get("plan_type", "lifetime")
         plan_info = PLAN_CONFIGS.get(plan_type, PLAN_CONFIGS["lifetime"])
         
-        # Also sync activation to Cloud if local
-        if not os.environ.get("RENDER"):
-            try:
-                import urllib.request
-                data_bytes = json.dumps({"device_id": dev_id, "license_key": key}).encode()
-                remote_req = urllib.request.Request(
-                    f"{CLOUD_API_URL}/api/license/activate-machine-key",
-                    data=data_bytes,
-                    headers={"Content-Type": "application/json", "User-Agent": "EggDL-Client"}
-                )
-                urllib.request.urlopen(remote_req, timeout=3)
-            except Exception:
-                pass
-                
+        # Also sync activation to Firebase Realtime Database
+        try:
+            import urllib.request
+            clean_dev_id = dev_id.replace("/", "_").replace(".", "_")
+            dev_url = f"{FIREBASE_DB_URL}/devices/{clean_dev_id}.json"
+            dev_update = {
+                "device_id": dev_id,
+                "is_pro": True,
+                "plan_type": plan_type,
+                "is_blocked": False,
+                "license_key": key,
+                "last_seen": datetime.now().isoformat()
+            }
+            patch_req = urllib.request.Request(
+                dev_url,
+                data=json.dumps(dev_update).encode(),
+                headers={"Content-Type": "application/json"},
+                method="PATCH"
+            )
+            urllib.request.urlopen(patch_req, timeout=3.0)
+        except Exception:
+            pass
+            
         return {
             "success": True,
             "message": f"✨ Product key activated successfully for this PC ({updated_status.get('desktop_name')})!",
@@ -783,53 +759,7 @@ async def activate_machine_key(req: MachineKeyActivateRequest):
         except Exception:
             pass
 
-        # 3. Fallback: Query Cloud Render Server if available
-        if not os.environ.get("RENDER"):
-            try:
-                import urllib.request
-                import urllib.error
-                data_bytes = json.dumps({"device_id": dev_id, "license_key": key}).encode()
-                remote_req = urllib.request.Request(
-                    f"{CLOUD_API_URL}/api/license/activate-machine-key",
-                    data=data_bytes,
-                    headers={"Content-Type": "application/json", "User-Agent": "EggDL-Client"}
-                )
-                with urllib.request.urlopen(remote_req, timeout=6) as res:
-                    if res.status == 200:
-                        cloud_res = json.loads(res.read().decode())
-                        if cloud_res.get("success"):
-                            plan_t = cloud_res.get("plan_type") or cloud_res.get("license", {}).get("plan_type", "lifetime")
-                            duration = 36500 if plan_t == "lifetime" else 30
-                            if plan_t == "3month": duration = 90
-                            elif plan_t == "6month": duration = 180
-                            elif plan_t == "1year": duration = 365
-                            
-                            # Grant Pro locally so the desktop app is permanently activated
-                            updated_status = grant_device_pro(dev_id, plan_type=plan_t, duration_days=duration)
-                            create_license_key(key, plan_t, duration)
-                            plan_info = PLAN_CONFIGS.get(plan_t, PLAN_CONFIGS["lifetime"])
-                            return {
-                                "success": True,
-                                "message": f"✨ Product key activated successfully for this PC ({updated_status.get('desktop_name')})!",
-                                "license": updated_status,
-                                "plan": plan_info,
-                                "plan_type": plan_t
-                            }
-                        else:
-                            raise HTTPException(status_code=400, detail=cloud_res.get("detail") or "Invalid product key.")
-                    else:
-                        raise HTTPException(status_code=400, detail="Invalid product key. Please check and try again.")
-            except urllib.error.HTTPError as http_err:
-                try:
-                    err_json = json.loads(http_err.read().decode())
-                    detail_msg = err_json.get("detail") or "Invalid product key."
-                except Exception:
-                    detail_msg = "Invalid product key. Please check and try again."
-                raise HTTPException(status_code=400, detail=detail_msg)
-            except Exception:
-                raise HTTPException(status_code=400, detail=str(local_err))
-        else:
-            raise HTTPException(status_code=400, detail=str(local_err))
+        raise HTTPException(status_code=400, detail=str(local_err))
 
 @app.get("/api/auth/me")
 async def auth_me(request: Request):
@@ -943,19 +873,29 @@ async def license_generate(req: LicenseGenerateRequest):
         create_license_key(k, req.plan_type, duration)
         generated.append(k)
         
-    # If generating on local client, also register them to Cloud Render Server so anyone can activate them
-    if not os.environ.get("RENDER"):
-        try:
-            import urllib.request
-            data_bytes = json.dumps({"plan_type": req.plan_type, "keys": generated}).encode()
-            remote_req = urllib.request.Request(
-                f"{CLOUD_API_URL}/api/license/import-keys",
-                data=data_bytes,
-                headers={"Content-Type": "application/json", "User-Agent": "EggDL-Admin"}
+    # Automatically register generated keys into Firebase Cloud Database so any user can activate them
+    try:
+        import urllib.request
+        for k in generated:
+            clean_k = k.replace("/", "_").replace(".", "_")
+            key_payload = {
+                "license_key": k,
+                "plan": req.plan_type,
+                "status": "active",
+                "duration_days": duration,
+                "max_devices": 1,
+                "bound_machine_id": None,
+                "created_at": datetime.now().isoformat()
+            }
+            fb_req = urllib.request.Request(
+                f"{FIREBASE_DB_URL}/licenses/{clean_k}.json",
+                data=json.dumps(key_payload).encode(),
+                headers={"Content-Type": "application/json"},
+                method="PUT"
             )
-            urllib.request.urlopen(remote_req, timeout=4)
-        except Exception:
-            pass
+            urllib.request.urlopen(fb_req, timeout=3.0)
+    except Exception as fb_err:
+        pass
 
     return {
         "success": True,
@@ -1854,7 +1794,6 @@ async def system_stats():
 
 APP_CURRENT_VERSION = "2.1.7"
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "eggdl_admin_2026")
-CLOUD_API_URL = os.environ.get("CLOUD_API_URL", "https://eggdl.onrender.com")
 
 def is_valid_admin_key(key: Optional[str]) -> bool:
     if not key:
@@ -1931,12 +1870,12 @@ def _refresh_cloud_version_async():
                 return
 
             import urllib.request
-            req = urllib.request.Request(f"{CLOUD_API_URL}/api/system/version", headers={"User-Agent": "EggDL-Client"})
-            with urllib.request.urlopen(req, timeout=3.0) as res:
+            fb_req = urllib.request.Request(f"{FIREBASE_DB_URL}/system/latest_release.json", headers={"User-Agent": "EggDL-Client"})
+            with urllib.request.urlopen(fb_req, timeout=3.0) as res:
                 if res.status == 200:
                     remote_data = json.loads(res.read().decode())
-                    if remote_data.get("latest_release"):
-                        _CLOUD_VERSION_CACHE["data"] = remote_data["latest_release"]
+                    if remote_data and isinstance(remote_data, dict) and remote_data.get("version"):
+                        _CLOUD_VERSION_CACHE["data"] = remote_data
                         _CLOUD_VERSION_CACHE["last_check"] = time.time()
         except Exception:
             pass
@@ -2138,10 +2077,10 @@ class UpdateDownloadManager:
                 urls_to_try = []
                 if download_url and download_url.startswith("http"):
                     urls_to_try.append(download_url)
-                urls_to_try.append(f"{CLOUD_API_URL}/download/setup")
+                urls_to_try.append("https://github.com/eggdl-downloader/eggdl/releases/latest/download/EggDL_Setup.exe")
+                urls_to_try.append("https://github.com/eggdl-downloader/eggdl/releases/download/v2.1.7/EggDL_Setup.exe")
                 urls_to_try.append("https://raw.githubusercontent.com/eggdl-downloader/eggdl/main/frontend/downloads/EggDL_Setup.exe")
                 urls_to_try.append("https://github.com/eggdl-downloader/eggdl/raw/main/frontend/downloads/EggDL_Setup.exe")
-                urls_to_try.append("https://github.com/eggdl-downloader/eggdl/releases/latest/download/EggDL_Setup.exe")
 
                 success = False
                 for target_url in urls_to_try:
@@ -2401,28 +2340,30 @@ async def get_admin_overview(admin_key: str = Query(...)):
     if not is_valid_admin_key(admin_key):
         raise HTTPException(status_code=403, detail="Invalid Master Admin Key")
     
-    if not os.environ.get("RENDER"):
-        try:
-            import urllib.request
-            req = urllib.request.Request(
-                f"{CLOUD_API_URL}/api/admin/overview?admin_key={admin_key}",
-                headers={"User-Agent": "EggDL-Client"}
-            )
-            with urllib.request.urlopen(req, timeout=4.0) as res:
-                if res.status == 200:
-                    cloud_data = json.loads(res.read().decode())
-                    if "devices" in cloud_data:
-                        cloud_data["devices"] = [enrich_device_item(d) for d in cloud_data["devices"]]
-                    return cloud_data
-        except Exception:
-            pass
+    devices = []
+    # Sync with Firebase Realtime Database
+    try:
+        import urllib.request
+        fb_url = f"{FIREBASE_DB_URL}/devices.json"
+        req = urllib.request.Request(fb_url, headers={"User-Agent": "EggDL-Admin"})
+        with urllib.request.urlopen(req, timeout=4.0) as res:
+            if res.status == 200:
+                fb_data = json.loads(res.read().decode())
+                if fb_data and isinstance(fb_data, dict):
+                    for k, d in fb_data.items():
+                        if isinstance(d, dict):
+                            devices.append(enrich_device_item(d))
+    except Exception:
+        pass
 
-    devices = [enrich_device_item(d) for d in get_all_devices_telemetry()]
+    if not devices:
+        devices = [enrich_device_item(d) for d in get_all_devices_telemetry()]
+
     latest_release = get_latest_app_release()
     return {
         "success": True,
         "total_devices": len(devices),
-        "online_count": sum(1 for d in devices if d.get("is_online")),
+        "online_count": sum(1 for d in devices if d.get("is_online", True)),
         "pro_count": sum(1 for d in devices if d.get("is_pro")),
         "blocked_count": sum(1 for d in devices if d.get("is_blocked")),
         "devices": devices,
@@ -2435,27 +2376,28 @@ async def get_admin_devices(admin_key: str = Query(...)):
     if not is_valid_admin_key(admin_key):
         raise HTTPException(status_code=403, detail="Invalid Master Admin Key")
         
-    if not os.environ.get("RENDER"):
-        try:
-            import urllib.request
-            req = urllib.request.Request(
-                f"{CLOUD_API_URL}/api/admin/devices?admin_key={admin_key}",
-                headers={"User-Agent": "EggDL-Client"}
-            )
-            with urllib.request.urlopen(req, timeout=4.0) as res:
-                if res.status == 200:
-                    cloud_data = json.loads(res.read().decode())
-                    if "devices" in cloud_data:
-                        cloud_data["devices"] = [enrich_device_item(d) for d in cloud_data["devices"]]
-                    return cloud_data
-        except Exception:
-            pass
+    devices = []
+    try:
+        import urllib.request
+        fb_url = f"{FIREBASE_DB_URL}/devices.json"
+        req = urllib.request.Request(fb_url, headers={"User-Agent": "EggDL-Admin"})
+        with urllib.request.urlopen(req, timeout=4.0) as res:
+            if res.status == 200:
+                fb_data = json.loads(res.read().decode())
+                if fb_data and isinstance(fb_data, dict):
+                    for k, d in fb_data.items():
+                        if isinstance(d, dict):
+                            devices.append(enrich_device_item(d))
+    except Exception:
+        pass
 
-    devices = [enrich_device_item(d) for d in get_all_devices_telemetry()]
+    if not devices:
+        devices = [enrich_device_item(d) for d in get_all_devices_telemetry()]
+
     return {
         "success": True,
         "total_devices": len(devices),
-        "online_count": sum(1 for d in devices if d.get("is_online")),
+        "online_count": sum(1 for d in devices if d.get("is_online", True)),
         "pro_count": sum(1 for d in devices if d.get("is_pro")),
         "blocked_count": sum(1 for d in devices if d.get("is_blocked")),
         "devices": devices
@@ -2469,50 +2411,63 @@ async def admin_device_action(req: DeviceActionRequest):
     action = req.action.lower().strip()
     device_id = req.device_id
     
-    # Forward action to Cloud Render if running locally
-    if not os.environ.get("RENDER"):
-        try:
-            import urllib.request
-            data_bytes = json.dumps({
-                "admin_key": req.admin_key,
-                "device_id": device_id,
-                "action": action,
-                "plan_type": req.plan_type,
-                "reason": req.reason
-            }).encode()
-            remote_req = urllib.request.Request(
-                f"{CLOUD_API_URL}/api/admin/device-action",
-                data=data_bytes,
-                headers={"Content-Type": "application/json", "User-Agent": "EggDL-Client"}
-            )
-            with urllib.request.urlopen(remote_req, timeout=12.0) as res:
-                if res.status == 200:
-                    cloud_data = json.loads(res.read().decode())
-        except Exception as e:
-            print(f"[AdminDeviceAction] Warning forwarding to Cloud Render: {e}")
+    # Update Firebase Realtime Database directly (<3s instant global sync)
+    fb_patch = {}
+    clean_id = device_id.replace("/", "_").replace(".", "_")
 
     if action == "block":
         set_device_blocked(device_id, blocked=True, reason=req.reason or "Suspended by Administrator")
+        fb_patch = {"is_blocked": True, "block_reason": req.reason or "Suspended by Administrator"}
         msg = f"🚨 Machine {device_id} has been blocked and killed."
     elif action == "unblock":
         set_device_blocked(device_id, blocked=False)
+        fb_patch = {"is_blocked": False, "block_reason": None}
         msg = f"✅ Machine {device_id} has been unblocked."
     elif action == "grant_pro":
         plan_type = req.plan_type or "lifetime"
         duration_days = 30 if plan_type == "1month" else (90 if plan_type == "3month" else (180 if plan_type == "6month" else (365 if plan_type == "1year" else 36500)))
-        grant_device_pro(device_id, plan_type=plan_type, duration_days=duration_days)
+        exp_iso = (datetime.now() + timedelta(days=duration_days)).isoformat()
+        grant_device_pro(device_id, plan_type=plan_type, duration_days=duration_days, expires_at=exp_iso)
+        fb_patch = {
+            "is_pro": True,
+            "is_blocked": False,
+            "plan_type": plan_type,
+            "plan_expires_at": exp_iso,
+            "days_remaining": duration_days
+        }
         msg = f"⭐ Granted Pro ({plan_type}) to machine {device_id}."
     elif action == "revoke_pro":
         revoke_device_pro(device_id)
+        fb_patch = {"is_pro": False, "plan_type": "expired", "days_remaining": 0}
         msg = f"Revoked Pro from machine {device_id}."
     elif action == "reset_trial":
         reset_device_trial(device_id)
+        fb_patch = {"is_pro": False, "plan_type": "trial", "trial_expired": False, "trial_days_remaining": 7}
         msg = f"⏳ 7-Day Free Trial has been reset for machine {device_id}."
     elif action == "delete":
         delete_device(device_id)
         msg = f"🗑️ Device {device_id} removed."
+        try:
+            import urllib.request
+            del_req = urllib.request.Request(f"{FIREBASE_DB_URL}/devices/{clean_id}.json", method="DELETE", headers={"Content-Type": "application/json"})
+            urllib.request.urlopen(del_req, timeout=4.0)
+        except Exception:
+            pass
     else:
         raise HTTPException(status_code=400, detail=f"Unknown action: {action}")
+
+    if fb_patch:
+        try:
+            import urllib.request
+            patch_req = urllib.request.Request(
+                f"{FIREBASE_DB_URL}/devices/{clean_id}.json",
+                data=json.dumps(fb_patch).encode(),
+                headers={"Content-Type": "application/json"},
+                method="PATCH"
+            )
+            urllib.request.urlopen(patch_req, timeout=4.0)
+        except Exception as fb_err:
+            print(f"[FirebaseAdmin] Error updating device {clean_id}: {fb_err}")
         
     return {
         "success": True,
@@ -2525,6 +2480,18 @@ async def admin_block_device(req: BlockDeviceRequest):
     if not is_valid_admin_key(req.admin_key):
         raise HTTPException(status_code=403, detail="Invalid Master Admin Key")
     set_device_blocked(req.device_id, blocked=req.blocked, reason=req.reason or "Access revoked by admin")
+    clean_id = req.device_id.replace("/", "_").replace(".", "_")
+    try:
+        import urllib.request
+        patch_req = urllib.request.Request(
+            f"{FIREBASE_DB_URL}/devices/{clean_id}.json",
+            data=json.dumps({"is_blocked": req.blocked, "block_reason": req.reason or "Access revoked by admin"}).encode(),
+            headers={"Content-Type": "application/json"},
+            method="PATCH"
+        )
+        urllib.request.urlopen(patch_req, timeout=4.0)
+    except Exception:
+        pass
     return {
         "success": True,
         "message": f"Device {req.device_id} {'blocked' if req.blocked else 'unblocked'} successfully",
@@ -2537,6 +2504,25 @@ async def admin_push_release(req: PushReleaseRequest):
     if not is_valid_admin_key(req.admin_key):
         raise HTTPException(status_code=403, detail="Invalid Master Admin Key")
     set_app_release(req.version, req.release_notes, req.download_url, req.mandatory)
+    # Broadcast to Firebase RTDB so all clients receive instant notification
+    try:
+        import urllib.request
+        release_data = {
+            "version": req.version,
+            "release_notes": req.release_notes,
+            "download_url": req.download_url,
+            "mandatory": req.mandatory,
+            "created_at": datetime.now().isoformat()
+        }
+        put_req = urllib.request.Request(
+            f"{FIREBASE_DB_URL}/system/latest_release.json",
+            data=json.dumps(release_data).encode(),
+            headers={"Content-Type": "application/json"},
+            method="PUT"
+        )
+        urllib.request.urlopen(put_req, timeout=4.0)
+    except Exception:
+        pass
     return {
         "success": True,
         "message": f"Release v{req.version} is now active. All online clients will be notified.",

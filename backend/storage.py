@@ -290,7 +290,7 @@ def init_db():
     # Initialize default app release if not present
     cursor.execute("""
     INSERT OR REPLACE INTO app_releases (version, release_notes, download_url, mandatory, is_active)
-    VALUES ('2.1.7', '⚡ Ultra-Fast Native MP4 Engine\n🚀 Instant Single-File Output & Zero 99% Lag\n🎬 4K/8K stream download optimizations.', 'https://eggdl.onrender.com/download/setup', 0, 1)
+    VALUES ('2.1.7', '⚡ Ultra-Fast Native MP4 Engine\n🚀 Instant Single-File Output & Zero 99% Lag\n🎬 4K/8K stream download optimizations.', 'https://raw.githubusercontent.com/eggdl-downloader/eggdl/main/frontend/downloads/EggDL_Setup.exe', 0, 1)
     """)
 
     # Load persistent devices & keys registry so subscription & product keys are NEVER lost across restarts/deploys

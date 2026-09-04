@@ -309,28 +309,30 @@ const API = {
       }
     } catch (_) {}
 
-    // 2. Direct cloud query with 3.5s timeout to avoid infinite spinning
+    // 2. Direct Firebase Realtime Database release check
     try {
-      const cloudRes = await fetch('https://eggdl.onrender.com/api/system/version', {
+      const fbRes = await fetch('https://eggdl-app-default-rtdb.firebaseio.com/system/latest_release.json', {
         signal: AbortSignal.timeout ? AbortSignal.timeout(3500) : undefined
       });
-      if (cloudRes.ok) {
-        const cloudData = await cloudRes.json();
-        const latestVer = cloudData.latest_version || cloudData.latest_release?.version || '2.1.5';
-        const hasUpdate = this.isNewerVersion(latestVer, currentVer);
-        return {
-          success: true,
-          current_version: currentVer,
-          latest_version: latestVer,
-          update_available: hasUpdate,
-          release_notes: cloudData.release_notes || cloudData.latest_release?.release_notes || 'Exciting new features and performance upgrades.',
-          download_url: cloudData.download_url || cloudData.latest_release?.download_url || 'https://eggdl.onrender.com/download/setup',
-          mandatory: Boolean(cloudData.mandatory || cloudData.latest_release?.mandatory),
-          latest_release: cloudData.latest_release || cloudData
-        };
+      if (fbRes.ok) {
+        const cloudData = await fbRes.json();
+        if (cloudData && cloudData.version) {
+          const latestVer = cloudData.version;
+          const hasUpdate = this.isNewerVersion(latestVer, currentVer);
+          return {
+            success: true,
+            current_version: currentVer,
+            latest_version: latestVer,
+            update_available: hasUpdate,
+            release_notes: cloudData.release_notes || 'Exciting new features and performance upgrades.',
+            download_url: cloudData.download_url || 'https://raw.githubusercontent.com/eggdl-downloader/eggdl/main/frontend/downloads/EggDL_Setup.exe',
+            mandatory: Boolean(cloudData.mandatory),
+            latest_release: cloudData
+          };
+        }
       }
     } catch (err) {
-      console.warn('Cloud update check error/timeout:', err);
+      console.warn('Firebase update check error/timeout:', err);
     }
 
     return localData || {
@@ -404,7 +406,7 @@ const API = {
     }
   },
 
-  async checkDeviceStatus(userEmail = null) {
+  async getDeviceStatus(userEmail = null) {
     try {
       const res = await fetch(`${this.baseUrl}/api/system/device-status`, {
         method: 'POST',
@@ -414,20 +416,10 @@ const API = {
       if (res.ok) return await res.json();
     } catch (_) {}
 
-    const cloudRes = await fetch('https://eggdl.onrender.com/api/system/device-status', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_email: userEmail, app_version: '2.0.0' })
-    });
-    return cloudRes.json();
+    return { success: false };
   },
 
   async getAdminOverview(adminKey) {
-    try {
-      const cloudRes = await fetch(`https://eggdl.onrender.com/api/admin/overview?admin_key=${encodeURIComponent(adminKey)}`);
-      if (cloudRes.ok) return await cloudRes.json();
-    } catch (_) {}
-
     try {
       const res = await fetch(`${this.baseUrl}/api/admin/overview?admin_key=${encodeURIComponent(adminKey)}`);
       if (res.ok) return await res.json();
@@ -445,53 +437,29 @@ const API = {
   },
 
   async telemetryHeartbeat(payload = {}) {
-    let cloudRes = null;
     try {
-      const res = await fetch(`https://eggdl.onrender.com/api/telemetry/heartbeat`, {
+      const localRes = await fetch(`${this.baseUrl}/api/telemetry/heartbeat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      if (res.ok) cloudRes = await res.json();
+      if (localRes.ok) return await localRes.json();
     } catch (_) {}
 
-    try {
-      const localPayload = cloudRes ? { ...payload, cloud_sync: cloudRes } : payload;
-      const localRes = await fetch(`${this.baseUrl}/api/telemetry/heartbeat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(localPayload)
-      });
-      if (localRes.ok && !cloudRes) cloudRes = await localRes.json();
-    } catch (_) {}
-
-    return cloudRes || { success: false };
+    return { success: false };
   },
 
   async activateMachineKey(licenseKey, deviceId = null) {
     const cleanKey = (licenseKey || '').replace(/\s+/g, '').replace(/[–—]/g, '-').trim().toUpperCase();
     let res = null;
-    // Try local activation first
     try {
       res = await fetch(`${this.baseUrl}/api/license/activate-machine-key`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ license_key: cleanKey, device_id: deviceId })
       });
-    } catch (_) {}
-
-    // If local returned 400 or failed, try cloud Render server
-    if (!res || !res.ok) {
-      try {
-        const cloudRes = await fetch(`https://eggdl.onrender.com/api/license/activate-machine-key`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ license_key: cleanKey, device_id: deviceId })
-        });
-        if (cloudRes.ok) {
-          res = cloudRes;
-        }
-      } catch (_) {}
+    } catch (e) {
+      throw new Error('Unable to connect to local licensing engine: ' + e.message);
     }
 
     const data = await res.json().catch(() => ({ detail: 'Activation failed' }));
@@ -502,17 +470,6 @@ const API = {
   },
 
   async getAdminDevices(adminKey) {
-    // 1. Fetch from Render Master Server (Central Authority)
-    try {
-      const cloudRes = await fetch(`https://eggdl.onrender.com/api/admin/devices?admin_key=${encodeURIComponent(adminKey)}`);
-      if (cloudRes.ok) return await cloudRes.json();
-      const err = await cloudRes.json().catch(() => null);
-      if (cloudRes.status === 403) throw new Error((err && err.detail) || 'Invalid Master Admin Key');
-    } catch (e) {
-      if (e.message && e.message.includes('Invalid Master Admin Key')) throw e;
-    }
-
-    // 2. Local fallback if offline
     try {
       const res = await fetch(`${this.baseUrl}/api/admin/devices?admin_key=${encodeURIComponent(adminKey)}`);
       if (res.ok) return await res.json();
@@ -526,39 +483,6 @@ const API = {
   },
 
   async adminDeviceAction(adminKey, deviceId, action, planType = 'lifetime', reason = '') {
-    // 1. Post to Render Cloud Server First (Primary Global Master Authority)
-    let cloudData = null;
-    let cloudErr = null;
-    try {
-      const cloudRes = await fetch(`https://eggdl.onrender.com/api/admin/device-action`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ admin_key: adminKey, device_id: deviceId, action, plan_type: planType, reason })
-      });
-      if (cloudRes.ok) {
-        cloudData = await cloudRes.json();
-      } else {
-        const err = await cloudRes.json().catch(() => null);
-        if (cloudRes.status === 403) throw new Error((err && err.detail) || 'Invalid Master Admin Key');
-        cloudErr = (err && err.detail) || 'Action failed on cloud server';
-      }
-    } catch (e) {
-      if (e.message && e.message.includes('Invalid Master Admin Key')) throw e;
-      cloudErr = e.message;
-    }
-
-    // 2. Also replicate to local server for instant UI consistency
-    try {
-      fetch(`${this.baseUrl}/api/admin/device-action`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ admin_key: adminKey, device_id: deviceId, action, plan_type: planType, reason })
-      }).catch(() => {});
-    } catch (_) {}
-
-    if (cloudData) return cloudData;
-
-    // 3. Fallback to local server response if cloud server was temporarily unreachable
     try {
       const res = await fetch(`${this.baseUrl}/api/admin/device-action`, {
         method: 'POST',
@@ -568,11 +492,10 @@ const API = {
       if (res.ok) return await res.json();
       const err = await res.json().catch(() => null);
       if (res.status === 403) throw new Error((err && err.detail) || 'Invalid Master Admin Key');
+      throw new Error((err && err.detail) || 'Failed to perform device action');
     } catch (e) {
-      if (e.message && e.message.includes('Invalid Master Admin Key')) throw e;
+      throw e;
     }
-
-    throw new Error(cloudErr || 'Failed to perform device action');
   },
 
   async adminBlockDevice(adminKey, deviceId, shouldBlock, reason = null) {
@@ -580,27 +503,6 @@ const API = {
   },
 
   async adminPushRelease(adminKey, version, releaseNotes, downloadUrl, mandatory = false) {
-    // 1. Post to Cloud Render Master
-    try {
-      const cloudRes = await fetch(`https://eggdl.onrender.com/api/admin/push-release`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ admin_key: adminKey, version, release_notes: releaseNotes, download_url: downloadUrl, mandatory })
-      });
-      if (cloudRes.ok) {
-        // Also replicate locally
-        try {
-          fetch(`${this.baseUrl}/api/admin/push-release`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ admin_key: adminKey, version, release_notes: releaseNotes, download_url: downloadUrl, mandatory })
-          }).catch(() => {});
-        } catch (_) {}
-        return await cloudRes.json();
-      }
-    } catch (_) {}
-
-    // 2. Local fallback
     try {
       const res = await fetch(`${this.baseUrl}/api/admin/push-release`, {
         method: 'POST',
@@ -608,8 +510,11 @@ const API = {
         body: JSON.stringify({ admin_key: adminKey, version, release_notes: releaseNotes, download_url: downloadUrl, mandatory })
       });
       if (res.ok) return await res.json();
-    } catch (_) {}
-
-    throw new Error('Push release failed on admin server');
+      const err = await res.json().catch(() => null);
+      if (res.status === 403) throw new Error((err && err.detail) || 'Invalid Master Admin Key');
+      throw new Error((err && err.detail) || 'Push release failed');
+    } catch (e) {
+      throw e;
+    }
   }
 };

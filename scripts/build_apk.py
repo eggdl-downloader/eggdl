@@ -175,7 +175,7 @@ import android.widget.FrameLayout;
 public class MainActivity extends Activity {
 
     private WebView mWebView;
-    private static final String APP_URL = "https://eggdl.onrender.com";
+    private static final String APP_URL = "https://eggdl-app.firebaseapp.com";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
