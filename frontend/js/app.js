@@ -30,7 +30,7 @@ const App = {
   },
 
   initTheme() {
-    const savedTheme = localStorage.getItem('eggdl_theme') || 'slate';
+    const savedTheme = localStorage.getItem('eggdl_theme') || 'mint';
     this.applyTheme(savedTheme);
 
     const themeSelector = document.getElementById('theme-selector');
@@ -622,6 +622,69 @@ const App = {
         }
       });
     });
+
+    // Material 3 Android Bottom Navigation Destinations
+    const m3Tabs = document.querySelectorAll('.m3-nav-item');
+    m3Tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        m3Tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        const dest = tab.dataset.tab;
+        if (dest === 'queue') {
+          // Switch to Queue: show URL input hero & active section
+          const urlSection = document.querySelector('.url-hero-box');
+          if (urlSection) urlSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else if (dest === 'completed') {
+          // Switch to Completed downloads
+          document.querySelector('.nav-item[data-category="all"]')?.click();
+          const historySection = document.getElementById('history-section');
+          if (historySection) historySection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else if (dest === 'settings') {
+          this.applySettingsUI();
+          document.getElementById('settings-modal').style.display = 'flex';
+        }
+      });
+    });
+
+    // Material 3 TopAppBar Settings Button
+    document.getElementById('m3-settings-topbar-btn')?.addEventListener('click', () => {
+      this.applySettingsUI();
+      document.getElementById('settings-modal').style.display = 'flex';
+    });
+
+    // Material 3 TopAppBar Clipboard Auto-Detect Chip
+    const clipChip = document.getElementById('m3-clipboard-chip');
+    const checkClipboardForChip = async () => {
+      try {
+        let text = '';
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          text = await navigator.clipboard.readText();
+        } else if (typeof API !== 'undefined' && API.getClipboard) {
+          text = await API.getClipboard();
+        }
+        if (text && (text.startsWith('http://') || text.startsWith('https://'))) {
+          if (clipChip) {
+            const chipText = document.getElementById('m3-clipboard-chip-text');
+            if (chipText) chipText.innerText = 'Paste: ' + text.substring(0, 18) + '...';
+            clipChip.style.display = 'inline-flex';
+            clipChip.onclick = () => {
+              const urlInput = document.getElementById('url-input');
+              if (urlInput) {
+                urlInput.value = text.trim();
+                clipChip.style.display = 'none';
+                this.handleInspect();
+              }
+            };
+          }
+        } else {
+          if (clipChip) clipChip.style.display = 'none';
+        }
+      } catch (e) {
+        // Silent catch for permissions
+      }
+    };
+    window.addEventListener('focus', checkClipboardForChip);
+    setTimeout(checkClipboardForChip, 1500);
 
     // Top actions
     document.getElementById('open-folder-btn')?.addEventListener('click', () => this.openFolder());

@@ -82,12 +82,22 @@
 
     <!-- Main Content Area -->
     <main class="main-content">
-      <!-- Top Bar -->
+      <!-- Top Bar (Standard 56dp M3 TopAppBar on Android / Mobile) -->
       <header class="topbar">
+        <div class="m3-topbar-brand">
+          <img src="/static/images/egg-icon.png" class="m3-brand-icon" alt="EggDL">
+          <span class="m3-brand-title">EggDL</span>
+        </div>
+
         <div class="topbar-search-status">
           <div class="realtime-speed-badge" id="global-speed-badge" title="Realtime Download Throughput">
             <span class="speed-label"><i data-lucide="activity" class="pulse-icon"></i> Realtime Speed:</span>
             <span class="speed-value" id="global-speed-text">0.0 KB/s</span>
+          </div>
+          <!-- M3 TopAppBar Center Clipboard Auto-Detect Chip -->
+          <div class="m3-clipboard-chip" id="m3-clipboard-chip" style="display: none;" title="Tap to paste detected link">
+            <i data-lucide="clipboard-copy"></i>
+            <span id="m3-clipboard-chip-text">Paste Link</span>
           </div>
         </div>
 
@@ -121,6 +131,10 @@
               <span class="user-plan-badge trial" id="header-plan-badge">⏳ 7-Day Trial</span>
             </button>
           </div>
+          <!-- M3 TopAppBar Settings Icon (48dp Touch Target) -->
+          <button class="m3-icon-btn" id="m3-settings-topbar-btn" title="Settings">
+            <i data-lucide="settings"></i>
+          </button>
         </div>
       </header>
 
@@ -1149,6 +1163,22 @@
       </div>
     </div>
   </div>
+
+  <!-- Pinned 80dp Material 3 Bottom Navigation Bar (Mobile / Android) -->
+  <nav class="m3-bottom-nav" id="m3-bottom-nav">
+    <button class="m3-nav-item active" data-tab="queue" id="m3-tab-queue" title="Queue">
+      <div class="m3-nav-indicator"><i data-lucide="download"></i></div>
+      <span class="m3-nav-label">Queue</span>
+    </button>
+    <button class="m3-nav-item" data-tab="completed" id="m3-tab-completed" title="Completed">
+      <div class="m3-nav-indicator"><i data-lucide="check-circle-2"></i></div>
+      <span class="m3-nav-label">Completed</span>
+    </button>
+    <button class="m3-nav-item" data-tab="settings" id="m3-tab-settings" title="Settings">
+      <div class="m3-nav-indicator"><i data-lucide="settings"></i></div>
+      <span class="m3-nav-label">Settings</span>
+    </button>
+  </nav>
 
   <!-- Toast Notification Container -->
   <div class="toast-container" id="toast-container"></div>

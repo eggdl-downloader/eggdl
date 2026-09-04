@@ -123,37 +123,39 @@
   --text-dim: #475569;
 }
 
-/* 2. Solid Mint Theme (Sleek Obsidian & Vibrant Mint) */
+/* 2. Solid Mint / Android Material 3 Dark Theme Palette (#131321, #1B1B2C, #46F0D2, #FBE2B4, #2B2B42) */
 [data-theme="mint"] {
-  --bg-canvas: #0D1117;
-  --bg-surface: #161B22;
-  --bg-surface-hover: #21262D;
-  --bg-surface-active: #30363D;
-  --bg-surface-elevated: #1A202A;
-  --bg-input: #090D12;
-  --bg-sidebar: #11151C;
+  --bg-canvas: #131321;
+  --bg-surface: #1B1B2C;
+  --bg-surface-hover: #222238;
+  --bg-surface-active: #2B2B42;
+  --bg-surface-elevated: #222238;
+  --bg-input: #10101C;
+  --bg-sidebar: #0E0E18;
 
-  --border-default: #30363D;
-  --border-subtle: #21262D;
-  --border-medium: #30363D;
-  --border-bright: #484F58;
+  --border-default: #2B2B42;
+  --border-subtle: #202033;
+  --border-medium: #2B2B42;
+  --border-bright: #3D3D5C;
   --border-focus: #46F0D2;
   --border-color: var(--border-default);
 
   --accent-primary: #46F0D2;
-  --accent-primary-hover: #2DD4BF;
-  --accent-primary-active: #14B8A6;
-  --accent-text: #042F2E;
+  --accent-primary-hover: #3AE0C3;
+  --accent-primary-active: #2EC4AA;
+  --accent-text: #131321;
   --primary: var(--accent-primary);
   --primary-hover: var(--accent-primary-hover);
   --primary-glow: transparent;
 
+  --accent-secondary: #FBE2B4;
+  --accent-peach: #FBE2B4;
   --accent-cyan: #46F0D2;
-  --accent-cyan-bg: #0C2D27;
+  --accent-cyan-bg: #102B28;
   --accent-emerald: #46F0D2;
-  --accent-emerald-bg: #0C2D27;
-  --accent-amber: #F59E0B;
-  --accent-amber-bg: #2A2111;
+  --accent-emerald-bg: #102B28;
+  --accent-amber: #FBE2B4;
+  --accent-amber-bg: #2D2619;
   --accent-rose: #EF4444;
   --accent-rose-bg: #2B1517;
   --accent-purple: #C084FC;
@@ -3494,5 +3496,752 @@ select:focus, select option:hover, select option:checked {
   background: var(--bg-surface-active) !important;
   border-color: var(--accent-primary) !important;
   box-shadow: none;
+}
+
+/* ==========================================================================
+   Android Material Design 3 Mobile Interface Specification
+   Dark Theme Palette: #131321 base, #1B1B2C card surface, #46F0D2 mint action,
+   #FBE2B4 peach secondary, #2B2B42 border, bold #131321 text on mint.
+   Strict 4-Column 16dp outer / 12dp gutter grid • 8dp baseline grid • Zero blur
+   ========================================================================== */
+
+/* Universal Native Scroll Physics & Opaque Surfaces */
+html, body {
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Default M3 Element States (Desktop Hidden) */
+.m3-topbar-brand {
+  display: none;
+}
+
+.m3-clipboard-chip {
+  display: none;
+}
+
+.m3-icon-btn {
+  display: none;
+}
+
+.m3-bottom-nav {
+  display: none;
+}
+
+/* Format Selector Pills Single-Line Horizontal Scroll Container (Both Desktop & Mobile) */
+.format-grid,
+.format-tabs,
+.format-pills-container {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  white-space: nowrap !important;
+  gap: 8px !important;
+  padding: 4px 0 8px 0 !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+.format-grid::-webkit-scrollbar,
+.format-tabs::-webkit-scrollbar,
+.format-pills-container::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.format-item,
+.format-tab-btn {
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
+  text-overflow: ellipsis !important;
+}
+
+/* Strict Single-Line Truncation Utility */
+.single-line-truncate,
+.active-file-title,
+.downloads-table td.cell-name,
+.stat-card-val,
+.media-preview-info h3 {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* ==========================================================================
+   Android Mobile Interface (< 768px Viewport & Touch Screens)
+   ========================================================================== */
+@media (max-width: 768px) {
+  /* 1. Root & Base Layout: 100% Opaque Surfaces, No Blurs */
+  body, .app-container {
+    background: #131321 !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow-x: hidden !important;
+    min-height: 100vh !important;
+  }
+
+  /* 2. Hide Desktop-Only Sidebar on Android View */
+  .sidebar,
+  .sidebar-backdrop,
+  .mobile-menu-toggle {
+    display: none !important;
+  }
+
+  /* 3. Main Content: 4-Column Grid, 16dp Outer Screen Margins, 12dp Gutters */
+  .main-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 16px 96px 16px !important; /* 16dp outer margin, 96dp bottom padding for 80dp bottom bar */
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important; /* 12dp gutters between components */
+    overscroll-behavior-y: contain !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* 4. Pinned Standard 56dp Height TopAppBar */
+  .topbar {
+    height: 56px !important;
+    min-height: 56px !important;
+    max-height: 56px !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 500 !important;
+    background: #131321 !important;
+    border-bottom: 1px solid #2B2B42 !important;
+    margin: 0 -16px 4px -16px !important;
+    padding: 0 16px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .m3-topbar-brand {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .m3-brand-icon {
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 6px !important;
+  }
+
+  .m3-brand-title {
+    font-family: var(--font-heading), sans-serif !important;
+    font-size: 1.15rem !important;
+    font-weight: 800 !important;
+    color: #F0F3F6 !important;
+    letter-spacing: -0.3px !important;
+  }
+
+  /* TopAppBar Center Auto-Detect Chip */
+  .topbar-search-status {
+    flex: 1 !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    padding: 0 8px !important;
+    overflow: hidden !important;
+  }
+
+  .realtime-speed-badge {
+    display: none !important; /* Hidden on narrow topbar to keep 56dp compact */
+  }
+
+  .m3-clipboard-chip {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    background: #1B1B2C !important;
+    border: 1px solid #2B2B42 !important;
+    color: #FBE2B4 !important;
+    font-size: 0.78rem !important;
+    font-weight: 600 !important;
+    padding: 6px 12px !important;
+    border-radius: 16px !important;
+    cursor: pointer !important;
+    white-space: nowrap !important;
+    max-width: 180px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    transition: background 0.15s ease, border-color 0.15s ease !important;
+    flex-shrink: 0 !important;
+  }
+
+  .m3-clipboard-chip i {
+    width: 14px !important;
+    height: 14px !important;
+    color: #46F0D2 !important;
+    flex-shrink: 0 !important;
+  }
+
+  .m3-clipboard-chip:active {
+    background: #232338 !important;
+    border-color: #46F0D2 !important;
+  }
+
+  /* TopAppBar Right Action Icons (48dp Minimum Touch Targets) */
+  .topbar-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .topbar-actions .theme-select-wrapper,
+  .topbar-actions #install-pwa-btn,
+  .topbar-actions #open-folder-btn,
+  .topbar-actions #clear-all-btn {
+    display: none !important;
+  }
+
+  .m3-icon-btn,
+  #m3-settings-topbar-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 48px !important;
+    min-height: 48px !important;
+    width: 48px !important;
+    height: 48px !important;
+    border-radius: 24px !important;
+    background: transparent !important;
+    border: none !important;
+    color: #8E8EA8 !important;
+    cursor: pointer !important;
+    transition: color 0.15s ease, background 0.15s ease !important;
+  }
+
+  .m3-icon-btn i {
+    width: 22px !important;
+    height: 22px !important;
+  }
+
+  .m3-icon-btn:active {
+    background: #1B1B2C !important;
+    color: #46F0D2 !important;
+  }
+
+  /* User profile pill on mobile */
+  #user-header-area .user-pill-btn {
+    padding: 4px 10px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    font-size: 0.76rem !important;
+    background: #1B1B2C !important;
+    border: 1px solid #2B2B42 !important;
+  }
+
+  #user-header-area .user-name {
+    display: none !important; /* Save space on mobile topbar */
+  }
+
+  /* 5. URL Input Section: Full-Width Card (#1B1B2C), 48dp Input Target, 52dp Mint Action Button */
+  .url-hero-box {
+    background: #1B1B2C !important;
+    border: 1px solid #2B2B42 !important;
+    border-radius: 8px !important;
+    padding: 16px !important; /* 16dp padding aligned to 8dp grid */
+    margin: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    box-shadow: none !important;
+  }
+
+  .url-input-wrapper {
+    min-height: 48px !important;
+    height: 48px !important;
+    background: #131321 !important;
+    border: 1px solid #2B2B42 !important;
+    border-radius: 8px !important;
+    padding: 0 4px 0 12px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .url-input-wrapper .input-icon {
+    width: 20px !important;
+    height: 20px !important;
+    color: #8E8EA8 !important;
+    flex-shrink: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .url-input-wrapper input {
+    height: 48px !important;
+    min-height: 48px !important;
+    font-size: 0.92rem !important;
+    flex: 1 !important;
+    background: transparent !important;
+    color: #F0F3F6 !important;
+    border: none !important;
+    outline: none !important;
+    padding: 0 4px !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+  }
+
+  .url-input-wrapper input::placeholder {
+    color: #8E8EA8 !important;
+    font-size: 0.88rem !important;
+  }
+
+  /* Integrated Right-Aligned Paste Icon Button (48dp Touch Target) */
+  #paste-clipboard-btn,
+  #clear-input-btn {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    width: 44px !important;
+    height: 44px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: transparent !important;
+    border: none !important;
+    color: #8E8EA8 !important;
+    border-radius: 6px !important;
+    cursor: pointer !important;
+    flex-shrink: 0 !important;
+    transition: color 0.15s ease, background 0.15s ease !important;
+  }
+
+  #paste-clipboard-btn:active {
+    background: #1B1B2C !important;
+    color: #46F0D2 !important;
+  }
+
+  /* Download Action Button: Full-width 52dp height solid mint (#46F0D2) with bold #131321 text */
+  #inspect-btn {
+    width: 100% !important;
+    height: 52px !important;
+    min-height: 52px !important;
+    background: #46F0D2 !important;
+    color: #131321 !important;
+    font-family: var(--font-sans), sans-serif !important;
+    font-size: 1rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.3px !important;
+    border-radius: 8px !important;
+    border: none !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    cursor: pointer !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    transition: background 0.15s ease, transform 0.1s ease !important;
+  }
+
+  #inspect-btn i {
+    width: 20px !important;
+    height: 20px !important;
+    color: #131321 !important;
+  }
+
+  #inspect-btn:active {
+    background: #3AE0C3 !important;
+    transform: scale(0.99) !important;
+  }
+
+  /* 6. Dashboard Stats Bar on Mobile (< 600dp Strict Single Column) */
+  .stats-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  .stat-card {
+    background: #1B1B2C !important;
+    border: 1px solid #2B2B42 !important;
+    border-radius: 8px !important;
+    padding: 12px 16px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+  }
+
+  /* 7. Queue Cards: Full-Width Solid Cards (#1B1B2C), 8dp Radius, 1px Border (#2B2B42) */
+  .active-cards-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+
+  .active-card {
+    width: 100% !important;
+    box-sizing: border-box !important;
+    background: #1B1B2C !important;
+    border: 1px solid #2B2B42 !important;
+    border-radius: 8px !important;
+    padding: 14px 16px !important; /* 8dp baseline grid */
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    box-shadow: none !important;
+  }
+
+  .active-card-header {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  .active-card-meta {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    width: 100% !important;
+    overflow: hidden !important;
+  }
+
+  /* 40dp x 40dp File / Thumbnail Icon */
+  .active-thumb,
+  .active-card-meta .type-icon {
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    max-width: 40px !important;
+    border-radius: 8px !important;
+    background: #131321 !important;
+    border: 1px solid #2B2B42 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-shrink: 0 !important;
+  }
+
+  .active-thumb {
+    object-fit: cover !important;
+  }
+
+  .active-card-meta .type-icon i {
+    width: 20px !important;
+    height: 20px !important;
+    color: #46F0D2 !important;
+  }
+
+  .active-file-info {
+    flex: 1 !important;
+    min-width: 0 !important; /* Strict flex child truncation */
+    overflow: hidden !important;
+  }
+
+  /* Strict Single-Line Truncated Title */
+  .active-file-title {
+    font-size: 0.92rem !important;
+    font-weight: 700 !important;
+    color: #F0F3F6 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    line-height: 1.3 !important;
+    margin-bottom: 3px !important;
+  }
+
+  /* Single Horizontal Row Secondary Metadata (Size, Speed, ETA) */
+  .active-file-sub {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    font-size: 0.78rem !important;
+    color: #8E8EA8 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .active-file-sub span {
+    flex-shrink: 0 !important;
+  }
+
+  /* Card Bottom Controls Row */
+  .active-card-stats {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    border-top: 1px solid #2B2B42 !important;
+    padding-top: 8px !important;
+    margin-top: 2px !important;
+  }
+
+  .active-card-stats .stat-group {
+    display: flex !important;
+    align-items: baseline !important;
+    gap: 6px !important;
+    white-space: nowrap !important;
+  }
+
+  .active-card-stats .stat-value {
+    font-size: 0.88rem !important;
+    font-weight: 700 !important;
+    color: #46F0D2 !important;
+  }
+
+  .active-card-stats .stat-label {
+    font-size: 0.72rem !important;
+    color: #8E8EA8 !important;
+  }
+
+  /* Action Buttons with 48dp Minimum Touch Targets */
+  .active-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .active-actions .btn,
+  .active-actions .btn-sm {
+    min-width: 48px !important;
+    min-height: 48px !important;
+    width: 48px !important;
+    height: 48px !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border-radius: 8px !important;
+    background: #131321 !important;
+    border: 1px solid #2B2B42 !important;
+    color: #F0F3F6 !important;
+    cursor: pointer !important;
+  }
+
+  .active-actions .btn i {
+    width: 20px !important;
+    height: 20px !important;
+  }
+
+  .active-actions .btn-danger {
+    color: #EF4444 !important;
+    border-color: rgba(239, 68, 68, 0.3) !important;
+  }
+
+  .active-actions .btn:active {
+    background: #232338 !important;
+  }
+
+  /* 4dp Slim Linear Progress Bar with Solid Mint Fill */
+  .active-progress-bar {
+    height: 4px !important;
+    min-height: 4px !important;
+    max-height: 4px !important;
+    border-radius: 2px !important;
+    background: #2B2B42 !important;
+    overflow: hidden !important;
+    margin: 4px 0 0 0 !important;
+  }
+
+  .active-progress-fill {
+    height: 100% !important;
+    background: #46F0D2 !important;
+    border-radius: 2px !important;
+    transition: width 0.2s linear !important;
+  }
+
+  .active-progress-fill.paused {
+    background: #FBE2B4 !important;
+  }
+
+  /* 8. Downloads History Section on Android View */
+  .history-section {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+  }
+
+  .section-header {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+    margin-bottom: 8px !important;
+  }
+
+  .section-header h2 {
+    font-size: 1.05rem !important;
+    font-weight: 700 !important;
+    color: #F0F3F6 !important;
+    margin: 0 !important;
+  }
+
+  .search-box {
+    width: 100% !important;
+    height: 44px !important;
+    background: #1B1B2C !important;
+    border: 1px solid #2B2B42 !important;
+    border-radius: 8px !important;
+    padding: 0 12px !important;
+    box-sizing: border-box !important;
+  }
+
+  .search-box input {
+    height: 44px !important;
+    font-size: 0.90rem !important;
+    color: #F0F3F6 !important;
+    background: transparent !important;
+  }
+
+  .table-container {
+    background: #1B1B2C !important;
+    border: 1px solid #2B2B42 !important;
+    border-radius: 8px !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .downloads-table {
+    min-width: 620px !important;
+  }
+
+  .downloads-table th,
+  .downloads-table td {
+    padding: 10px 12px !important;
+    font-size: 0.82rem !important;
+  }
+
+  /* 9. Pinned 80dp Material 3 Bottom Navigation Bar */
+  .m3-bottom-nav {
+    display: flex !important;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: 80px !important;
+    min-height: 80px !important;
+    max-height: 80px !important;
+    z-index: 1000 !important;
+    background: #1B1B2C !important;
+    border-top: 1px solid #2B2B42 !important;
+    justify-content: space-around !important;
+    align-items: center !important;
+    padding: 0 16px !important;
+    box-sizing: border-box !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .m3-nav-item {
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    background: transparent !important;
+    border: none !important;
+    cursor: pointer !important;
+    padding: 8px 0 !important;
+    color: #8E8EA8 !important;
+    text-decoration: none !important;
+    transition: color 0.15s ease !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+
+  /* Active Indicator Pill (#46F0D2 Mint with #131321 Dark Icon) */
+  .m3-nav-indicator {
+    width: 64px !important;
+    height: 32px !important;
+    border-radius: 16px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: transparent !important;
+    transition: background 0.2s cubic-bezier(0.2, 0, 0, 1), color 0.2s cubic-bezier(0.2, 0, 0, 1) !important;
+  }
+
+  .m3-nav-indicator i {
+    width: 20px !important;
+    height: 20px !important;
+    color: #8E8EA8 !important;
+    transition: color 0.2s ease !important;
+  }
+
+  .m3-nav-item.active .m3-nav-indicator {
+    background: #46F0D2 !important;
+  }
+
+  .m3-nav-item.active .m3-nav-indicator i {
+    color: #131321 !important;
+  }
+
+  .m3-nav-label {
+    font-size: 0.74rem !important;
+    font-weight: 500 !important;
+    letter-spacing: 0.1px !important;
+    color: #8E8EA8 !important;
+    transition: color 0.15s ease, font-weight 0.15s ease !important;
+  }
+
+  .m3-nav-item.active .m3-nav-label {
+    color: #46F0D2 !important;
+    font-weight: 700 !important;
+  }
+
+  /* 10. Modals on Mobile: 100% Opaque Solid Surfaces, Zero Glassmorphism */
+  .modal-backdrop {
+    background: rgba(19, 19, 33, 0.95) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    padding: 12px !important;
+    align-items: flex-end !important; /* Bottom-sheet feel on mobile */
+  }
+
+  .modal-card {
+    background: #1B1B2C !important;
+    border: 1px solid #2B2B42 !important;
+    border-radius: 16px 16px 12px 12px !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    max-height: 85vh !important;
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.8) !important;
+  }
+
+  /* Format Selector Pills inside Inspect Modal: Horizontal Scroll Container */
+  #tab-video-content,
+  #tab-audio-content {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    gap: 8px !important;
+    padding: 6px 0 10px 0 !important;
+    scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .format-item {
+    min-width: 150px !important;
+    background: #131321 !important;
+    border: 1px solid #2B2B42 !important;
+    border-radius: 8px !important;
+    padding: 10px 12px !important;
+  }
+
+  .format-item.selected {
+    border-color: #46F0D2 !important;
+    background: #1E2B2A !important;
+  }
 }
 
