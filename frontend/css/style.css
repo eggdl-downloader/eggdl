@@ -2439,8 +2439,8 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   100% { width: 0%; }
 }
 
-/* Responsive Styles */
-@media (max-width: 960px) {
+/* Responsive Styles (Tablets 769px - 960px) */
+@media (min-width: 769px) and (max-width: 960px) {
   .app-container {
     flex-direction: column;
   }
@@ -2469,23 +2469,6 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
 
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 600px) {
-  .stats-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .topbar {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-  }
-
-  .topbar-actions {
-    width: 100%;
-    justify-content: space-between;
   }
 }
 
@@ -3323,106 +3306,9 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   }
 }
 
-@media (max-width: 768px) {
-  .plans-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .status-indicator {
-    font-size: 1.02rem;
-  }
-
-  .url-input-container {
-    flex-direction: column;
-    padding: 10px;
-    border-radius: 14px;
-  }
-
-  .url-input-box {
-    width: 100%;
-  }
-
-  .url-actions-row {
-    width: 100%;
-    justify-content: space-between;
-    margin-top: 6px;
-  }
-
-  .url-actions-row .btn-primary {
-    flex: 1;
-  }
-
-  .section-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-  }
-
-  .search-filter-wrapper {
-    width: 100%;
-  }
-
-  .search-input {
-    width: 100% !important;
-  }
-
-  .downloads-table-container {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .downloads-table {
-    min-width: 680px;
-  }
-
-  .modal-card {
-    max-width: 95vw !important;
-    padding: 16px !important;
-    max-height: 92vh;
-  }
-
-  .active-card {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-
-  .active-card-stats {
-    width: 100%;
-    justify-content: space-between;
-  }
-}
-
-@media (max-width: 520px) {
-  .plans-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .stats-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .status-indicator {
-    font-size: 0.95rem;
-  }
-
-  .speed-badge {
-    padding: 2px 8px;
-    font-size: 0.72rem;
-  }
-
-  .topbar-actions {
-    justify-content: center;
-    gap: 6px;
-  }
-
-  .topbar-actions .btn span {
-    display: inline;
-  }
-
-  .format-grid {
-    grid-template-columns: 1fr;
-  }
+/* Legacy Modal Responsiveness */
+.modal-card {
+  max-width: 95vw;
 }
 
 /* --- Form Select & Dropdown Visibility Fix --- */
@@ -3597,15 +3483,32 @@ html, body {
    Android Mobile Interface (< 768px Viewport & Touch Screens)
    ========================================================================== */
 @media (max-width: 768px) {
-  /* 1. Root & Base Layout: 100% Opaque Surfaces, No Blurs */
-  body, .app-container {
+  /* 1. Root & Base Layout: Natural Vertical Touch Scrolling */
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 100% !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    background: #131321 !important;
+    overscroll-behavior-y: contain !important;
+  }
+
+  .app-container {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 100vh !important;
+    overflow: visible !important;
     background: #131321 !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
     margin: 0 !important;
     padding: 0 !important;
-    overflow-x: hidden !important;
-    min-height: 100vh !important;
     padding-top: env(safe-area-inset-top, 0px) !important;
     padding-bottom: env(safe-area-inset-bottom, 0px) !important;
   }
@@ -3617,16 +3520,20 @@ html, body {
     display: none !important;
   }
 
-  /* 3. Main Content: 4-Column Grid, 16dp Outer Screen Margins, 12dp Gutters */
+  /* 3. Main Content: Fully Scrollable 4-Column Responsive Layout */
   .main-content {
     width: 100% !important;
     max-width: 100% !important;
+    height: auto !important; /* Critical: override desktop height: 100vh */
+    min-height: 100vh !important;
+    overflow-x: hidden !important;
+    overflow-y: visible !important; /* Critical: override desktop overflow: hidden */
     margin: 0 !important;
-    padding: 0 16px 96px 16px !important; /* 16dp outer margin, 96dp bottom padding for 80dp bottom bar */
+    padding: 0 16px 120px 16px !important; /* 16dp outer margin, 120dp bottom padding for 80dp pinned bottom bar */
     display: flex !important;
     flex-direction: column !important;
     gap: 12px !important; /* 12dp gutters between components */
-    overscroll-behavior-y: contain !important;
+    box-sizing: border-box !important;
     -webkit-overflow-scrolling: touch !important;
   }
 

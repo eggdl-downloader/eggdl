@@ -92,8 +92,8 @@ def setup_project():
         f.write('''<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.eggdl.downloader"
-    android:versionCode="217"
-    android:versionName="2.1.7">
+    android:versionCode="218"
+    android:versionName="2.1.8">
 
     <uses-sdk
         android:minSdkVersion="24"
@@ -217,8 +217,17 @@ public class MainActivity extends Activity {
         settings.setAllowFileAccess(true);
         settings.setUseWideViewPort(true);
         settings.setLoadWithOverviewMode(true);
+        settings.setSupportZoom(false);
+        settings.setBuiltInZoomControls(false);
+        settings.setDisplayZoomControls(false);
         settings.setMediaPlaybackRequiresUserGesture(false);
-        settings.setUserAgentString(settings.getUserAgentString() + " EggDL-Android/2.1.7");
+        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+        settings.setUserAgentString(settings.getUserAgentString() + " EggDL-Android/2.1.8");
+
+        mWebView.setVerticalScrollBarEnabled(true);
+        mWebView.setHorizontalScrollBarEnabled(false);
+        mWebView.setOverScrollMode(WebView.OVER_SCROLL_IF_CONTENT_SCROLLS);
+        mWebView.clearCache(true);
 
         CookieManager.getInstance().setAcceptCookie(true);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
