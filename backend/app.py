@@ -81,7 +81,7 @@ except ImportError:
 
 app = FastAPI(title="EggDL API", version="2.0.0")
 
-APP_CURRENT_VERSION = "2.1.6"
+APP_CURRENT_VERSION = "2.1.7"
 CLOUD_API_URL = os.environ.get("CLOUD_API_URL", "https://eggdl.onrender.com")
 
 @app.middleware("http")
@@ -1741,7 +1741,7 @@ async def system_stats():
         "download_dir": dl_dir
     }
 
-APP_CURRENT_VERSION = "2.1.6"
+APP_CURRENT_VERSION = "2.1.7"
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "eggdl_admin_2026")
 CLOUD_API_URL = os.environ.get("CLOUD_API_URL", "https://eggdl.onrender.com")
 
@@ -2155,7 +2155,7 @@ update_mgr = UpdateDownloadManager()
 
 @app.post("/api/system/update/download")
 async def start_app_update_download(data: Dict[str, Any] = Body(...)):
-    version = data.get("version", "2.1.6")
+    version = data.get("version", "2.1.7")
     download_url = data.get("download_url", "")
     update_mgr.start_download(version, download_url)
     return {"success": True, "message": "Update download started"}

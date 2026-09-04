@@ -1429,7 +1429,7 @@ const App = {
           desktop_name: machine.desktop_name || API.getDeviceName(),
           user_name: machine.user_name || 'User',
           os_info: machine.os_info || navigator.platform || 'Windows',
-          app_version: '2.1.6',
+          app_version: '2.1.7',
           total_downloads: this.downloads?.length || 0,
           data_downloaded_mb: 0
         });
@@ -1584,7 +1584,7 @@ const App = {
 
     try {
       const info = await API.checkVersion();
-      const curVer = info?.current_version || '2.1.6';
+      const curVer = info?.current_version || '2.1.7';
       const latVer = info?.latest_version || curVer;
 
       if (versionBadge) versionBadge.innerText = `v${curVer}`;
