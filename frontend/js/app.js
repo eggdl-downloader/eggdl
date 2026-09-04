@@ -623,25 +623,30 @@ const App = {
       });
     });
 
+    // Initialize default mobile tab
+    document.body.dataset.mobileTab = 'queue';
+
     // Material 3 Android Bottom Navigation Destinations
     const m3Tabs = document.querySelectorAll('.m3-nav-item');
     m3Tabs.forEach(tab => {
       tab.addEventListener('click', () => {
-        m3Tabs.forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
         const dest = tab.dataset.tab;
-        if (dest === 'queue') {
-          // Switch to Queue: show URL input hero & active section
-          const urlSection = document.querySelector('.url-hero-box');
-          if (urlSection) urlSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        } else if (dest === 'completed') {
-          // Switch to Completed downloads
-          document.querySelector('.nav-item[data-category="all"]')?.click();
-          const historySection = document.getElementById('history-section');
-          if (historySection) historySection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        } else if (dest === 'settings') {
+        if (dest === 'settings') {
           this.applySettingsUI();
           document.getElementById('settings-modal').style.display = 'flex';
+          return;
+        }
+
+        m3Tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+
+        if (dest === 'queue') {
+          document.body.dataset.mobileTab = 'queue';
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else if (dest === 'completed') {
+          document.body.dataset.mobileTab = 'completed';
+          document.querySelector('.nav-item[data-category="all"]')?.click();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         }
       });
     });

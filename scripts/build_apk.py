@@ -1,4 +1,4 @@
-﻿import os
+import os
 import sys
 import shutil
 import subprocess
@@ -168,6 +168,7 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
+import android.widget.FrameLayout;
 
 public class MainActivity extends Activity {
 
@@ -183,9 +184,17 @@ public class MainActivity extends Activity {
         window.setStatusBarColor(0xFF131321);
         window.setNavigationBarColor(0xFF1B1B2C);
 
+        FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor(0xFF131321);
+        root.setFitsSystemWindows(true);
+
         mWebView = new WebView(this);
         mWebView.setBackgroundColor(0xFF131321);
-        setContentView(mWebView);
+        root.addView(mWebView, new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        ));
+        setContentView(root);
 
         configureWebView();
         requestNecessaryPermissions();

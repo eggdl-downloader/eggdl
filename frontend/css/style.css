@@ -1086,6 +1086,28 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   color: var(--text-dim);
 }
 
+.btn-download-action {
+  width: 100%;
+  height: 48px;
+  background: var(--accent-primary);
+  color: #FFFFFF;
+  font-family: var(--font-sans), sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.btn-download-action:hover {
+  background: var(--accent-primary-hover);
+}
+
 .quick-tags {
   display: flex;
   flex-wrap: wrap;
@@ -3584,6 +3606,8 @@ html, body {
     padding: 0 !important;
     overflow-x: hidden !important;
     min-height: 100vh !important;
+    padding-top: env(safe-area-inset-top, 0px) !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
   }
 
   /* 2. Hide Desktop-Only Sidebar on Android View */
@@ -3606,21 +3630,21 @@ html, body {
     -webkit-overflow-scrolling: touch !important;
   }
 
-  /* 4. Pinned Standard 56dp Height TopAppBar */
+  /* 4. Pinned Standard 56dp Height TopAppBar with Safe Area Padding */
   .topbar {
-    height: 56px !important;
-    min-height: 56px !important;
-    max-height: 56px !important;
+    height: calc(56px + env(safe-area-inset-top, 0px)) !important;
+    min-height: calc(56px + env(safe-area-inset-top, 0px)) !important;
     position: sticky !important;
     top: 0 !important;
     z-index: 500 !important;
     background: #131321 !important;
     border-bottom: 1px solid #2B2B42 !important;
     margin: 0 -16px 4px -16px !important;
-    padding: 0 16px !important;
+    padding: env(safe-area-inset-top, 0px) 16px 0 16px !important;
     display: flex !important;
     align-items: center !important;
     justify-content: space-between !important;
+    box-sizing: border-box !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
   }
@@ -3830,7 +3854,8 @@ html, body {
   }
 
   /* Download Action Button: Full-width 52dp height solid mint (#46F0D2) with bold #131321 text */
-  #inspect-btn {
+  #inspect-btn,
+  .btn-download-action {
     width: 100% !important;
     height: 52px !important;
     min-height: 52px !important;
@@ -3853,31 +3878,41 @@ html, body {
     transition: background 0.15s ease, transform 0.1s ease !important;
   }
 
-  #inspect-btn i {
+  #inspect-btn i,
+  .btn-download-action i {
     width: 20px !important;
     height: 20px !important;
     color: #131321 !important;
   }
 
-  #inspect-btn:active {
+  #inspect-btn:active,
+  .btn-download-action:active {
     background: #3AE0C3 !important;
     transform: scale(0.99) !important;
   }
 
-  /* 6. Dashboard Stats Bar on Mobile (< 600dp Strict Single Column) */
+  /* 6. Dashboard Stats Bar on Mobile: Hidden to prioritize Download Actions */
   .stats-grid {
-    grid-template-columns: 1fr !important;
-    gap: 8px !important;
+    display: none !important;
   }
 
-  .stat-card {
-    background: #1B1B2C !important;
-    border: 1px solid #2B2B42 !important;
-    border-radius: 8px !important;
-    padding: 12px 16px !important;
+  /* Material 3 Android Mobile Tab Switching */
+  body[data-mobile-tab="queue"] #history-section {
+    display: none !important;
+  }
+  body[data-mobile-tab="queue"] #url-hero-section {
     display: flex !important;
-    align-items: center !important;
-    gap: 12px !important;
+  }
+
+  body[data-mobile-tab="completed"] #url-hero-section {
+    display: none !important;
+  }
+  body[data-mobile-tab="completed"] #active-section {
+    display: none !important;
+  }
+  body[data-mobile-tab="completed"] #history-section {
+    display: flex !important;
+    flex-direction: column !important;
   }
 
   /* 7. Queue Cards: Full-Width Solid Cards (#1B1B2C), 8dp Radius, 1px Border (#2B2B42) */
@@ -4104,21 +4139,160 @@ html, body {
   }
 
   .table-container {
-    background: #1B1B2C !important;
-    border: 1px solid #2B2B42 !important;
-    border-radius: 8px !important;
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    overflow-x: visible !important;
+    width: 100% !important;
   }
 
   .downloads-table {
-    min-width: 620px !important;
+    min-width: 100% !important;
+    width: 100% !important;
+    display: block !important;
   }
 
-  .downloads-table th,
+  .downloads-table thead {
+    display: none !important;
+  }
+
+  .downloads-table tbody {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    width: 100% !important;
+  }
+
+  .downloads-table tbody tr {
+    display: flex !important;
+    flex-direction: column !important;
+    background: #1B1B2C !important;
+    border: 1px solid #2B2B42 !important;
+    border-radius: 8px !important;
+    padding: 14px 16px !important;
+    gap: 8px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
   .downloads-table td {
-    padding: 10px 12px !important;
+    padding: 0 !important;
+    border: none !important;
+    background: transparent !important;
+  }
+
+  .downloads-table td.col-type {
+    display: none !important;
+  }
+
+  .downloads-table td.col-file {
+    width: 100% !important;
+    overflow: hidden !important;
+  }
+
+  .downloads-table .file-cell {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    width: 100% !important;
+    overflow: hidden !important;
+  }
+
+  .downloads-table .file-cell-info {
+    flex: 1 !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .downloads-table .file-title {
+    font-size: 0.92rem !important;
+    font-weight: 700 !important;
+    color: #F0F3F6 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    margin-bottom: 2px !important;
+  }
+
+  .downloads-table .file-sub {
+    font-size: 0.76rem !important;
+    color: #8E8EA8 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .downloads-table td.col-progress {
+    width: 100% !important;
+  }
+
+  .downloads-table td.col-progress .progress-bar-bg {
+    width: 100% !important;
+    height: 4px !important;
+    background: #2B2B42 !important;
+    border-radius: 2px !important;
+  }
+
+  .downloads-table td.col-progress .progress-bar-fill {
+    background: #46F0D2 !important;
+    height: 100% !important;
+    border-radius: 2px !important;
+  }
+
+  .downloads-table td.col-size {
     font-size: 0.82rem !important;
+    color: #FBE2B4 !important;
+    font-family: var(--font-mono), monospace !important;
+    font-weight: 600 !important;
+  }
+
+  .downloads-table td.col-date {
+    display: none !important;
+  }
+
+  .downloads-table td.col-status {
+    align-self: flex-start !important;
+  }
+
+  .downloads-table td.col-actions {
+    width: 100% !important;
+    border-top: 1px solid #2B2B42 !important;
+    padding-top: 8px !important;
+    margin-top: 4px !important;
+  }
+
+  .downloads-table td.col-actions .action-buttons {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .downloads-table td.col-actions .btn {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    width: 44px !important;
+    height: 44px !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: #131321 !important;
+    border: 1px solid #2B2B42 !important;
+    border-radius: 8px !important;
+    color: #F0F3F6 !important;
+    cursor: pointer !important;
+  }
+
+  .downloads-table td.col-actions .btn i {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  .downloads-table td.col-actions .btn-danger {
+    color: #EF4444 !important;
+    border-color: rgba(239, 68, 68, 0.3) !important;
   }
 
   /* 9. Pinned 80dp Material 3 Bottom Navigation Bar */

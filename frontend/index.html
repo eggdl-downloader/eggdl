@@ -202,24 +202,24 @@
         </div>
       </section>
 
-      <!-- URL Input Hero Box -->
-      <section class="url-hero-box">
+      <!-- URL Input Hero Box (Material 3 Touch Card) -->
+      <section class="url-hero-box" id="url-hero-section">
         <div class="url-input-wrapper">
           <div class="input-icon">
             <i data-lucide="link-2"></i>
           </div>
-          <input type="text" id="url-input" name="eggdl_download_url_field" placeholder="Paste any video link (YouTube, Instagram, TikTok...) or direct file URL..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+          <input type="text" id="url-input" name="eggdl_download_url_field" placeholder="Paste any video link (YouTube, Instagram, TikTok...) or direct URL..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
           <button class="btn btn-secondary btn-icon-only" id="clear-input-btn" title="Clear input" style="display: none;">
             <i data-lucide="x"></i>
           </button>
           <button class="btn btn-secondary btn-icon-only" id="paste-clipboard-btn" title="Paste from Clipboard">
             <i data-lucide="clipboard"></i>
           </button>
-          <button class="btn btn-primary btn-glow" id="inspect-btn">
-            <i data-lucide="arrow-down-circle"></i>
-            <span>Download</span>
-          </button>
         </div>
+        <button class="btn-download-action" id="inspect-btn">
+          <i data-lucide="arrow-down-circle"></i>
+          <span>Download Video</span>
+        </button>
       </section>
 
       <!-- Active Downloads Section -->

@@ -36,3 +36,4 @@ Thumbs.db
 downloads_test/
 *.bin
 *.mp4
+android_build/
