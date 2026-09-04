@@ -87,13 +87,24 @@ def setup_project():
         for density in ["mipmap-hdpi", "mipmap-xhdpi", "mipmap-xxhdpi"]:
             shutil.copy2(icon_src, os.path.join(BUILD_DIR, "res", density, "ic_launcher.png"))
 
-    # 5. AndroidManifest.xml
+    # 5. AndroidManifest.xml (with explicit uses-sdk for Android 14/15/16)
     with open(os.path.join(BUILD_DIR, "AndroidManifest.xml"), "w", encoding="utf-8") as f:
         f.write('''<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.eggdl.downloader"
     android:versionCode="217"
     android:versionName="2.1.7">
+
+    <uses-sdk
+        android:minSdkVersion="24"
+        android:targetSdkVersion="36" />
+
+    <supports-screens
+        android:smallScreens="true"
+        android:normalScreens="true"
+        android:largeScreens="true"
+        android:xlargeScreens="true"
+        android:anyDensity="true" />
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -110,6 +121,7 @@ def setup_project():
         android:usesCleartextTraffic="true"
         android:hardwareAccelerated="true"
         android:allowBackup="true"
+        android:hasCode="true"
         android:requestLegacyExternalStorage="true">
         
         <activity
@@ -141,11 +153,11 @@ import android.app.Activity;
 import android.app.DownloadManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
-import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
@@ -176,7 +188,16 @@ public class MainActivity extends Activity {
         setContentView(mWebView);
 
         configureWebView();
+        requestNecessaryPermissions();
         handleIncomingIntent(getIntent());
+    }
+
+    private void requestNecessaryPermissions() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            if (checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 101);
+            }
+        }
     }
 
     private void configureWebView() {
@@ -213,7 +234,6 @@ public class MainActivity extends Activity {
 
         mWebView.setWebChromeClient(new WebChromeClient());
 
-        // Native Android DownloadManager Integration
         mWebView.setDownloadListener(new DownloadListener() {
             @Override
             public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimeType, long contentLength) {
@@ -355,7 +375,7 @@ def build_apk():
         "--ks", keystore_path,
         "--ks-pass", "pass:eggdl2026",
         "--key-pass", "pass:eggdl2026",
-        "--ks-key-alias", "eggdl",
+        "--ks-key-alias", "eggdl", "--v1-signing-enabled", "true", "--v2-signing-enabled", "true", "--v3-signing-enabled", "true",
         "--out", aligned_apk,
         aligned_apk
     ])
