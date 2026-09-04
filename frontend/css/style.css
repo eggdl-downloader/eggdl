@@ -3577,58 +3577,22 @@ html, body {
     letter-spacing: -0.3px !important;
   }
 
-  /* TopAppBar Center Auto-Detect Chip */
-  .topbar-search-status {
-    flex: 1 !important;
-    display: flex !important;
-    justify-content: center !important;
-    align-items: center !important;
-    padding: 0 8px !important;
-    overflow: hidden !important;
-  }
-
-  .realtime-speed-badge {
-    display: none !important; /* Hidden on narrow topbar to keep 56dp compact */
-  }
-
+  /* TopAppBar Center Auto-Detect Chip: Hidden on Mobile to prioritize right-side machine/subscription info */
+  .topbar-search-status,
+  .realtime-speed-badge,
   .m3-clipboard-chip {
-    display: inline-flex !important;
-    align-items: center !important;
-    gap: 6px !important;
-    background: #1B1B2C !important;
-    border: 1px solid #2B2B42 !important;
-    color: #FBE2B4 !important;
-    font-size: 0.78rem !important;
-    font-weight: 600 !important;
-    padding: 6px 12px !important;
-    border-radius: 16px !important;
-    cursor: pointer !important;
-    white-space: nowrap !important;
-    max-width: 180px !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    transition: background 0.15s ease, border-color 0.15s ease !important;
-    flex-shrink: 0 !important;
+    display: none !important;
   }
 
-  .m3-clipboard-chip i {
-    width: 14px !important;
-    height: 14px !important;
-    color: #46F0D2 !important;
-    flex-shrink: 0 !important;
-  }
-
-  .m3-clipboard-chip:active {
-    background: #232338 !important;
-    border-color: #46F0D2 !important;
-  }
-
-  /* TopAppBar Right Action Icons (48dp Minimum Touch Targets) */
+  /* TopAppBar Right Action Icons: Single Clean Row Aligned to the Right */
   .topbar-actions {
     display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
     align-items: center !important;
-    gap: 4px !important;
+    gap: 8px !important;
     flex-shrink: 0 !important;
+    margin-left: auto !important;
   }
 
   .topbar-actions .theme-select-wrapper,
@@ -3638,41 +3602,67 @@ html, body {
     display: none !important;
   }
 
+  /* Machine & Subscription Pill: Right Side Top */
+  #user-header-area {
+    display: inline-flex !important;
+    align-items: center !important;
+    flex-shrink: 0 !important;
+  }
+
+  #user-header-area .user-pill-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    padding: 4px 10px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    font-size: 0.78rem !important;
+    background: #1B1B2C !important;
+    border: 1px solid #2B2B42 !important;
+    border-radius: 18px !important;
+    color: #F0F3F6 !important;
+    cursor: pointer !important;
+    flex-shrink: 0 !important;
+  }
+
+  #user-header-area .user-avatar,
+  #user-header-area .user-name {
+    display: none !important; /* Keep compact so Pro badge fits cleanly */
+  }
+
+  #user-header-area .user-plan-badge {
+    font-size: 0.76rem !important;
+    font-weight: 700 !important;
+    padding: 2px 6px !important;
+    border-radius: 10px !important;
+  }
+
   .m3-icon-btn,
   #m3-settings-topbar-btn {
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
-    min-width: 48px !important;
-    min-height: 48px !important;
-    width: 48px !important;
-    height: 48px !important;
-    border-radius: 24px !important;
-    background: transparent !important;
-    border: none !important;
+    min-width: 38px !important;
+    min-height: 38px !important;
+    width: 38px !important;
+    height: 38px !important;
+    border-radius: 19px !important;
+    background: #1B1B2C !important;
+    border: 1px solid #2B2B42 !important;
     color: #8E8EA8 !important;
     cursor: pointer !important;
+    flex-shrink: 0 !important;
     transition: color 0.15s ease, background 0.15s ease !important;
   }
 
   .m3-icon-btn i {
-    width: 22px !important;
-    height: 22px !important;
+    width: 20px !important;
+    height: 20px !important;
   }
 
   .m3-icon-btn:active {
-    background: #1B1B2C !important;
+    background: #232338 !important;
     color: #46F0D2 !important;
-  }
-
-  /* User profile pill on mobile */
-  #user-header-area .user-pill-btn {
-    padding: 4px 10px !important;
-    height: 36px !important;
-    min-height: 36px !important;
-    font-size: 0.76rem !important;
-    background: #1B1B2C !important;
-    border: 1px solid #2B2B42 !important;
   }
 
   #user-header-area .user-name {
@@ -4295,8 +4285,62 @@ html, body {
     border-radius: 16px 16px 12px 12px !important;
     max-width: 100% !important;
     width: 100% !important;
-    max-height: 85vh !important;
+    max-height: 90vh !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
     box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.8) !important;
+  }
+
+  /* License Activation Box on Mobile: Stack Vertically so Button Never Clips */
+  .activation-input-row {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .activation-input-row input,
+  #license-key-input {
+    width: 100% !important;
+    min-height: 46px !important;
+    box-sizing: border-box !important;
+    font-size: 0.85rem !important;
+  }
+
+  .activation-input-row .btn,
+  #activate-license-btn {
+    width: 100% !important;
+    min-height: 48px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Subscription Plans on Mobile: Horizontal Swipe-Snap Gallery */
+  .plans-section {
+    width: 100% !important;
+    overflow: hidden !important;
+  }
+
+  .plans-grid {
+    display: flex !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    scroll-snap-type: x mandatory !important;
+    -webkit-overflow-scrolling: touch !important;
+    gap: 12px !important;
+    padding: 6px 2px 14px 2px !important;
+    width: 100% !important;
+    scrollbar-width: none !important;
+  }
+
+  .plan-card {
+    min-width: 220px !important;
+    max-width: 240px !important;
+    flex-shrink: 0 !important;
+    scroll-snap-align: start !important;
+    box-sizing: border-box !important;
   }
 
   /* Format Selector Pills inside Inspect Modal: Horizontal Scroll Container */
@@ -4324,5 +4368,68 @@ html, body {
     border-color: #46F0D2 !important;
     background: #1E2B2A !important;
   }
+}
+
+/* ==========================================================================
+   Interactive Theme Swatches (5 Color Palettes in Settings)
+   ========================================================================== */
+.theme-palette-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+
+@media (max-width: 600px) {
+  .theme-palette-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.theme-swatch-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 4px;
+  background: var(--bg-surface);
+  border: 1.5px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  outline: none;
+}
+
+.theme-swatch-card:hover {
+  border-color: var(--border-bright);
+  background: var(--bg-surface-hover);
+}
+
+.theme-swatch-card.active {
+  border-color: var(--accent-primary);
+  background: var(--bg-surface-active);
+  box-shadow: 0 0 0 1px var(--accent-primary);
+}
+
+.swatch-circles {
+  width: 32px;
+  height: 32px;
+  border-radius: 16px;
+  border: 1px solid var(--border-default);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.swatch-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 7px;
+}
+
+.swatch-name {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text-main);
 }
 

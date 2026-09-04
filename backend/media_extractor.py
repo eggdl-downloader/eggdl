@@ -416,6 +416,11 @@ class MediaExtractor:
             "socket_timeout": 15,
             "no_color": True,
             "cachedir": False,
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["android", "ios", "web"],
+                }
+            },
             "http_headers": {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                 "Accept-Language": "en-US,en;q=0.9",
@@ -442,7 +447,12 @@ class MediaExtractor:
                         "quiet": True,
                         "skip_download": True,
                         "noplaylist": True,
-                        "socket_timeout": 12,
+                        "socket_timeout": 15,
+                        "extractor_args": {
+                            "youtube": {
+                                "player_client": ["android", "ios"],
+                            }
+                        },
                     }
                     if cookie_path:
                         fallback_opts["cookiefile"] = cookie_path
@@ -805,6 +815,11 @@ class StreamDownloadTask:
             "fragment_retries": 10,
             "socket_timeout": 30,
             "cachedir": False,
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["android", "ios", "web"],
+                }
+            },
             "format_sort": ["res", "fps", "vcodec:h264", "acodec:m4a", "ext:mp4:m4a"],
             "http_headers": {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",

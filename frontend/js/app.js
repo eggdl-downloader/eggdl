@@ -49,11 +49,22 @@ const App = {
         this.applyTheme(e.target.value);
       });
     }
+
+    // 5 Visual Theme Swatch Click Listeners
+    const swatches = document.querySelectorAll('.theme-swatch-card');
+    swatches.forEach(swatch => {
+      swatch.addEventListener('click', () => {
+        const themeVal = swatch.dataset.themeVal;
+        if (themeVal) {
+          this.applyTheme(themeVal);
+        }
+      });
+    });
   },
 
   applyTheme(themeName) {
     const validThemes = ['slate', 'navy', 'mint', 'frost', 'zinc'];
-    const theme = validThemes.includes(themeName) ? themeName : 'slate';
+    const theme = validThemes.includes(themeName) ? themeName : 'mint';
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('eggdl_theme', theme);
 
@@ -69,6 +80,20 @@ const App = {
     const settingTheme = document.getElementById('setting-theme');
     if (themeSelector && themeSelector.value !== theme) themeSelector.value = theme;
     if (settingTheme && settingTheme.value !== theme) settingTheme.value = theme;
+
+    // Update active swatch state & label badge
+    const swatches = document.querySelectorAll('.theme-swatch-card');
+    swatches.forEach(s => {
+      if (s.dataset.themeVal === theme) {
+        s.classList.add('active');
+      } else {
+        s.classList.remove('active');
+      }
+    });
+    const themeBadge = document.getElementById('current-theme-label');
+    if (themeBadge) {
+      themeBadge.innerText = theme.charAt(0).toUpperCase() + theme.slice(1);
+    }
   },
 
   startSmoothProgressTicker() {

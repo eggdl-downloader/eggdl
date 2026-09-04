@@ -92,8 +92,8 @@ def setup_project():
         f.write('''<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.eggdl.downloader"
-    android:versionCode="218"
-    android:versionName="2.1.8">
+    android:versionCode="219"
+    android:versionName="2.1.9">
 
     <uses-sdk
         android:minSdkVersion="24"
