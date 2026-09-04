@@ -2189,6 +2189,21 @@ async def download_setup_installer():
     from fastapi.responses import RedirectResponse
     return RedirectResponse(url="https://raw.githubusercontent.com/eggdl-downloader/eggdl/main/frontend/downloads/EggDL_Setup.exe", status_code=302)
 
+@app.get("/download/apk")
+@app.get("/download/EggDL.apk")
+async def download_android_apk():
+    candidates = [
+        os.path.join(os.path.dirname(__file__), "..", "dist", "EggDL.apk"),
+        os.path.join(os.path.dirname(__file__), "dist", "EggDL.apk"),
+        os.path.join(os.path.dirname(__file__), "..", "frontend", "downloads", "EggDL.apk"),
+        os.path.join(os.path.dirname(__file__), "frontend", "downloads", "EggDL.apk")
+    ]
+    for c in candidates:
+        if os.path.exists(c) and os.path.getsize(c) > 1000:
+            return FileResponse(c, filename="EggDL.apk", media_type="application/vnd.android.package-archive")
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="https://github.com/eggdl-downloader/eggdl/raw/main/frontend/downloads/EggDL.apk", status_code=302)
+
 # --- Admin Remote Control API ---
 def enrich_device_item(dev: dict) -> dict:
     import math
