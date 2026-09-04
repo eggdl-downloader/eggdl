@@ -2,12 +2,34 @@
 document.addEventListener('DOMContentLoaded', async () => {
   const pageTitleEl = document.getElementById('page-title');
   const countBadge = document.getElementById('stream-count-badge');
-  const streamList = document.getElementById('stream-list');
+  const streamListVideo = document.getElementById('stream-list-video');
+  const streamListAudio = document.getElementById('stream-list-audio');
+  const tabBtnVideo = document.getElementById('tab-btn-video');
+  const tabBtnAudio = document.getElementById('tab-btn-audio');
+  const videoTabCount = document.getElementById('video-tab-count');
+  const audioTabCount = document.getElementById('audio-tab-count');
   const emptyState = document.getElementById('empty-state');
   const sniffFullBtn = document.getElementById('sniff-full-btn');
   const downloadAllBtn = document.getElementById('download-all-btn');
   const overlayToggle = document.getElementById('overlay-toggle');
   const themeSelector = document.getElementById('ext-theme-selector');
+
+  function switchPopupTab(tabName) {
+    if (tabName === 'video') {
+      tabBtnVideo?.classList.add('active');
+      tabBtnAudio?.classList.remove('active');
+      if (streamListVideo) streamListVideo.style.display = 'flex';
+      if (streamListAudio) streamListAudio.style.display = 'none';
+    } else {
+      tabBtnAudio?.classList.add('active');
+      tabBtnVideo?.classList.remove('active');
+      if (streamListAudio) streamListAudio.style.display = 'flex';
+      if (streamListVideo) streamListVideo.style.display = 'none';
+    }
+  }
+
+  tabBtnVideo?.addEventListener('click', () => switchPopupTab('video'));
+  tabBtnAudio?.addEventListener('click', () => switchPopupTab('audio'));
 
   function applyPopupTheme(theme) {
     const validThemes = ['slate', 'navy', 'mint', 'frost', 'zinc'];
@@ -100,11 +122,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (!isValidUrl) {
     pageTitleEl.innerText = "EggDL Downloader";
     countBadge.innerText = "0 Streams";
-    streamList.innerHTML = `
-      <div style="padding: 16px 12px; text-align: center; color: #94A3B8; font-size: 12px;">
-        Open a video page (YouTube, Instagram, TikTok) to detect media streams.
-      </div>
-    `;
+    if (streamListVideo) {
+      streamListVideo.innerHTML = `
+        <div style="padding: 16px 12px; text-align: center; color: #94A3B8; font-size: 12px;">
+          Open a video page (YouTube, Instagram, TikTok) to detect media streams.
+        </div>
+      `;
+    }
     emptyState.style.display = 'block';
     downloadAllBtn.disabled = true;
     return;
@@ -119,7 +143,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (list.length > 0) {
       renderSniffedMedia(list, tab);
     } else {
-      streamList.innerHTML = `<div style="text-align: center; padding: 22px; color: #94A3B8; font-size: 12.5px;">🔍 Extracting qualities (144p - 8K)...</div>`;
+      if (streamListVideo) {
+        streamListVideo.innerHTML = `<div style="text-align: center; padding: 22px; color: #94A3B8; font-size: 12.5px;">🔍 Extracting qualities (144p - 8K)...</div>`;
+      }
     }
   });
 
@@ -148,29 +174,52 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   function getQualityTag(res) {
-    if (!res) return { class: 'hd', label: 'HD' };
+    if (!res) return { class: 'tag-720p hd', label: 'HD' };
     const r = res.toLowerCase();
-    if (r.includes('4320') || r.includes('8k')) return { class: 'uhd', label: '8K' };
-    if (r.includes('2160') || r.includes('4k')) return { class: 'uhd', label: '4K' };
-    if (r.includes('1440') || r.includes('2k')) return { class: 'qhd', label: '2K' };
-    if (r.includes('1080')) return { class: 'fhd', label: '1080p' };
-    if (r.includes('720')) return { class: 'hd', label: '720p' };
-    if (r.includes('480')) return { class: 'sd', label: '480p' };
-    if (r.includes('360')) return { class: 'sd', label: '360p' };
-    if (r.includes('240')) return { class: 'sd', label: '240p' };
-    if (r.includes('144')) return { class: 'sd', label: '144p' };
-    return { class: 'hd', label: res };
+    if (r.includes('best') || r.includes('auto')) return { class: 'tag-best', label: 'Best' };
+    if (r.includes('4320') || r.includes('8k')) return { class: 'tag-8k uhd', label: '8K' };
+    if (r.includes('2160') || r.includes('4k')) return { class: 'tag-4k uhd', label: '4K' };
+    if (r.includes('1440') || r.includes('2k')) return { class: 'tag-2k qhd', label: '2K' };
+    if (r.includes('1080')) return { class: 'tag-1080p fhd', label: '1080p' };
+    if (r.includes('720')) return { class: 'tag-720p hd', label: '720p' };
+    if (r.includes('480')) return { class: 'tag-sd sd', label: '480p' };
+    if (r.includes('360')) return { class: 'tag-sd sd', label: '360p' };
+    if (r.includes('240')) return { class: 'tag-sd sd', label: '240p' };
+    if (r.includes('144')) return { class: 'tag-sd sd', label: '144p' };
+    return { class: 'tag-720p hd', label: res };
   }
 
   function renderInspectQualities(data, currentTab) {
     const videoOpts = data.video_options || [];
-    const audioOpts = data.audio_options || [];
-    const totalCount = videoOpts.length + audioOpts.length;
+    let audioOpts = data.audio_options || [];
 
+    if (audioOpts.length === 0 && videoOpts.length > 0) {
+      audioOpts = [
+        {
+          format_id: 'ba/best',
+          label: 'Original Audio (Best Quality)',
+          ext: 'm4a',
+          filesize_str: 'HQ Stream',
+          filesize: null
+        },
+        {
+          format_id: 'mp3_320',
+          label: 'MP3 Audio (HQ 320kbps)',
+          ext: 'mp3',
+          filesize_str: 'Extracted MP3',
+          filesize: null
+        }
+      ];
+    }
+
+    const totalCount = videoOpts.length + audioOpts.length;
     countBadge.innerText = `${totalCount} Available`;
+    if (videoTabCount) videoTabCount.innerText = videoOpts.length;
+    if (audioTabCount) audioTabCount.innerText = audioOpts.length;
 
     if (totalCount === 0) {
-      streamList.innerHTML = '';
+      if (streamListVideo) streamListVideo.innerHTML = '';
+      if (streamListAudio) streamListAudio.innerHTML = '';
       emptyState.style.display = 'block';
       downloadAllBtn.disabled = true;
       return;
@@ -179,82 +228,90 @@ document.addEventListener('DOMContentLoaded', async () => {
     emptyState.style.display = 'none';
     downloadAllBtn.disabled = false;
 
-    let itemsHtml = '';
-
-    if (videoOpts.length > 0) {
-      itemsHtml += `<div class="stream-section-label">🎬 Video Qualities</div>`;
-      itemsHtml += videoOpts.map(opt => {
-        const tag = getQualityTag(opt.resolution);
-        const formatId = opt.format_id;
-        const sizeStr = opt.filesize_str || 'Auto Size';
-        return `
-          <div class="stream-item">
-            <div class="stream-info">
-              <div class="stream-title">${opt.label}</div>
-              <div class="stream-meta">
-                <span class="quality-tag ${tag.class}">${tag.label}</span>
-                <span class="stream-size">${opt.ext.toUpperCase()} • ${sizeStr}</span>
+    // Render Video options ONLY into streamListVideo
+    if (streamListVideo) {
+      if (videoOpts.length === 0) {
+        streamListVideo.innerHTML = `<div style="padding: 16px; text-align: center; color: #94A3B8; font-size: 12px;">No video formats available.</div>`;
+      } else {
+        streamListVideo.innerHTML = videoOpts.map(opt => {
+          const tag = getQualityTag(opt.resolution || opt.label);
+          const formatId = opt.format_id;
+          const sizeStr = opt.filesize_str || 'Auto Size';
+          return `
+            <div class="stream-item">
+              <div class="stream-info">
+                <div class="stream-title">${opt.label}</div>
+                <div class="stream-meta">
+                  <span class="quality-tag ${tag.class}">${tag.label}</span>
+                  <span class="stream-size">${opt.ext.toUpperCase()} • ${sizeStr}</span>
+                </div>
               </div>
+              <button class="dl-btn" data-format="${formatId}" data-type="video" data-filesize="${opt.filesize || ''}">
+                ⚡ Download
+              </button>
             </div>
-            <button class="dl-btn" data-format="${formatId}" data-type="video" data-filesize="${opt.filesize || ''}">
-              ⚡ Download
-            </button>
-          </div>
-        `;
-      }).join('');
+          `;
+        }).join('');
+      }
     }
 
-    if (audioOpts.length > 0) {
-      itemsHtml += `<div class="stream-section-label" style="margin-top: 10px;">🎵 Audio Formats</div>`;
-      itemsHtml += audioOpts.map(opt => {
-        const formatId = opt.format_id;
-        const sizeStr = opt.filesize_str || 'Audio Stream';
-        return `
-          <div class="stream-item">
-            <div class="stream-info">
-              <div class="stream-title">${opt.label}</div>
-              <div class="stream-meta">
-                <span class="quality-tag audio">MP3/M4A</span>
-                <span class="stream-size">${opt.ext.toUpperCase()} • ${sizeStr}</span>
+    // Render Audio options ONLY into streamListAudio
+    if (streamListAudio) {
+      if (audioOpts.length === 0) {
+        streamListAudio.innerHTML = `<div style="padding: 16px; text-align: center; color: #94A3B8; font-size: 12px;">No audio formats available.</div>`;
+      } else {
+        streamListAudio.innerHTML = audioOpts.map(opt => {
+          const formatId = opt.format_id;
+          const sizeStr = opt.filesize_str || 'Audio Stream';
+          return `
+            <div class="stream-item">
+              <div class="stream-info">
+                <div class="stream-title">${opt.label}</div>
+                <div class="stream-meta">
+                  <span class="quality-tag tag-audio">MP3/M4A</span>
+                  <span class="stream-size">${opt.ext.toUpperCase()} • ${sizeStr}</span>
+                </div>
               </div>
+              <button class="dl-btn" data-format="${formatId}" data-type="audio" data-filesize="${opt.filesize || ''}">
+                🎵 Download Audio
+              </button>
             </div>
-            <button class="dl-btn" data-format="${formatId}" data-type="audio" data-filesize="${opt.filesize || ''}">
-              🎵 Download Audio
-            </button>
-          </div>
-        `;
-      }).join('');
+          `;
+        }).join('');
+      }
     }
 
-    streamList.innerHTML = itemsHtml;
+    // Wire up download buttons for both lists
+    [streamListVideo, streamListAudio].forEach(listEl => {
+      if (!listEl) return;
+      listEl.querySelectorAll('.dl-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const formatId = btn.dataset.format;
+          const isAudio = btn.dataset.type === 'audio';
+          const fileSize = btn.dataset.filesize ? parseInt(btn.dataset.filesize) : null;
+          btn.innerText = '⏳ Starting...';
 
-    streamList.querySelectorAll('.dl-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const formatId = btn.dataset.format;
-        const isAudio = btn.dataset.type === 'audio';
-        const fileSize = btn.dataset.filesize ? parseInt(btn.dataset.filesize) : null;
-        btn.innerText = '⏳ Starting...';
-
-        safeSendMessage({
-          action: "download_task",
-          tabId: currentTab.id,
-          payload: {
-            url: currentTab.url,
-            download_type: "stream",
-            format_id: formatId,
-            custom_title: data.title || currentTab.title,
-            thumbnail: data.thumbnail || "",
-            expected_size: fileSize,
-            is_audio_only: isAudio
-          }
-        }, (res) => {
-          if (res && res.success) {
-            btn.innerText = '✓ Started';
-            btn.style.background = '#10B981';
-          } else {
-            btn.innerText = '✕ Retry';
-            btn.style.background = '#EF4444';
-          }
+          safeSendMessage({
+            action: "download_task",
+            tabId: currentTab.id,
+            payload: {
+              url: currentTab.url,
+              download_type: "stream",
+              format_id: formatId,
+              custom_title: data.title || currentTab.title,
+              thumbnail: data.thumbnail || "",
+              expected_size: fileSize,
+              is_audio_only: isAudio
+            }
+          }, (res) => {
+            if (res && res.success) {
+              btn.innerText = '✓ Started';
+              btn.style.background = '#10B981';
+            } else {
+              btn.innerText = '✕ Retry';
+              btn.style.background = '#EF4444';
+            }
+          });
         });
       });
     });
@@ -285,9 +342,25 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function renderSniffedMedia(list, currentTab) {
-    countBadge.innerText = `${list.length} Found`;
-    if (list.length === 0) {
-      streamList.innerHTML = '';
+    const videoItems = list.filter(item => !(item.type || '').includes('audio'));
+    let audioItems = list.filter(item => (item.type || '').includes('audio'));
+
+    if (audioItems.length === 0 && videoItems.length > 0) {
+      audioItems.push({
+        url: videoItems[0].url,
+        quality: 'Audio Stream',
+        type: 'audio/mpeg'
+      });
+    }
+
+    const totalCount = videoItems.length + audioItems.length;
+    countBadge.innerText = `${totalCount} Found`;
+    if (videoTabCount) videoTabCount.innerText = videoItems.length;
+    if (audioTabCount) audioTabCount.innerText = audioItems.length;
+
+    if (totalCount === 0) {
+      if (streamListVideo) streamListVideo.innerHTML = '';
+      if (streamListAudio) streamListAudio.innerHTML = '';
       emptyState.style.display = 'block';
       downloadAllBtn.disabled = true;
       return;
@@ -296,48 +369,84 @@ document.addEventListener('DOMContentLoaded', async () => {
     emptyState.style.display = 'none';
     downloadAllBtn.disabled = false;
 
-    streamList.innerHTML = list.map((item, idx) => {
-      const tag = getQualityTag(item.quality);
-      const filename = item.url.split('/').pop().split('?')[0] || `Stream_${idx + 1}`;
-      return `
-        <div class="stream-item">
-          <div class="stream-info">
-            <div class="stream-title">${filename}</div>
-            <div class="stream-meta">
-              <span class="quality-tag ${tag.class}">${tag.label}</span>
-              <span class="stream-size">${item.quality}</span>
+    // Render video items ONLY into streamListVideo
+    if (streamListVideo) {
+      if (videoItems.length === 0) {
+        streamListVideo.innerHTML = `<div style="padding: 16px; text-align: center; color: #94A3B8; font-size: 12px;">No video streams detected.</div>`;
+      } else {
+        streamListVideo.innerHTML = videoItems.map((item, idx) => {
+          const tag = getQualityTag(item.quality);
+          const filename = item.url.split('/').pop().split('?')[0] || `Video_Stream_${idx + 1}`;
+          return `
+            <div class="stream-item">
+              <div class="stream-info">
+                <div class="stream-title">${filename}</div>
+                <div class="stream-meta">
+                  <span class="quality-tag ${tag.class}">${tag.label}</span>
+                  <span class="stream-size">${item.quality}</span>
+                </div>
+              </div>
+              <button class="dl-btn" data-url="${item.url}" data-type="video">
+                ⚡ Download
+              </button>
             </div>
-          </div>
-          <button class="dl-btn" data-url="${item.url}">
-            ⚡ Download
-          </button>
-        </div>
-      `;
-    }).join('');
+          `;
+        }).join('');
+      }
+    }
 
-    streamList.querySelectorAll('.dl-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const url = btn.dataset.url;
-        btn.innerText = '⏳ Starting...';
-        safeSendMessage({
-          action: "download_task",
-          tabId: currentTab.id,
-          payload: {
-            url: url,
-            download_type: "auto",
-            custom_title: currentTab.title || "Video Download"
-          }
-        }, (res) => {
-          if (res && res.success) {
-            btn.innerText = '✓ Started';
-            btn.style.background = '#10B981';
-          } else {
-            btn.innerText = '✕ Retry';
-            btn.style.background = '#EF4444';
-          }
+    // Render audio items ONLY into streamListAudio
+    if (streamListAudio) {
+      if (audioItems.length === 0) {
+        streamListAudio.innerHTML = `<div style="padding: 16px; text-align: center; color: #94A3B8; font-size: 12px;">No audio streams detected.</div>`;
+      } else {
+        streamListAudio.innerHTML = audioItems.map((item, idx) => {
+          const filename = item.url.split('/').pop().split('?')[0] || `Audio_Stream_${idx + 1}`;
+          return `
+            <div class="stream-item">
+              <div class="stream-info">
+                <div class="stream-title">${filename}</div>
+                <div class="stream-meta">
+                  <span class="quality-tag tag-audio">MP3/M4A</span>
+                  <span class="stream-size">${item.quality || 'Audio'}</span>
+                </div>
+              </div>
+              <button class="dl-btn" data-url="${item.url}" data-type="audio">
+                🎵 Download Audio
+              </button>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    [streamListVideo, streamListAudio].forEach(listEl => {
+      if (!listEl) return;
+      listEl.querySelectorAll('.dl-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const url = btn.dataset.url;
+          const isAudio = btn.dataset.type === 'audio';
+          btn.innerText = '⏳ Starting...';
+          safeSendMessage({
+            action: "download_task",
+            tabId: currentTab.id,
+            payload: {
+              url: url,
+              download_type: "auto",
+              custom_title: currentTab.title || (isAudio ? "Audio Download" : "Video Download"),
+              is_audio_only: isAudio
+            }
+          }, (res) => {
+            if (res && res.success) {
+              btn.innerText = '✓ Started';
+              btn.style.background = '#10B981';
+            } else {
+              btn.innerText = '✕ Retry';
+              btn.style.background = '#EF4444';
+            }
+          });
         });
       });
-    });
   }
 
   sniffFullBtn.onclick = () => {

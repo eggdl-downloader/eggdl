@@ -255,13 +255,9 @@ def show_main_window():
             pass
 
 def on_desktop_download_completed(task_dict):
-    global _TRAY_ICON, _MAIN_WINDOW
-    title = task_dict.get("title") or task_dict.get("filename") or "File"
-    if _TRAY_ICON:
-        try:
-            _TRAY_ICON.notify(f"Downloaded {title}", "EggDL • Download Complete ⚡")
-        except Exception:
-            pass
+    global _MAIN_WINDOW
+    # Windows OS native tray notification is intentionally disabled to avoid duplicate OS toasts.
+    # The in-app download complete notification card + sound effect is used exclusively.
     if _MAIN_WINDOW:
         try:
             task_json = json.dumps(task_dict)

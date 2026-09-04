@@ -45,8 +45,22 @@
         <span class="badge" id="stream-count-badge">0 Streams</span>
       </div>
 
-      <div class="stream-list" id="stream-list">
-        <!-- Media stream items dynamically injected here -->
+      <div class="popup-tabs-nav" id="popup-tabs-nav">
+        <button type="button" class="popup-tab-btn active" data-tab="video" id="tab-btn-video">
+          <span>🎬 Video</span> <span class="tab-count" id="video-tab-count">0</span>
+        </button>
+        <button type="button" class="popup-tab-btn" data-tab="audio" id="tab-btn-audio">
+          <span>🎵 Audio</span> <span class="tab-count" id="audio-tab-count">0</span>
+        </button>
+      </div>
+
+      <div class="stream-list-container">
+        <div class="stream-list" id="stream-list-video">
+          <!-- Video items injected here -->
+        </div>
+        <div class="stream-list" id="stream-list-audio" style="display: none;">
+          <!-- Audio items injected here -->
+        </div>
       </div>
 
       <div class="empty-state" id="empty-state" style="display: none;">

@@ -415,23 +415,24 @@
   }
 
   function getQualityTag(res) {
-    if (!res) return { class: 'hd', label: 'HD' };
+    if (!res) return { class: 'tag-720p hd', label: 'HD' };
     const r = res.toLowerCase();
-    if (r.includes('4320') || r.includes('8k')) return { class: 'uhd', label: '8K' };
-    if (r.includes('2160') || r.includes('4k')) return { class: 'uhd', label: '4K' };
-    if (r.includes('1440') || r.includes('2k')) return { class: 'qhd', label: '2K' };
-    if (r.includes('1080')) return { class: 'fhd', label: '1080p' };
-    if (r.includes('720')) return { class: 'hd', label: '720p' };
-    if (r.includes('480')) return { class: 'sd', label: '480p' };
-    if (r.includes('360')) return { class: 'sd', label: '360p' };
-    if (r.includes('240')) return { class: 'sd', label: '240p' };
-    if (r.includes('144')) return { class: 'sd', label: '144p' };
-    return { class: 'hd', label: res };
+    if (r.includes('best') || r.includes('auto')) return { class: 'tag-best', label: 'Best' };
+    if (r.includes('4320') || r.includes('8k')) return { class: 'tag-8k uhd', label: '8K' };
+    if (r.includes('2160') || r.includes('4k')) return { class: 'tag-4k uhd', label: '4K' };
+    if (r.includes('1440') || r.includes('2k')) return { class: 'tag-2k qhd', label: '2K' };
+    if (r.includes('1080')) return { class: 'tag-1080p fhd', label: '1080p' };
+    if (r.includes('720')) return { class: 'tag-720p hd', label: '720p' };
+    if (r.includes('480')) return { class: 'tag-sd sd', label: '480p' };
+    if (r.includes('360')) return { class: 'tag-sd sd', label: '360p' };
+    if (r.includes('240')) return { class: 'tag-sd sd', label: '240p' };
+    if (r.includes('144')) return { class: 'tag-sd sd', label: '144p' };
+    return { class: 'tag-720p hd', label: res };
   }
 
   function renderInspectResults(menu, data, pageUrl, pageTitle, video) {
     const videoOpts = data.video_options || [];
-    const audioOpts = data.audio_options || [];
+    let audioOpts = data.audio_options || [];
 
     if (videoOpts.length === 0 && audioOpts.length === 0) {
       safeSendMessage({ action: "get_tab_media" }, (mediaRes) => {
@@ -443,40 +444,110 @@
       return;
     }
 
+    // Always provide rich audio options if empty
+    if (audioOpts.length === 0) {
+      audioOpts = [
+        {
+          format_id: 'ba/best',
+          label: 'Original Audio (Best Available)',
+          ext: 'm4a',
+          filesize_str: 'HQ Stream',
+          filesize: null
+        },
+        {
+          format_id: 'mp3_320',
+          label: 'MP3 Audio (HQ 320kbps)',
+          ext: 'mp3',
+          filesize_str: 'Extracted MP3',
+          filesize: null
+        }
+      ];
+    }
+
+    const videoCount = videoOpts.length;
+    const audioCount = audioOpts.length;
+
     let html = `
-      <div class="pro-dl-menu-header">Available Video Streams (${videoOpts.length} Options)</div>
+      <div class="pro-dl-tabs-nav">
+        <button type="button" class="pro-dl-tab-btn active" data-tab="video">
+          <span>🎬 Video</span> <span class="pro-dl-tab-count">${videoCount}</span>
+        </button>
+        <button type="button" class="pro-dl-tab-btn" data-tab="audio">
+          <span>🎵 Audio</span> <span class="pro-dl-tab-count">${audioCount}</span>
+        </button>
+      </div>
+      <div class="pro-dl-tab-panels">
+        <div class="pro-dl-tab-panel" id="pro-dl-video-panel">
     `;
 
-    videoOpts.forEach(opt => {
-      const tag = getQualityTag(opt.resolution);
-      html += `
-        <div class="pro-dl-menu-item" data-format-id="${opt.format_id}" data-type="video" data-filesize="${opt.filesize || ''}">
-          <span class="pro-dl-tag ${tag.class}">${tag.label}</span>
-          <div class="pro-dl-item-info">
-            <span class="pro-dl-item-title">${opt.label}</span>
-            <span class="pro-dl-item-meta">${opt.ext.toUpperCase()} • ${opt.filesize_str}</span>
-          </div>
-        </div>
-      `;
-    });
-
-    if (audioOpts.length > 0) {
-      html += `<div class="pro-dl-menu-header" style="margin-top: 8px;">🎵 Audio Formats</div>`;
-      audioOpts.forEach(opt => {
+    if (videoOpts.length === 0) {
+      html += `<div class="pro-dl-empty">No video streams found.</div>`;
+    } else {
+      videoOpts.forEach(opt => {
+        const tag = getQualityTag(opt.resolution || opt.label);
         html += `
-          <div class="pro-dl-menu-item" data-format-id="${opt.format_id}" data-type="audio" data-filesize="${opt.filesize || ''}">
-            <span class="pro-dl-tag audio">MP3/M4A</span>
+          <div class="pro-dl-menu-item" data-format-id="${opt.format_id}" data-type="video" data-filesize="${opt.filesize || ''}">
+            <span class="pro-dl-tag ${tag.class}">${tag.label}</span>
             <div class="pro-dl-item-info">
               <span class="pro-dl-item-title">${opt.label}</span>
-              <span class="pro-dl-item-meta">${opt.ext.toUpperCase()} • ${opt.filesize_str}</span>
+              <span class="pro-dl-item-meta">${opt.ext.toUpperCase()} • ${opt.filesize_str || 'Direct'}</span>
             </div>
           </div>
         `;
       });
     }
 
+    html += `
+        </div>
+        <div class="pro-dl-tab-panel hidden" id="pro-dl-audio-panel">
+    `;
+
+    if (audioOpts.length === 0) {
+      html += `<div class="pro-dl-empty">No audio streams found.</div>`;
+    } else {
+      audioOpts.forEach(opt => {
+        html += `
+          <div class="pro-dl-menu-item" data-format-id="${opt.format_id}" data-type="audio" data-filesize="${opt.filesize || ''}">
+            <span class="pro-dl-tag tag-audio">MP3/M4A</span>
+            <div class="pro-dl-item-info">
+              <span class="pro-dl-item-title">${opt.label}</span>
+              <span class="pro-dl-item-meta">${opt.ext.toUpperCase()} • ${opt.filesize_str || 'Audio Stream'}</span>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    html += `
+        </div>
+      </div>
+    `;
+
     menu.innerHTML = html;
 
+    // Switch tabs on click
+    const tabBtns = menu.querySelectorAll('.pro-dl-tab-btn');
+    const videoPanel = menu.querySelector('#pro-dl-video-panel');
+    const audioPanel = menu.querySelector('#pro-dl-audio-panel');
+
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const tab = btn.dataset.tab;
+        tabBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        if (tab === 'video') {
+          videoPanel.classList.remove('hidden');
+          audioPanel.classList.add('hidden');
+        } else {
+          audioPanel.classList.remove('hidden');
+          videoPanel.classList.add('hidden');
+        }
+      });
+    });
+
+    // Item click
     menu.querySelectorAll('.pro-dl-menu-item').forEach(item => {
       item.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -498,7 +569,7 @@
           file_size: fileSize,
           mime: isAudio ? 'audio/mpeg' : 'video/mp4',
           download_type: directUrl ? 'direct' : 'stream',
-          format_id: formatId || 'bestvideo+bestaudio/best',
+          format_id: formatId || (isAudio ? 'bestaudio/best' : 'bestvideo+bestaudio/best'),
           thumbnail: data.thumbnail || '',
           is_audio_only: isAudio,
           referrer: window.location.href
@@ -531,29 +602,100 @@
       });
     }
 
-    let html = `
-      <div class="pro-dl-menu-header">Available Streams (${streams.length} Options)</div>
-    `;
+    const videoStreams = streams.filter(s => !(s.type || '').includes('audio'));
+    let audioStreams = streams.filter(s => (s.type || '').includes('audio'));
 
-    if (streams.length === 0) {
-      html += `<div class="pro-dl-empty">No streams captured yet. Play video to capture.</div>`;
+    if (audioStreams.length === 0 && directSrc && !directSrc.startsWith('blob:')) {
+      audioStreams.push({
+        url: directSrc,
+        quality: 'Audio Stream',
+        type: 'audio/mpeg',
+        sizeFormatted: 'Audio Extracted'
+      });
     }
 
-    streams.forEach(stream => {
-      const tag = getQualityTag(stream.quality || stream.resolution);
-      const isAudio = (stream.type || '').includes('audio');
-      html += `
-        <div class="pro-dl-menu-item" data-url="${stream.url}" data-size="${stream.size || ''}" data-type="${isAudio ? 'audio' : 'video'}">
-          <span class="pro-dl-tag ${tag.class}">${tag.label}</span>
-          <div class="pro-dl-item-info">
-            <span class="pro-dl-item-title">${stream.title || pageTitle.slice(0, 26)}</span>
-            <span class="pro-dl-item-meta">${stream.ext || (isAudio ? 'MP3' : 'MP4')} • ${stream.sizeFormatted || 'High Speed Stream'}</span>
+    const videoCount = videoStreams.length;
+    const audioCount = audioStreams.length;
+
+    let html = `
+      <div class="pro-dl-tabs-nav">
+        <button type="button" class="pro-dl-tab-btn active" data-tab="video">
+          <span>🎬 Video</span> <span class="pro-dl-tab-count">${videoCount}</span>
+        </button>
+        <button type="button" class="pro-dl-tab-btn" data-tab="audio">
+          <span>🎵 Audio</span> <span class="pro-dl-tab-count">${audioCount}</span>
+        </button>
+      </div>
+      <div class="pro-dl-tab-panels">
+        <div class="pro-dl-tab-panel" id="pro-dl-video-panel">
+    `;
+
+    if (videoStreams.length === 0) {
+      html += `<div class="pro-dl-empty">No video streams captured yet. Play video to capture.</div>`;
+    } else {
+      videoStreams.forEach(stream => {
+        const tag = getQualityTag(stream.quality || stream.resolution);
+        html += `
+          <div class="pro-dl-menu-item" data-url="${stream.url}" data-size="${stream.size || ''}" data-type="video">
+            <span class="pro-dl-tag ${tag.class}">${tag.label}</span>
+            <div class="pro-dl-item-info">
+              <span class="pro-dl-item-title">${stream.title || pageTitle.slice(0, 30)}</span>
+              <span class="pro-dl-item-meta">${stream.ext || 'MP4'} • ${stream.sizeFormatted || 'High Speed Stream'}</span>
+            </div>
           </div>
+        `;
+      });
+    }
+
+    html += `
         </div>
-      `;
-    });
+        <div class="pro-dl-tab-panel hidden" id="pro-dl-audio-panel">
+    `;
+
+    if (audioStreams.length === 0) {
+      html += `<div class="pro-dl-empty">No audio streams captured yet.</div>`;
+    } else {
+      audioStreams.forEach(stream => {
+        html += `
+          <div class="pro-dl-menu-item" data-url="${stream.url}" data-size="${stream.size || ''}" data-type="audio">
+            <span class="pro-dl-tag tag-audio">MP3/M4A</span>
+            <div class="pro-dl-item-info">
+              <span class="pro-dl-item-title">${stream.title || pageTitle.slice(0, 30)}</span>
+              <span class="pro-dl-item-meta">${stream.ext || 'MP3'} • ${stream.sizeFormatted || 'Audio Stream'}</span>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    html += `
+        </div>
+      </div>
+    `;
 
     menu.innerHTML = html;
+
+    // Tab switching
+    const tabBtns = menu.querySelectorAll('.pro-dl-tab-btn');
+    const videoPanel = menu.querySelector('#pro-dl-video-panel');
+    const audioPanel = menu.querySelector('#pro-dl-audio-panel');
+
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const tab = btn.dataset.tab;
+        tabBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        if (tab === 'video') {
+          videoPanel.classList.remove('hidden');
+          audioPanel.classList.add('hidden');
+        } else {
+          audioPanel.classList.remove('hidden');
+          videoPanel.classList.add('hidden');
+        }
+      });
+    });
 
     menu.querySelectorAll('.pro-dl-menu-item').forEach(item => {
       item.addEventListener('click', (e) => {
@@ -572,6 +714,7 @@
           file_size: fileSize,
           mime: isAudio ? 'audio/mpeg' : 'video/mp4',
           download_type: 'direct',
+          is_audio_only: isAudio,
           referrer: window.location.href
         });
       });

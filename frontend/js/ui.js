@@ -196,16 +196,124 @@ const UI = {
       this.playTechyCompletionSound();
     } catch (_) {}
 
-    // 2. In web browser contexts (non-desktop tray), show native OS/browser notification
-    try {
-      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        const title = task.title || task.filename || 'File';
-        new Notification('EggDL • Download Complete ⚡', {
-          body: `Downloaded ${title}`,
-          icon: '/static/images/egg-icon.png'
-        });
+    // 2. Render exclusively in-app completion card popup (zero duplicate Windows OS toast)
+    this.renderInAppDownloadCompleteCard(task);
+  },
+
+  renderInAppDownloadCompleteCard(task) {
+    const container = document.getElementById('download-notification-container');
+    if (!container) return;
+
+    const title = task.title || task.filename || 'Downloaded File';
+    const filePath = task.file_path || task.save_path || task.filename || '';
+    const lastSlash = Math.max(filePath.lastIndexOf('\\'), filePath.lastIndexOf('/'));
+    const dirPath = lastSlash !== -1 ? filePath.substring(0, lastSlash + 1) : (task.download_dir || 'Downloads\\EggDL\\');
+    const category = (task.category || 'file').toLowerCase();
+
+    // Category icon
+    let catIcon = 'file';
+    let catClass = 'file';
+    if (category === 'video') { catIcon = 'film'; catClass = 'video'; }
+    else if (category === 'audio') { catIcon = 'music'; catClass = 'audio'; }
+    else if (category === 'image') { catIcon = 'image'; catClass = 'image'; }
+    else if (category === 'document') { catIcon = 'file-text'; catClass = 'document'; }
+    else if (category === 'compressed') { catIcon = 'archive'; catClass = 'compressed'; }
+
+    const sizeStr = this.formatBytes(task.file_size || task.downloaded_bytes || 0);
+
+    const popup = document.createElement('div');
+    popup.className = 'dl-complete-popup';
+    popup.innerHTML = `
+      <div class="dl-complete-header">
+        <div class="dl-complete-brand">
+          <img src="/static/images/egg-icon.png" class="dl-complete-logo" alt="EggDL" onerror="this.src='/images/egg-icon.png'">
+          <span class="dl-complete-title"><span class="dl-complete-pulse-dot"></span> Download complete</span>
+        </div>
+        <button type="button" class="dl-complete-close-btn" title="Close">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <div class="dl-complete-body">
+        <div class="dl-complete-file-row">
+          <div class="dl-complete-icon-box ${catClass}">
+            <i data-lucide="${catIcon}"></i>
+          </div>
+          <div class="dl-complete-file-info">
+            <div class="dl-complete-filename" title="${title}">${title}</div>
+            <div class="dl-complete-filesize">${sizeStr} • Completed</div>
+          </div>
+        </div>
+        <div class="dl-complete-path-container">
+          <div class="dl-complete-path-text-area" title="Open containing folder: ${dirPath}">
+            <i data-lucide="folder" style="width: 14px; height: 14px; color: #60A5FA; flex-shrink: 0;"></i>
+            <span class="dl-complete-path-text">${dirPath}</span>
+          </div>
+          <button type="button" class="dl-complete-copy-path-btn" title="Copy directory path">
+            <i data-lucide="copy" style="width: 13px; height: 13px;"></i>
+          </button>
+        </div>
+      </div>
+      <div class="dl-complete-footer">
+        <button type="button" class="dl-complete-open-btn">
+          <i data-lucide="play" style="width: 13px; height: 13px;"></i>
+          <span>Open</span>
+        </button>
+        <button type="button" class="dl-complete-folder-btn">
+          <i data-lucide="folder-open" style="width: 13px; height: 13px;"></i>
+          <span>Folder</span>
+        </button>
+      </div>
+    `;
+
+    container.appendChild(popup);
+    if (window.lucide) window.lucide.createIcons();
+
+    // Close action
+    const closePopup = () => {
+      popup.classList.add('dismissing');
+      setTimeout(() => popup.remove(), 250);
+    };
+
+    popup.querySelector('.dl-complete-close-btn')?.addEventListener('click', closePopup);
+
+    // Open file
+    popup.querySelector('.dl-complete-open-btn')?.addEventListener('click', () => {
+      if (task.id && typeof App !== 'undefined' && App.openFile) {
+        App.openFile(task.id);
+      } else if (API.openFile && task.id) {
+        API.openFile(task.id);
       }
-    } catch (_) {}
+      closePopup();
+    });
+
+    // Open folder
+    const openFolderFn = () => {
+      if (task.id && typeof App !== 'undefined' && App.openFolder) {
+        App.openFolder(task.id);
+      } else if (API.openFolder) {
+        API.openFolder(task.id || '');
+      }
+      closePopup();
+    };
+
+    popup.querySelector('.dl-complete-folder-btn')?.addEventListener('click', openFolderFn);
+    popup.querySelector('.dl-complete-path-text-area')?.addEventListener('click', openFolderFn);
+
+    // Copy path
+    popup.querySelector('.dl-complete-copy-path-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(dirPath);
+        this.showToast('Copied folder path to clipboard', 'info', 2000);
+      }
+    });
+
+    // Auto-dismiss after 6.5s
+    setTimeout(() => {
+      if (popup.parentElement) {
+        closePopup();
+      }
+    }, 6500);
   },
 
   renderActiveTasks(tasks) {
