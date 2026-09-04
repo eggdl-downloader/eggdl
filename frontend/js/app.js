@@ -732,12 +732,24 @@ const App = {
     const checkClipboardForChip = async () => {
       try {
         let text = '';
-        if (navigator.clipboard && navigator.clipboard.readText) {
-          text = await navigator.clipboard.readText();
-        } else if (typeof API !== 'undefined' && API.getClipboard) {
+        // 1. Native Windows/OS Clipboard via local backend or PyWebView (100% silent, zero browser permission prompt)
+        if (typeof API !== 'undefined' && API.getClipboard) {
           text = await API.getClipboard();
         }
-        if (text && (text.startsWith('http://') || text.startsWith('https://'))) {
+
+        // 2. In pure browser context, ONLY read if permission is ALREADY granted (never trigger browser permission modal)
+        if (!text && typeof navigator !== 'undefined' && navigator.clipboard?.readText) {
+          try {
+            if (navigator.permissions?.query) {
+              const perm = await navigator.permissions.query({ name: 'clipboard-read' });
+              if (perm.state === 'granted') {
+                text = await navigator.clipboard.readText();
+              }
+            }
+          } catch (_) {}
+        }
+
+        if (text && (text.startsWith('http://') || text.startsWith('https://') || text.startsWith('magnet:'))) {
           if (clipChip) {
             const chipText = document.getElementById('m3-clipboard-chip-text');
             if (chipText) chipText.innerText = 'Paste: ' + text.substring(0, 18) + '...';
@@ -755,7 +767,7 @@ const App = {
           if (clipChip) clipChip.style.display = 'none';
         }
       } catch (e) {
-        // Silent catch for permissions
+        // Silent catch
       }
     };
     window.addEventListener('focus', checkClipboardForChip);
