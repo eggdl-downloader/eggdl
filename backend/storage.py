@@ -1134,7 +1134,13 @@ def get_all_devices_telemetry() -> List[Dict[str, Any]]:
                     ls_dt = datetime.fromisoformat(str(last_seen))
                 else:
                     ls_dt = datetime.strptime(str(last_seen)[:19], "%Y-%m-%d %H:%M:%S")
-                diff_sec = (now - ls_dt).total_seconds()
+                if ls_dt.tzinfo:
+                    diff_sec = (datetime.now(timezone.utc) - ls_dt).total_seconds()
+                else:
+                    diff_local = (datetime.now() - ls_dt).total_seconds()
+                    diff_utc = (datetime.now(timezone.utc).replace(tzinfo=None) - ls_dt).total_seconds()
+                    valid_diffs = [d for d in (diff_local, diff_utc) if d >= -30]
+                    diff_sec = min(valid_diffs) if valid_diffs else min(abs(diff_local), abs(diff_utc))
                 if diff_sec <= 180:  # 3 minutes threshold for heartbeat
                     is_online = True
                     last_seen_str = "🟢 Active Now"

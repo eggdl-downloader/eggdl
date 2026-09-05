@@ -2570,6 +2570,8 @@ def enrich_device_item(dev: dict) -> dict:
     raw_name = dev.get("desktop_name") or dev.get("machine_name")
     if not raw_name or str(raw_name).strip().lower() in ["undefined", "null", "none", ""]:
         raw_name = "DESKTOP-" + (dev_id[-6:] if dev_id else "PC")
+    if len(str(raw_name)) > 22:
+        raw_name = str(raw_name)[:20] + "…"
     dev["desktop_name"] = raw_name
 
     raw_user = dev.get("user_name")
@@ -2589,7 +2591,7 @@ def enrich_device_item(dev: dict) -> dict:
 
     dev["ip_address"] = dev.get("ip_address") or "127.0.0.1"
 
-    # Online / Offline calculation based on last_seen
+    # Online / Offline calculation based on last_seen (handles UTC vs Local timezone automatically)
     last_seen = dev.get("last_seen")
     is_online = False
     last_seen_str = "Offline"
@@ -2597,8 +2599,15 @@ def enrich_device_item(dev: dict) -> dict:
         try:
             clean_ls = str(last_seen).replace("Z", "+00:00")
             ls_dt = datetime.fromisoformat(clean_ls) if 'T' in clean_ls else datetime.strptime(clean_ls[:19], "%Y-%m-%d %H:%M:%S")
-            now_cmp = datetime.now(timezone.utc) if ls_dt.tzinfo else datetime.now()
-            diff_sec = (now_cmp - ls_dt).total_seconds()
+            if ls_dt.tzinfo:
+                diff_sec = (datetime.now(timezone.utc) - ls_dt).total_seconds()
+            else:
+                # Compare against both local time and UTC time, pick the realistic difference
+                diff_local = (datetime.now() - ls_dt).total_seconds()
+                diff_utc = (datetime.now(timezone.utc).replace(tzinfo=None) - ls_dt).total_seconds()
+                valid_diffs = [d for d in (diff_local, diff_utc) if d >= -30]
+                diff_sec = min(valid_diffs) if valid_diffs else min(abs(diff_local), abs(diff_utc))
+
             if diff_sec <= 180:
                 is_online = True
                 last_seen_str = "Active Now"
