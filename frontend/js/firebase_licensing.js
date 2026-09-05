@@ -1,12 +1,19 @@
-﻿// EggDL Firebase Real-Time Hardware Licensing Client
+// EggDL Firebase Real-Time Hardware Licensing Client
 // 100% Hardware-Bound (HWID). Zero Google Login. Instant <3s Admin Control.
 
 const FirebaseLicensing = {
   dbUrl: 'https://eggdl-app-default-rtdb.firebaseio.com',
   eventSource: null,
   activeMachineId: null,
+  _pollTimer: null,
 
-  init(machineId) {
+  async init(machineId) {
+    if (!machineId) {
+      try {
+        const me = typeof API !== 'undefined' && API.getMe ? await API.getMe() : null;
+        machineId = me?.machine?.machine_id || localStorage.getItem('eggdl_hwid');
+      } catch (_) {}
+    }
     if (!machineId) return;
     this.activeMachineId = machineId.replace(/[\/\.]/g, '_');
     this.startRealtimeStream();
@@ -16,10 +23,11 @@ const FirebaseLicensing = {
     if (!this.activeMachineId) return;
     if (this.eventSource) {
       try { this.eventSource.close(); } catch (_) {}
+      this.eventSource = null;
     }
 
     // Firebase Realtime Database SSE / Streaming Protocol
-    const streamUrl = ${this.dbUrl}/devices/.json;
+    const streamUrl = `${this.dbUrl}/devices/${this.activeMachineId}.json`;
     
     try {
       this.eventSource = new EventSource(streamUrl);
@@ -43,17 +51,20 @@ const FirebaseLicensing = {
       });
 
       this.eventSource.onerror = () => {
-        // Auto reconnection handled by EventSource
+        // SSE disconnected or error, fallback polling is active
       };
-    } catch (_) {
-      setInterval(() => this.pollStatus(), 5000);
+    } catch (_) {}
+
+    // In addition to SSE, active fallback polling every 4 seconds ensures 100% reliability
+    if (!this._pollTimer) {
+      this._pollTimer = setInterval(() => this.pollStatus(), 4000);
     }
   },
 
   async handleRemoteUpdate(data) {
     if (!data || typeof data !== 'object') return;
 
-    // 1. Instant 3-Second Kill / Block Check
+    // 1. Instant Kill / Block Check
     if (data.is_blocked) {
       const reason = data.block_reason || 'Access suspended by master administrator.';
       if (window.UI && typeof UI.renderDeviceSuspended === 'function') {
@@ -71,7 +82,7 @@ const FirebaseLicensing = {
       }
     }
 
-    // 2. Instant 3-Second Pro Grant / Revoke Check
+    // 2. Instant Pro Grant / Revoke Check
     if (window.App) {
       let changed = false;
       const isPro = !!data.is_pro;
@@ -90,10 +101,10 @@ const FirebaseLicensing = {
       if (changed && window.UI) {
         UI.renderUserProfile(App.authData);
         if (isPro) {
-          UI.showToast(✨ Subscription updated: Pro Activated!, 'success');
+          UI.showToast('👑 Pro Activated by Master Admin!', 'success');
           UI.closeAccountModal();
         } else if (planType === 'expired') {
-          UI.showToast(⚠️ License status changed: Expired, 'warning');
+          UI.showToast('⚠️ License status changed: Expired', 'warning');
         }
       }
     }
@@ -102,10 +113,12 @@ const FirebaseLicensing = {
   async pollStatus() {
     if (!this.activeMachineId) return;
     try {
-      const res = await fetch(${this.dbUrl}/devices/.json);
+      const res = await fetch(`${this.dbUrl}/devices/${this.activeMachineId}.json`);
       if (res.ok) {
         const data = await res.json();
-        if (data) this.handleRemoteUpdate(data);
+        if (data && typeof data === 'object') {
+          this.handleRemoteUpdate(data);
+        }
       }
     } catch (_) {}
   }

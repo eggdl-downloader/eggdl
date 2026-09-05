@@ -151,6 +151,100 @@ async def broadcast(data: Dict[str, Any]):
         if ws in websocket_connections:
             websocket_connections.remove(ws)
 
+_MAIN_ASYNC_LOOP: Optional[asyncio.AbstractEventLoop] = None
+
+def broadcast_sync(data: Dict[str, Any]):
+    """Safely broadcasts a message to active WebSockets from any synchronous background thread."""
+    global _MAIN_ASYNC_LOOP
+    if _MAIN_ASYNC_LOOP and _MAIN_ASYNC_LOOP.is_running():
+        try:
+            asyncio.run_coroutine_threadsafe(broadcast(data), _MAIN_ASYNC_LOOP)
+        except Exception:
+            pass
+
+def run_firebase_license_watcher():
+    """Background daemon thread: continuously watches Firebase RTDB every 3s to keep local license, Pro, and blocked status 100% synchronized in real time."""
+    time.sleep(2)
+    last_known_pro = None
+    last_known_blocked = None
+    last_known_plan = None
+    
+    while True:
+        try:
+            dev_id = get_device_id()
+            if dev_id:
+                clean_dev_id = dev_id.replace("/", "_").replace(".", "_")
+                fb_url = f"{FIREBASE_DB_URL}/devices/{clean_dev_id}.json"
+                req = urllib.request.Request(fb_url, headers={"User-Agent": "EggDL-Watcher"})
+                with urllib.request.urlopen(req, timeout=3.5) as res:
+                    if res.status == 200:
+                        raw = res.read().decode()
+                        if raw and raw != "null":
+                            fb_data = json.loads(raw)
+                            if isinstance(fb_data, dict):
+                                is_blocked = bool(fb_data.get("is_blocked"))
+                                block_reason = fb_data.get("block_reason") or "Access suspended by administrator."
+                                is_pro = bool(fb_data.get("is_pro"))
+                                plan_type = fb_data.get("plan_type", "lifetime" if is_pro else "trial")
+                                days_rem = fb_data.get("days_remaining", 9999 if plan_type == "lifetime" else 30)
+                                exp_at = fb_data.get("plan_expires_at")
+
+                                # 1. Block / Unblock Check
+                                if is_blocked:
+                                    if last_known_blocked is not True or not is_device_blocked(dev_id):
+                                        set_device_blocked(dev_id, blocked=True, reason=block_reason)
+                                        broadcast_sync({"type": "device_blocked", "reason": block_reason})
+                                        last_known_blocked = True
+                                else:
+                                    if last_known_blocked is True or is_device_blocked(dev_id):
+                                        set_device_blocked(dev_id, blocked=False)
+                                        broadcast_sync({"type": "device_unblocked"})
+                                        last_known_blocked = False
+
+                                # 2. Pro License Check (only if not blocked)
+                                if not is_blocked:
+                                    local_status = get_device_license_status(dev_id)
+                                    local_is_pro = bool(local_status.get("is_pro"))
+                                    local_plan = local_status.get("plan_type")
+
+                                    if is_pro:
+                                        if not local_is_pro or local_plan != plan_type or last_known_pro is not True:
+                                            grant_device_pro(dev_id, plan_type=plan_type, duration_days=days_rem, expires_at=exp_at)
+                                            updated_st = get_device_license_status(dev_id)
+                                            broadcast_sync({
+                                                "type": "license_updated",
+                                                "is_pro": True,
+                                                "plan_type": plan_type,
+                                                "days_remaining": days_rem,
+                                                "license": updated_st
+                                            })
+                                            last_known_pro = True
+                                            last_known_plan = plan_type
+                                    else:
+                                        if local_is_pro or last_known_pro is True:
+                                            revoke_device_pro(dev_id)
+                                            updated_st = get_device_license_status(dev_id)
+                                            broadcast_sync({
+                                                "type": "license_updated",
+                                                "is_pro": False,
+                                                "plan_type": plan_type,
+                                                "days_remaining": 0,
+                                                "license": updated_st
+                                            })
+                                            last_known_pro = False
+                                            last_known_plan = plan_type
+        except Exception:
+            pass
+        time.sleep(3)
+
+@app.on_event("startup")
+async def on_startup():
+    global _MAIN_ASYNC_LOOP
+    _MAIN_ASYNC_LOOP = asyncio.get_running_loop()
+    if not os.environ.get("RENDER"):
+        threading.Thread(target=run_firebase_license_watcher, daemon=True).start()
+
+
 async def handle_progress_update(task_dict: Dict[str, Any]):
     task_id = task_dict["id"]
     update_download_progress(
@@ -514,9 +608,12 @@ def sync_license_from_cloud(dev_id: str) -> Optional[Dict[str, Any]]:
                         # A) Block/Kill Check
                         if fb_data.get("is_blocked"):
                             set_device_blocked(dev_id, blocked=True, reason=fb_data.get("block_reason") or "Suspended by Admin")
+                            broadcast_sync({"type": "device_blocked", "reason": fb_data.get("block_reason") or "Suspended by Admin"})
                             return fb_data
                         else:
-                            set_device_blocked(dev_id, blocked=False)
+                            if is_device_blocked(dev_id):
+                                set_device_blocked(dev_id, blocked=False)
+                                broadcast_sync({"type": "device_unblocked"})
 
                         # Ensure desktop_name is always set in Firebase
                         if not fb_data.get("desktop_name") or fb_data.get("desktop_name") == "undefined":
@@ -543,12 +640,28 @@ def sync_license_from_cloud(dev_id: str) -> Optional[Dict[str, Any]]:
                             plan_t = fb_data.get("plan_type", "lifetime")
                             exp_at = fb_data.get("plan_expires_at")
                             days_left = fb_data.get("days_remaining", 9999 if plan_t == "lifetime" else 30)
+                            was_pro = local_status.get("is_pro")
                             grant_device_pro(dev_id, plan_type=plan_t, duration_days=days_left, expires_at=exp_at)
+                            if not was_pro or local_status.get("plan_type") != plan_t:
+                                broadcast_sync({
+                                    "type": "license_updated",
+                                    "is_pro": True,
+                                    "plan_type": plan_t,
+                                    "days_remaining": days_left,
+                                    "license": get_device_license_status(dev_id)
+                                })
                             return fb_data
                         else:
                             # Firebase is the authoritative master. If Firebase does not mark it Pro, revoke any legacy local Pro!
                             if local_status.get("is_pro"):
                                 revoke_device_pro(dev_id)
+                                broadcast_sync({
+                                    "type": "license_updated",
+                                    "is_pro": False,
+                                    "plan_type": "expired",
+                                    "days_remaining": 0,
+                                    "license": get_device_license_status(dev_id)
+                                })
                             if fb_data.get("plan_type") == "trial" and not fb_data.get("trial_expired"):
                                 reset_device_trial(dev_id)
                             return fb_data
@@ -2595,10 +2708,14 @@ async def admin_device_action(req: DeviceActionRequest):
         set_device_blocked(device_id, blocked=True, reason=req.reason or "Suspended by Administrator")
         fb_patch = {"is_blocked": True, "block_reason": req.reason or "Suspended by Administrator"}
         msg = f"🚨 Machine {device_id} has been blocked and killed."
+        if device_id == get_device_id():
+            broadcast_sync({"type": "device_blocked", "reason": req.reason or "Suspended by Administrator"})
     elif action == "unblock":
         set_device_blocked(device_id, blocked=False)
         fb_patch = {"is_blocked": False, "block_reason": None}
         msg = f"✅ Machine {device_id} has been unblocked."
+        if device_id == get_device_id():
+            broadcast_sync({"type": "device_unblocked"})
     elif action == "grant_pro":
         plan_type = req.plan_type or "lifetime"
         duration_days = 30 if plan_type == "1month" else (90 if plan_type == "3month" else (180 if plan_type == "6month" else (365 if plan_type == "1year" else 36500)))
@@ -2612,14 +2729,38 @@ async def admin_device_action(req: DeviceActionRequest):
             "days_remaining": duration_days
         }
         msg = f"⭐ Granted Pro ({plan_type}) to machine {device_id}."
+        if device_id == get_device_id():
+            broadcast_sync({
+                "type": "license_updated",
+                "is_pro": True,
+                "plan_type": plan_type,
+                "days_remaining": duration_days,
+                "license": get_device_license_status(device_id)
+            })
     elif action == "revoke_pro":
         revoke_device_pro(device_id)
         fb_patch = {"is_pro": False, "plan_type": "expired", "days_remaining": 0}
         msg = f"Revoked Pro from machine {device_id}."
+        if device_id == get_device_id():
+            broadcast_sync({
+                "type": "license_updated",
+                "is_pro": False,
+                "plan_type": "expired",
+                "days_remaining": 0,
+                "license": get_device_license_status(device_id)
+            })
     elif action == "reset_trial":
         reset_device_trial(device_id)
         fb_patch = {"is_pro": False, "plan_type": "trial", "trial_expired": False, "trial_days_remaining": 7}
         msg = f"⏳ 7-Day Free Trial has been reset for machine {device_id}."
+        if device_id == get_device_id():
+            broadcast_sync({
+                "type": "license_updated",
+                "is_pro": False,
+                "plan_type": "trial",
+                "days_remaining": 7,
+                "license": get_device_license_status(device_id)
+            })
     elif action == "delete":
         delete_device(device_id)
         msg = f"🗑️ Device {device_id} removed."

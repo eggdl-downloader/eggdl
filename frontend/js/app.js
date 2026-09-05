@@ -389,6 +389,40 @@ const App = {
     } else if (msg.type === 'settings_updated') {
       this.settings = msg.settings;
       this.applySettingsUI();
+    } else if (msg.type === 'license_updated') {
+      if (!this.authData) this.authData = {};
+      const wasPro = !!this.authData.is_pro;
+      this.authData.is_pro = !!msg.is_pro;
+      this.authData.plan_type = msg.plan_type || (msg.is_pro ? 'lifetime' : 'trial');
+      this.authData.days_remaining = msg.days_remaining || (msg.is_pro ? 9999 : 0);
+      this.authData.can_download = true;
+      this.authData.is_unlimited = true;
+      if (this.authData.user) {
+        this.authData.user.plan_type = this.authData.plan_type;
+      }
+      if (window.PLAN_CONFIGS && window.PLAN_CONFIGS[this.authData.plan_type]) {
+        this.authData.plan = window.PLAN_CONFIGS[this.authData.plan_type];
+      }
+      UI.renderUserProfile(this.authData);
+      if (msg.is_pro) {
+        if (!wasPro) UI.showToast('👑 Pro License Activated by Administrator!', 'success');
+        UI.closeAccountModal();
+      } else {
+        UI.showToast('ℹ️ License status updated: ' + this.authData.plan_type, 'info');
+      }
+    } else if (msg.type === 'device_blocked') {
+      if (!this.authData) this.authData = {};
+      this.authData.is_blocked = true;
+      this.authData.can_download = false;
+      this.authData.is_pro = false;
+      UI.renderDeviceSuspended(msg.reason || 'Access suspended by master administrator.');
+    } else if (msg.type === 'device_unblocked') {
+      if (this.authData) {
+        this.authData.is_blocked = false;
+        this.authData.can_download = true;
+      }
+      UI.removeDeviceSuspended();
+      UI.showToast('✅ Device access restored by administrator', 'success');
     }
   },
 
