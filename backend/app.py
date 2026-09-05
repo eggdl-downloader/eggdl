@@ -165,9 +165,11 @@ def broadcast_sync(data: Dict[str, Any]):
 def run_firebase_license_watcher():
     """Background daemon thread: continuously watches Firebase RTDB every 3s to keep local license, Pro, and blocked status 100% synchronized in real time."""
     time.sleep(2)
-    last_known_pro = None
-    last_known_blocked = None
-    last_known_plan = None
+    dev_init = get_device_id()
+    last_known_blocked = bool(is_device_blocked(dev_init)) if dev_init else False
+    st_init = get_device_license_status(dev_init) if dev_init else {}
+    last_known_pro = bool(st_init.get("is_pro"))
+    last_known_plan = st_init.get("plan_type")
     
     while True:
         try:
@@ -189,26 +191,26 @@ def run_firebase_license_watcher():
                                 days_rem = fb_data.get("days_remaining", 9999 if plan_type == "lifetime" else 30)
                                 exp_at = fb_data.get("plan_expires_at")
 
-                                # 1. Block / Unblock Check
+                                # 1. Block / Unblock Check (only broadcast on real state transition)
                                 if is_blocked:
-                                    if last_known_blocked is not True or not is_device_blocked(dev_id):
+                                    if not last_known_blocked:
                                         set_device_blocked(dev_id, blocked=True, reason=block_reason)
                                         broadcast_sync({"type": "device_blocked", "reason": block_reason})
                                         last_known_blocked = True
                                 else:
-                                    if last_known_blocked is True or is_device_blocked(dev_id):
+                                    if last_known_blocked:
                                         set_device_blocked(dev_id, blocked=False)
                                         broadcast_sync({"type": "device_unblocked"})
                                         last_known_blocked = False
 
-                                # 2. Pro License Check (only if not blocked)
+                                # 2. Pro License Check (only broadcast on real state transition)
                                 if not is_blocked:
                                     local_status = get_device_license_status(dev_id)
                                     local_is_pro = bool(local_status.get("is_pro"))
                                     local_plan = local_status.get("plan_type")
 
                                     if is_pro:
-                                        if not local_is_pro or local_plan != plan_type or last_known_pro is not True:
+                                        if not local_is_pro or local_plan != plan_type:
                                             grant_device_pro(dev_id, plan_type=plan_type, duration_days=days_rem, expires_at=exp_at)
                                             updated_st = get_device_license_status(dev_id)
                                             broadcast_sync({
@@ -221,7 +223,7 @@ def run_firebase_license_watcher():
                                             last_known_pro = True
                                             last_known_plan = plan_type
                                     else:
-                                        if local_is_pro or last_known_pro is True:
+                                        if local_is_pro:
                                             revoke_device_pro(dev_id)
                                             updated_st = get_device_license_status(dev_id)
                                             broadcast_sync({

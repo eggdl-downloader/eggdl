@@ -417,12 +417,15 @@ const App = {
       this.authData.is_pro = false;
       UI.renderDeviceSuspended(msg.reason || 'Access suspended by master administrator.');
     } else if (msg.type === 'device_unblocked') {
+      const wasBlocked = !!(this.authData && this.authData.is_blocked);
       if (this.authData) {
         this.authData.is_blocked = false;
         this.authData.can_download = true;
       }
       UI.removeDeviceSuspended();
-      UI.showToast('✅ Device access restored by administrator', 'success');
+      if (wasBlocked) {
+        UI.showToast('✅ Device access restored by administrator', 'success');
+      }
     }
   },
 

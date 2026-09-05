@@ -1082,15 +1082,15 @@ def activate_product_key_for_device(device_id: str, license_key: str) -> Dict[st
     export_keys_to_registry()
     return get_device_license_status(device_id)
 
-def is_device_blocked(device_id: str) -> Dict[str, Any]:
+def is_device_blocked(device_id: str) -> bool:
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT is_blocked, block_reason FROM devices WHERE device_id = ?", (device_id,))
+    cursor.execute("SELECT is_blocked FROM devices WHERE device_id = ?", (device_id,))
     row = cursor.fetchone()
     conn.close()
     if row:
-        return {"blocked": bool(row["is_blocked"]), "reason": row["block_reason"] or "Suspended by administrator"}
-    return {"blocked": False, "reason": ""}
+        return bool(row["is_blocked"])
+    return False
 
 def set_device_blocked(device_id: str, blocked: bool = True, reason: str = "License violation or crack attempt detected"):
     conn = get_db_connection()
