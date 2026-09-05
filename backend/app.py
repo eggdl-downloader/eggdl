@@ -794,32 +794,89 @@ async def activate_machine_key(req: MachineKeyActivateRequest):
         raise HTTPException(status_code=400, detail="Please enter a valid product key.")
         
     info = get_machine_info()
+    clean_key = key.replace("/", "_").replace(".", "_")
+    clean_dev_id = dev_id.replace("/", "_").replace(".", "_")
+    fb_key_url = f"{FIREBASE_DB_URL}/licenses/{clean_key}.json"
 
-    # 1. Try local activation first
+    # --- 1. CLOUD VERIFICATION FIRST (Single Source of Truth) ---
+    cloud_verified = False
+    cloud_lic_data = None
+    cloud_err_msg = None
+
     try:
-        updated_status = activate_product_key_for_device(dev_id, key)
-        plan_type = updated_status.get("plan_type", "lifetime")
-        plan_info = PLAN_CONFIGS.get(plan_type, PLAN_CONFIGS["lifetime"])
+        import urllib.request
+        fb_req = urllib.request.Request(fb_key_url, headers={"User-Agent": "EggDL-Client"})
+        with urllib.request.urlopen(fb_req, timeout=5.0) as res:
+            if res.status == 200:
+                raw_body = res.read().decode()
+                cloud_lic_data = json.loads(raw_body) if raw_body else None
+                cloud_verified = True
+    except Exception as e:
+        cloud_err_msg = str(e)
+        print(f"[CloudLicenseCheck warning]: {e}")
+
+    # Case A: Key exists in Cloud Firebase
+    if cloud_verified and cloud_lic_data and isinstance(cloud_lic_data, dict):
+        if cloud_lic_data.get("status") in ["blocked", "revoked"]:
+            raise HTTPException(status_code=400, detail="This product key has been revoked by administrator.")
         
-        # Also sync activation to Firebase Realtime Database
+        bound_hwid = cloud_lic_data.get("bound_machine_id")
+        max_devs = cloud_lic_data.get("max_devices", 1)
+
+        # STRICT HARDWARE BINDING: If already bound to another PC, REJECT!
+        if bound_hwid and bound_hwid != dev_id and max_devs <= 1:
+            raise HTTPException(
+                status_code=400,
+                detail="This product key is already activated on another PC. Each license is strictly valid for 1 device."
+            )
+
+        plan_t = cloud_lic_data.get("plan", cloud_lic_data.get("plan_type", "lifetime"))
+        duration = 36500 if plan_t == "lifetime" else 30
+        if plan_t == "3month": duration = 90
+        elif plan_t == "6month": duration = 180
+        elif plan_t == "1year": duration = 365
+
+        # ATOMICALLY LOCK KEY TO THIS MACHINE IN FIREBASE
+        bind_payload = {
+            **cloud_lic_data,
+            "bound_machine_id": dev_id,
+            "bound_desktop_name": info.get("desktop_name", "DESKTOP-PC"),
+            "activated_at": datetime.now().isoformat(),
+            "status": "used"
+        }
         try:
-            import urllib.request
-            clean_dev_id = dev_id.replace("/", "_").replace(".", "_")
-            dev_url = f"{FIREBASE_DB_URL}/devices/{clean_dev_id}.json"
-            dev_update = {
-                "device_id": dev_id,
-                "desktop_name": updated_status.get("desktop_name") or info.get("desktop_name", "DESKTOP-PC"),
-                "user_name": updated_status.get("user_name") or info.get("user_name", "User"),
-                "os_info": info.get("os_info", "Windows"),
-                "app_version": APP_CURRENT_VERSION,
-                "is_pro": True,
-                "plan_type": plan_type,
-                "days_remaining": updated_status.get("days_remaining", 9999),
-                "plan_expires_at": updated_status.get("plan_expires_at"),
-                "is_blocked": False,
-                "license_key": key,
-                "last_seen": datetime.now().isoformat()
-            }
+            bind_req = urllib.request.Request(
+                fb_key_url,
+                data=json.dumps(bind_payload).encode(),
+                headers={"Content-Type": "application/json"},
+                method="PUT"
+            )
+            urllib.request.urlopen(bind_req, timeout=4.0)
+        except Exception as put_err:
+            print(f"[CloudLicenseBind error]: {put_err}")
+
+        # Grant Pro locally so offline operation works once activated
+        updated_status = grant_device_pro(dev_id, plan_type=plan_t, duration_days=duration)
+        create_license_key(key, plan_t, duration)
+        plan_info = PLAN_CONFIGS.get(plan_t, PLAN_CONFIGS["lifetime"])
+
+        # Update device state in Firebase
+        dev_url = f"{FIREBASE_DB_URL}/devices/{clean_dev_id}.json"
+        dev_update = {
+            "device_id": dev_id,
+            "desktop_name": info.get("desktop_name", "DESKTOP-PC"),
+            "user_name": info.get("user_name", "User"),
+            "os_info": info.get("os_info", "Windows"),
+            "app_version": APP_CURRENT_VERSION,
+            "is_pro": True,
+            "plan_type": plan_t,
+            "days_remaining": updated_status.get("days_remaining", duration),
+            "plan_expires_at": updated_status.get("plan_expires_at"),
+            "is_blocked": False,
+            "license_key": key,
+            "last_seen": datetime.now().isoformat()
+        }
+        try:
             patch_req = urllib.request.Request(
                 dev_url,
                 data=json.dumps(dev_update).encode(),
@@ -833,109 +890,60 @@ async def activate_machine_key(req: MachineKeyActivateRequest):
         broadcast_sync({
             "type": "license_updated",
             "is_pro": True,
-            "plan_type": plan_type,
-            "days_remaining": updated_status.get("days_remaining", 9999),
+            "plan_type": plan_t,
+            "days_remaining": updated_status.get("days_remaining", duration),
             "license": updated_status
         })
 
         return {
             "success": True,
-            "message": f"✨ Product key activated successfully for this PC ({updated_status.get('desktop_name')})!",
+            "message": f"✨ Product key verified with Cloud & activated successfully for this PC ({updated_status.get('desktop_name')})!",
+            "license": updated_status,
+            "plan": plan_info,
+            "plan_type": plan_t
+        }
+
+    # Case B: Cloud checked, but key was NOT found in Firebase
+    if cloud_verified and cloud_lic_data is None:
+        # Check if local machine previously activated this exact key
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM license_keys WHERE REPLACE(REPLACE(REPLACE(key, ' ', ''), '–', '-'), '—', '-') = ?", (key,))
+        local_row = cursor.fetchone()
+        conn.close()
+
+        if local_row and local_row["is_used"] and local_row["used_by_user_id"] == dev_id:
+            # Same device reactivating locally
+            updated_status = activate_product_key_for_device(dev_id, key)
+            plan_type = updated_status.get("plan_type", "lifetime")
+            plan_info = PLAN_CONFIGS.get(plan_type, PLAN_CONFIGS["lifetime"])
+            return {
+                "success": True,
+                "message": f"✨ Product key reactivated successfully for this PC!",
+                "license": updated_status,
+                "plan": plan_info,
+                "plan_type": plan_type
+            }
+
+        raise HTTPException(status_code=400, detail="Invalid product key. Please check and try again.")
+
+    # Case C: Offline or Cloud unreachable
+    try:
+        # Only allow local activation if the key is already tied to THIS machine
+        updated_status = activate_product_key_for_device(dev_id, key)
+        plan_type = updated_status.get("plan_type", "lifetime")
+        plan_info = PLAN_CONFIGS.get(plan_type, PLAN_CONFIGS["lifetime"])
+        return {
+            "success": True,
+            "message": f"✨ Product key activated successfully!",
             "license": updated_status,
             "plan": plan_info,
             "plan_type": plan_type
         }
-    except Exception as local_err:
-        # 2. Check Firebase Cloud Licenses first (Hardware licensing)
-        try:
-            import urllib.request
-            clean_key = key.replace("/", "_").replace(".", "_")
-            fb_key_url = f"{FIREBASE_DB_URL}/licenses/{clean_key}.json"
-            fb_req = urllib.request.Request(fb_key_url, headers={"User-Agent": "EggDL-Client"})
-            with urllib.request.urlopen(fb_req, timeout=4.0) as res:
-                if res.status == 200:
-                    lic_data = json.loads(res.read().decode())
-                    if lic_data and isinstance(lic_data, dict):
-                        # Check key status
-                        if lic_data.get("status") == "blocked":
-                            raise HTTPException(status_code=400, detail="This product key has been revoked by administrator.")
-                        
-                        bound_hwid = lic_data.get("bound_machine_id")
-                        max_devs = lic_data.get("max_devices", 1)
-                        if bound_hwid and bound_hwid != dev_id and max_devs <= 1:
-                            raise HTTPException(status_code=400, detail="This product key is already bound to another PC.")
-                            
-                        plan_t = lic_data.get("plan", lic_data.get("plan_type", "lifetime"))
-                        duration = 36500 if plan_t == "lifetime" else 30
-                        if plan_t == "3month": duration = 90
-                        elif plan_t == "6month": duration = 180
-                        elif plan_t == "1year": duration = 365
-
-                        # Bind to this machine in Firebase
-                        bind_payload = {
-                            **lic_data,
-                            "bound_machine_id": dev_id,
-                            "activated_at": datetime.now().isoformat(),
-                            "status": "active"
-                        }
-                        bind_req = urllib.request.Request(
-                            fb_key_url,
-                            data=json.dumps(bind_payload).encode(),
-                            headers={"Content-Type": "application/json"},
-                            method="PUT"
-                        )
-                        urllib.request.urlopen(bind_req, timeout=3.0)
-
-                        # Grant Pro locally first so we have accurate dates and days remaining
-                        updated_status = grant_device_pro(dev_id, plan_type=plan_t, duration_days=duration)
-                        create_license_key(key, plan_t, duration)
-                        plan_info = PLAN_CONFIGS.get(plan_t, PLAN_CONFIGS["lifetime"])
-
-                        # Update device state in Firebase
-                        clean_dev_id = dev_id.replace("/", "_").replace(".", "_")
-                        dev_url = f"{FIREBASE_DB_URL}/devices/{clean_dev_id}.json"
-                        dev_update = {
-                            "device_id": dev_id,
-                            "desktop_name": info.get("desktop_name", "DESKTOP-PC"),
-                            "user_name": info.get("user_name", "User"),
-                            "os_info": info.get("os_info", "Windows"),
-                            "app_version": APP_CURRENT_VERSION,
-                            "is_pro": True,
-                            "plan_type": plan_t,
-                            "days_remaining": updated_status.get("days_remaining", duration),
-                            "plan_expires_at": updated_status.get("plan_expires_at"),
-                            "is_blocked": False,
-                            "license_key": key,
-                            "last_seen": datetime.now().isoformat()
-                        }
-                        patch_req = urllib.request.Request(
-                            dev_url,
-                            data=json.dumps(dev_update).encode(),
-                            headers={"Content-Type": "application/json"},
-                            method="PATCH"
-                        )
-                        urllib.request.urlopen(patch_req, timeout=3.0)
-
-                        broadcast_sync({
-                            "type": "license_updated",
-                            "is_pro": True,
-                            "plan_type": plan_t,
-                            "days_remaining": updated_status.get("days_remaining", duration),
-                            "license": updated_status
-                        })
-                        return {
-                            "success": True,
-                            "message": f"✨ Product key verified with Cloud & activated successfully for this PC ({updated_status.get('desktop_name')})!",
-                            "license": updated_status,
-                            "plan": plan_info,
-                            "plan_type": plan_t
-                        }
-        except HTTPException:
-            raise
-        except Exception as cloud_err:
-            print(f"[CloudLicenseActivate Error]: {cloud_err}")
-
-        raise HTTPException(status_code=400, detail=str(local_err))
+    except Exception as e:
+        if cloud_err_msg:
+            raise HTTPException(status_code=400, detail="Internet connection required to verify product key with license server.")
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/api/auth/me")
 async def auth_me(request: Request):

@@ -89,11 +89,11 @@ const FirebaseLicensing = {
       const planType = data.plan_type || 'trial';
 
       if (App.authData) {
-        if (App.authData.is_pro !== isPro || App.authData.plan_type !== planType) {
+        if (App.authData.is_pro !== isPro || App.authData.plan_type !== planType || App.authData.days_remaining !== data.days_remaining) {
           App.authData.is_pro = isPro;
           App.authData.plan_type = planType;
           App.authData.can_download = isPro || !data.trial_expired;
-          App.authData.days_remaining = data.days_remaining || (isPro ? 9999 : 0);
+          App.authData.days_remaining = data.days_remaining !== undefined ? data.days_remaining : (isPro ? 9999 : 0);
           changed = true;
         }
       }
