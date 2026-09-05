@@ -2121,6 +2121,58 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   color: var(--text-dim);
 }
 
+/* Input Action Group (e.g. folder browse button next to input) */
+.input-action-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.input-action-group .form-control {
+  flex: 1;
+  min-width: 0;
+}
+
+.btn-browse-dir {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xs);
+  padding: 0 12px;
+  height: 35px;
+  min-width: 40px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.btn-browse-dir:hover {
+  background: var(--bg-surface-hover);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.btn-browse-dir:active {
+  transform: scale(0.96);
+}
+
+.btn-browse-dir i {
+  width: 17px;
+  height: 17px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-browse-dir.loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
 /* Premium Auth Modal Inputs */
 .auth-input-group {
   display: flex !important;

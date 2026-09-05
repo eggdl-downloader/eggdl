@@ -347,7 +347,12 @@
       <div class="modal-body">
         <div class="form-group">
           <label for="setting-dl-dir">Download Directory</label>
-          <input type="text" id="setting-dl-dir" class="form-control" placeholder="C:\Users\...\Downloads\EggDL">
+          <div class="input-action-group">
+            <input type="text" id="setting-dl-dir" class="form-control" placeholder="C:\Users\...\Downloads\EggDL">
+            <button type="button" class="btn-browse-dir" id="browse-dl-dir-btn" title="Select Download Folder from File Explorer">
+              <i data-lucide="folder-open"></i>
+            </button>
+          </div>
           <small class="form-hint">Files will be saved in this folder.</small>
         </div>
 

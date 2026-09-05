@@ -616,6 +616,15 @@ class DesktopApi:
             return {"success": False, "error": str(e)}
         return {"success": False, "error": "Update manager not found"}
 
+    def browse_folder(self, initial_dir=""):
+        try:
+            for mod_name in ["backend.app", "app"]:
+                if mod_name in sys.modules and hasattr(sys.modules[mod_name], "pick_folder_dialog"):
+                    return sys.modules[mod_name].pick_folder_dialog(initial_dir)
+        except Exception:
+            pass
+        return ""
+
 def main():
     global _MAIN_WINDOW, _TRAY_ICON, _TARGET_URL
     debug_log(f"main() entered, is_frozen={getattr(sys, 'frozen', False)}, argv={sys.argv}")

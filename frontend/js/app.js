@@ -720,6 +720,7 @@ const App = {
     document.getElementById('open-settings-btn')?.addEventListener('click', () => {
       this.applySettingsUI();
       document.getElementById('settings-modal').style.display = 'flex';
+      if (window.lucide) window.lucide.createIcons();
     });
     document.getElementById('close-settings-btn')?.addEventListener('click', () => {
       this.applySettingsUI();
@@ -729,6 +730,7 @@ const App = {
       this.applySettingsUI();
       document.getElementById('settings-modal').style.display = 'none';
     });
+    document.getElementById('browse-dl-dir-btn')?.addEventListener('click', () => this.browseDownloadDirectory());
     document.getElementById('save-settings-btn')?.addEventListener('click', () => this.saveSettings());
     document.getElementById('btn-check-updates')?.addEventListener('click', () => this.checkVersion(true));
 
@@ -962,6 +964,54 @@ const App = {
   copyLink(url) {
     navigator.clipboard.writeText(url);
     UI.showToast('Link copied to clipboard', 'info');
+  },
+
+  async browseDownloadDirectory() {
+    const btn = document.getElementById('browse-dl-dir-btn');
+    const input = document.getElementById('setting-dl-dir');
+    if (btn) btn.classList.add('loading');
+
+    try {
+      let chosenPath = '';
+      // 1. Try pywebview desktop bridge if running in native window
+      if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.browse_folder === 'function') {
+        try {
+          chosenPath = await window.pywebview.api.browse_folder(input ? input.value : '');
+        } catch (e) {
+          console.warn('DesktopApi.browse_folder failed, trying API:', e);
+        }
+      }
+
+      // 2. Call backend /api/settings/browse_directory endpoint
+      if (!chosenPath) {
+        const res = await API.browseDirectory(input ? input.value : '');
+        if (res && res.success && res.directory) {
+          chosenPath = res.directory;
+        }
+      }
+
+      if (chosenPath) {
+        if (input) input.value = chosenPath;
+        // Automatically save the setting and update UI indicators
+        const saveRes = await API.saveSettings({ download_dir: chosenPath });
+        if (saveRes && saveRes.success) {
+          this.settings = saveRes.settings;
+          const dirHint = document.getElementById('download-dir-hint');
+          if (dirHint) {
+            dirHint.innerText = chosenPath;
+            dirHint.title = chosenPath;
+          }
+          UI.showToast(`Download folder set to: ${chosenPath}`, 'success');
+        } else {
+          UI.showToast(`Selected folder: ${chosenPath}`, 'info');
+        }
+      }
+    } catch (err) {
+      console.error('Browse directory error:', err);
+      UI.showToast('Could not open folder picker: ' + (err.message || 'Unknown error'), 'error');
+    } finally {
+      if (btn) btn.classList.remove('loading');
+    }
   },
 
   async saveSettings() {

@@ -242,6 +242,15 @@ const API = {
     return res.json();
   },
 
+  async browseDirectory(currentDir = '') {
+    const res = await fetch(`${this.baseUrl}/api/settings/browse_directory`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ current_dir: currentDir })
+    });
+    return res.json();
+  },
+
   async openFile(taskId, filePath) {
     const res = await fetch(`${this.baseUrl}/api/system/open-file`, {
       method: 'POST',

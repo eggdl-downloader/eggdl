@@ -208,6 +208,9 @@ class SettingsRequest(BaseModel):
     video_encoder_enabled: Optional[bool] = None
     video_codec: Optional[str] = None
 
+class BrowseDirectoryRequest(BaseModel):
+    current_dir: Optional[str] = None
+
 class FileActionRequest(BaseModel):
     task_id: Optional[str] = None
     file_path: Optional[str] = None
@@ -1567,6 +1570,93 @@ async def save_settings(req: SettingsRequest):
     updated = get_settings()
     await broadcast({"type": "settings_updated", "settings": updated})
     return {"success": True, "settings": updated}
+
+
+def pick_folder_dialog(initial_dir: str = "") -> str:
+    start_path = initial_dir if (initial_dir and os.path.isdir(initial_dir)) else str(Path.home() / "Downloads")
+
+    # 1. Try PyWebView active window if available
+    try:
+        import webview
+        if webview.windows and len(webview.windows) > 0:
+            win = webview.windows[0]
+            res = win.create_file_dialog(webview.FOLDER_DIALOG, directory=start_path)
+            if res:
+                chosen = res[0] if isinstance(res, (list, tuple)) else str(res)
+                if chosen and os.path.isdir(chosen):
+                    return os.path.normpath(chosen)
+            return ""
+    except Exception:
+        pass
+
+    # 2. Try Tkinter (native modern Windows IFileDialog)
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes('-topmost', True)
+        folder = filedialog.askdirectory(
+            parent=root,
+            initialdir=start_path,
+            title="Select Download Directory"
+        )
+        root.destroy()
+        if folder and os.path.isdir(folder):
+            return os.path.normpath(folder)
+        return ""
+    except Exception:
+        pass
+
+    # 3. Fallback: PowerShell FolderBrowserDialog
+    try:
+        ps_code = f"""
+[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null
+$dialog = New-Object System.Windows.Forms.FolderBrowserDialog
+$dialog.Description = 'Select Download Directory'
+$dialog.ShowNewFolderButton = $true
+$dialog.SelectedPath = '{start_path}'
+if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {{
+    [Console]::Out.Write($dialog.SelectedPath)
+}}
+"""
+        proc = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps_code],
+            capture_output=True,
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+        )
+        selected = proc.stdout.strip()
+        if selected and os.path.isdir(selected):
+            return os.path.normpath(selected)
+    except Exception:
+        pass
+
+    return ""
+
+
+@app.post("/api/settings/browse_directory")
+async def browse_directory_post(req: Optional[BrowseDirectoryRequest] = None):
+    initial_dir = req.current_dir if req and req.current_dir else ""
+    if not initial_dir:
+        settings = get_settings()
+        initial_dir = settings.get("download_dir", "")
+    chosen_dir = await asyncio.to_thread(pick_folder_dialog, initial_dir)
+    if chosen_dir:
+        return {"success": True, "directory": chosen_dir}
+    return {"success": False, "cancelled": True}
+
+
+@app.get("/api/settings/browse_directory")
+async def browse_directory_get(current_dir: Optional[str] = ""):
+    initial_dir = current_dir
+    if not initial_dir:
+        settings = get_settings()
+        initial_dir = settings.get("download_dir", "")
+    chosen_dir = await asyncio.to_thread(pick_folder_dialog, initial_dir)
+    if chosen_dir:
+        return {"success": True, "directory": chosen_dir}
+    return {"success": False, "cancelled": True}
 
 
 @app.get("/api/media/{task_id}")
