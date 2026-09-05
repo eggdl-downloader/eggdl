@@ -1628,11 +1628,8 @@ async def cancel_download(task_id: str):
         task.cancel()
         active_tasks.pop(task_id, None)
     
-    task_rec = get_download_task(task_id)
-    cur_prog = task_rec.get("progress", 0) if task_rec else 0
-    cur_bytes = task_rec.get("downloaded_bytes", 0) if task_rec else 0
-    update_download_progress(task_id, cur_bytes, cur_prog, 0, 0, "canceled")
-    await broadcast({"type": "task_canceled", "task_id": task_id, "progress": cur_prog})
+    update_download_progress(task_id, 0, 0, 0, 0, "canceled")
+    await broadcast({"type": "task_canceled", "task_id": task_id})
     return {"success": True, "message": "Download canceled"}
 
 
