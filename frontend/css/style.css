@@ -855,10 +855,18 @@ i.spin,
 }
 
 .topbar-actions .btn i,
-.topbar-actions .theme-select-wrapper i,
-.topbar-actions .user-pill-btn i {
+.topbar-actions .theme-select-wrapper i {
   width: 14px !important;
   height: 14px !important;
+  display: inline-block !important;
+  vertical-align: middle !important;
+  flex-shrink: 0 !important;
+}
+
+.topbar-actions .user-pill-btn i,
+.topbar-actions .user-pill-btn .user-pc-icon {
+  width: 16px !important;
+  height: 16px !important;
   display: inline-block !important;
   vertical-align: middle !important;
   flex-shrink: 0 !important;
@@ -880,7 +888,12 @@ i.spin,
 }
 
 .topbar-actions .user-pill-btn .user-pc-icon {
+  width: 16px !important;
+  height: 16px !important;
   color: var(--accent-primary) !important;
+  flex-shrink: 0 !important;
+  display: inline-block !important;
+  vertical-align: middle !important;
 }
 
 .topbar-actions .user-pill-btn .user-name {
@@ -891,7 +904,8 @@ i.spin,
   letter-spacing: 0.02em !important;
   text-transform: none !important; /* Preserves hardware real name, e.g. SRIMAN */
   line-height: 1 !important;
-  display: inline-block !important;
+  display: inline-flex !important;
+  align-items: center !important;
   white-space: nowrap !important;
 }
 
@@ -2927,10 +2941,12 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
 }
 
 .user-pill-btn .user-pc-icon {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   color: var(--accent-primary);
   flex-shrink: 0;
+  display: inline-block;
+  vertical-align: middle;
 }
 
 .user-pill-btn .user-name {
@@ -2941,6 +2957,8 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   letter-spacing: 0.02em;
   text-transform: none; /* Preserves hardware real name, e.g. SRIMAN */
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
   white-space: nowrap;
 }
 
