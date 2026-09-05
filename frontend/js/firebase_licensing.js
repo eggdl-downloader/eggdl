@@ -100,13 +100,23 @@ const FirebaseLicensing = {
 
       if (changed && window.UI) {
         UI.renderUserProfile(App.authData);
-        if (isPro) {
-          if (!window.App?._isActivatingKey) {
-            UI.showToast('👑 Pro Activated by Master Admin!', 'success');
-            UI.closeAccountModal();
+        const pillEl = document.getElementById('acc-plan-pill');
+        if (pillEl) {
+          const planName = typeof UI.getPlanDisplayName === 'function' ? UI.getPlanDisplayName(planType) : 'Pro';
+          const daysLeft = App.authData.days_remaining;
+          if (planType === 'lifetime' || (isPro && (!daysLeft || daysLeft >= 36500))) {
+            pillEl.className = 'plan-pill lifetime';
+            pillEl.innerHTML = 'Ultimate Pass • Lifetime VIP (Unlimited Downloads)';
+          } else if (isPro) {
+            pillEl.className = 'plan-pill pro';
+            pillEl.innerHTML = `${planName} • ${daysLeft} Days Remaining (Unlimited Downloads)`;
+          } else if (App.authData.is_trial) {
+            pillEl.className = 'plan-pill trial';
+            pillEl.innerHTML = `Free Trial • ${data.trial_days_remaining || 7} Days Remaining (Unlimited Downloads)`;
+          } else {
+            pillEl.className = 'plan-pill expired';
+            pillEl.innerHTML = 'Free Trial Expired • Enter Product Key Below';
           }
-        } else if (planType === 'expired') {
-          UI.showToast('⚠️ License status changed: Expired', 'warning');
         }
       }
     }

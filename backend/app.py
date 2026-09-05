@@ -640,18 +640,22 @@ def sync_license_from_cloud(dev_id: str) -> Optional[Dict[str, Any]]:
                         # B) Pro Status Check
                         if fb_data.get("is_pro"):
                             plan_t = fb_data.get("plan_type", "lifetime")
-                            exp_at = fb_data.get("plan_expires_at")
                             days_left = fb_data.get("days_remaining", 9999 if plan_t == "lifetime" else 30)
-                            was_pro = local_status.get("is_pro")
+                            
+                            # Automatically align expiration date with manual Firebase days_remaining edits
+                            if plan_t != "lifetime" and days_left is not None:
+                                exp_at = (datetime.now() + timedelta(days=days_left)).isoformat()
+                            else:
+                                exp_at = fb_data.get("plan_expires_at")
+
                             grant_device_pro(dev_id, plan_type=plan_t, duration_days=days_left, expires_at=exp_at)
-                            if not was_pro or local_status.get("plan_type") != plan_t:
-                                broadcast_sync({
-                                    "type": "license_updated",
-                                    "is_pro": True,
-                                    "plan_type": plan_t,
-                                    "days_remaining": days_left,
-                                    "license": get_device_license_status(dev_id)
-                                })
+                            broadcast_sync({
+                                "type": "license_updated",
+                                "is_pro": True,
+                                "plan_type": plan_t,
+                                "days_remaining": days_left,
+                                "license": get_device_license_status(dev_id)
+                            })
                             return fb_data
                         else:
                             # Firebase is the authoritative master. If Firebase does not mark it Pro, revoke any legacy local Pro!
