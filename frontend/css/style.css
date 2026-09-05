@@ -1078,7 +1078,7 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
 }
 
 .url-input-wrapper:focus-within {
-  border-color: #46F0D2;
+  border-color: var(--border-focus, var(--accent-primary));
   box-shadow: none;
 }
 
@@ -1108,8 +1108,8 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   min-width: 130px;
   height: 46px;
   padding: 0 22px;
-  background: #46F0D2 !important;
-  color: #131321 !important;
+  background: var(--accent-primary) !important;
+  color: var(--accent-text) !important;
   font-family: var(--font-sans), sans-serif;
   font-size: 0.92rem;
   font-weight: 700;
@@ -1123,20 +1123,21 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   cursor: pointer;
   flex-shrink: 0;
   white-space: nowrap;
-  transition: opacity 0.15s ease, transform 0.1s ease;
+  transition: opacity 0.15s ease, transform 0.1s ease, background 0.15s ease, color 0.15s ease;
 }
 
 .btn-download-action i,
 .btn-download-action svg {
-  color: #131321 !important;
-  stroke: #131321 !important;
+  color: var(--accent-text) !important;
+  stroke: var(--accent-text) !important;
   stroke-width: 2.2px !important;
   width: 18px !important;
   height: 18px !important;
+  transition: stroke 0.15s ease, color 0.15s ease;
 }
 
 .btn-download-action:hover {
-  background: #46F0D2 !important;
+  background: var(--accent-primary-hover, var(--accent-primary)) !important;
   opacity: 0.92;
 }
 
@@ -1710,8 +1711,8 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
 .action-buttons .action-icon-btn.action-play svg,
 .action-buttons .action-play i,
 .action-buttons .action-play svg {
-  stroke: #46F0D2 !important;
-  color: #46F0D2 !important;
+  stroke: var(--accent-primary, #46F0D2) !important;
+  color: var(--accent-primary, #46F0D2) !important;
 }
 
 /* Neutral Hover */
@@ -1732,8 +1733,8 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
 .action-buttons .action-icon-btn.action-play:hover svg,
 .action-buttons .action-play:hover i,
 .action-buttons .action-play:hover svg {
-  stroke: #7BFFE7 !important;
-  color: #7BFFE7 !important;
+  stroke: var(--accent-primary-hover, #7BFFE7) !important;
+  color: var(--accent-primary-hover, #7BFFE7) !important;
 }
 
 .action-buttons .action-icon-btn.action-delete:hover i,
