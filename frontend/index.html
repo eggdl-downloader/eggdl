@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-title" content="EggDL">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <!-- Lucide Icons (Bundled locally for 100% offline standalone operation) -->
   <script src="/static/js/lucide.min.js?v=52.0"></script>
   <link rel="stylesheet" href="/static/css/style.css?v=52.0">
@@ -197,23 +197,34 @@
         </div>
       </section>
 
-      <!-- URL Input Hero Box (Material 3 Touch Card) -->
-      <section class="url-hero-box" id="url-hero-section">
-        <div class="url-input-wrapper">
-          <div class="input-icon">
-            <i data-lucide="link-2"></i>
-          </div>
-          <input type="text" id="url-input" name="eggdl_download_url_field" placeholder="Paste any video link (YouTube, Instagram, TikTok...) or direct URL..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-          <button class="btn btn-secondary btn-icon-only" id="clear-input-btn" title="Clear input" style="display: none;">
-            <i data-lucide="x"></i>
-          </button>
-          <button class="btn btn-secondary btn-icon-only" id="paste-clipboard-btn" title="Paste from Clipboard">
-            <i data-lucide="clipboard"></i>
-          </button>
+      <!-- Integrated URL Input Bar (48px Compact Solid Container) -->
+      <section class="url-integrated-container" id="url-hero-section">
+        <div class="input-link-icon">
+          <i data-lucide="link-2" style="color: #8E8EA8;"></i>
         </div>
-        <button class="btn-download-action" id="inspect-btn">
-          <i data-lucide="arrow-down-circle"></i>
-          <span>Download Video</span>
+        <input type="text" id="url-input" name="eggdl_download_url_field" placeholder="Paste URL here..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+        
+        <button class="btn-ghost-icon" id="clear-input-btn" title="Clear input" style="display: none;">
+          <i data-lucide="x"></i>
+        </button>
+        <button class="btn-ghost-icon" id="paste-clipboard-btn" title="Paste from Clipboard">
+          <i data-lucide="clipboard"></i>
+        </button>
+
+        <div class="format-pill-wrapper" id="format-pill-container" title="Select download format">
+          <select id="quick-format-select" class="format-select-native" aria-label="Format Selector">
+            <option value="1080p" selected>1080p MP4</option>
+            <option value="720p">720p MP4</option>
+            <option value="4k">4K MP4</option>
+            <option value="best">Best (Auto)</option>
+            <option value="mp3">Audio MP3</option>
+          </select>
+          <i data-lucide="chevron-down" class="format-chevron"></i>
+        </div>
+
+        <button class="btn-mint-download" id="inspect-btn" title="Download">
+          <i data-lucide="download"></i>
+          <span>Download</span>
         </button>
       </section>
 

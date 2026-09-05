@@ -488,16 +488,17 @@ const UI = {
       const sizeStr = item.file_size > 0 ? UI.formatBytes(item.file_size) : UI.formatBytes(item.downloaded_bytes);
       const isDone = effectiveStatus === 'completed';
       const isDownloading = effectiveStatus === 'downloading';
-      const isPaused = effectiveStatus === 'paused';
-      const isFailedOrCanceled = effectiveStatus === 'canceled' || effectiveStatus === 'error';
+      const isPaused = effectiveStatus === 'paused' || effectiveStatus === 'stopped';
+      const isCanceled = effectiveStatus === 'canceled';
+      const isFailedOrCanceled = isCanceled || effectiveStatus === 'error';
       const statusClass = effectiveStatus;
       
       let statusLabel = effectiveStatus;
       if (effectiveStatus === 'completed') statusLabel = '<i data-lucide="check"></i> <span>Completed</span>';
       else if (effectiveStatus === 'downloading') statusLabel = '<i data-lucide="download"></i> <span>Downloading</span>';
-      else if (effectiveStatus === 'paused') statusLabel = '<i data-lucide="pause"></i> <span>Paused</span>';
+      else if (effectiveStatus === 'paused' || effectiveStatus === 'stopped') statusLabel = '<i data-lucide="pause"></i> <span>Paused</span>';
       else if (effectiveStatus === 'error') statusLabel = '<i data-lucide="x"></i> <span>Error</span>';
-      else if (effectiveStatus === 'canceled') statusLabel = '<i data-lucide="square"></i> <span>Stopped</span>';
+      else if (effectiveStatus === 'canceled') statusLabel = '<i data-lucide="x-circle"></i> <span>Canceled</span>';
       
       const title = item.title || item.filename || 'Download';
       const cleanUrl = (item.url && item.url.startsWith('data:')) ? 'data:image/... [Embedded Image Data]' : (item.url || '');
@@ -521,7 +522,7 @@ const UI = {
           <td class="col-progress">
             <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
               <div class="progress-bar-bg" style="width: 70px; margin-bottom: 0; flex-shrink: 0;">
-                <div class="progress-bar-fill" style="width: ${effectiveProgress}%;"></div>
+                <div class="progress-bar-fill ${isCanceled ? 'canceled' : (isPaused ? 'paused' : '')}" style="width: ${effectiveProgress}%;"></div>
               </div>
               <span class="row-progress-pct" style="font-size: 0.8rem; font-family: var(--font-mono); font-weight: 600; flex-shrink: 0;">${effectiveProgress}%</span>
             </div>
@@ -533,42 +534,47 @@ const UI = {
           </td>
           <td class="col-date">${UI.formatDate(item.created_at)}</td>
           <td class="col-actions">
-            <div class="action-buttons">
-              ${isDownloading ? `
-                <button class="btn btn-secondary btn-sm" onclick="App.pauseTask('${item.id}')" title="Pause Download">
-                  <i data-lucide="pause"></i>
+            <div class="row-actions-wrapper">
+              <div class="secondary-actions">
+                ${isDone ? `
+                  <button class="ghost-btn" onclick="App.openFolder('${item.id}')" title="Show in Folder">
+                    <i data-lucide="folder"></i>
+                  </button>
+                  <a class="ghost-btn" href="/api/media/${item.id}" download="${(item.filename || item.title || 'download').replace(/"/g, '')}" title="Save / Download to PC">
+                    <i data-lucide="download"></i>
+                  </a>
+                ` : ''}
+                ${(isDownloading || isPaused) ? `
+                  <button class="ghost-btn text-danger" onclick="App.cancelTask('${item.id}')" title="Cancel Download">
+                    <i data-lucide="x"></i>
+                  </button>
+                ` : ''}
+                <button class="ghost-btn" onclick="App.copyLink('${item.url}')" title="Copy Link">
+                  <i data-lucide="copy"></i>
                 </button>
-                <button class="btn btn-danger btn-sm" onclick="App.cancelTask('${item.id}')" title="Cancel Download">
-                  <i data-lucide="x"></i>
+                <button class="ghost-btn text-danger" onclick="App.deleteDownload('${item.id}')" title="Delete">
+                  <i data-lucide="trash-2"></i>
                 </button>
-              ` : (isPaused ? `
-                <button class="btn btn-secondary btn-sm" onclick="App.resumeTask('${item.id}')" title="Resume Download">
-                  <i data-lucide="play"></i>
-                </button>
-                <button class="btn btn-danger btn-sm" onclick="App.cancelTask('${item.id}')" title="Cancel Download">
-                  <i data-lucide="x"></i>
-                </button>
-              ` : (isDone ? `
-                <button class="btn btn-secondary btn-sm" onclick="UI.openPlayerModal('${item.id}', '${(item.title || item.filename || '').replace(/'/g, "\\'")}')" title="Play Video / Audio">
-                  <i data-lucide="play"></i>
-                </button>
-                <a class="btn btn-secondary btn-sm" href="/api/media/${item.id}" download="${(item.filename || item.title || 'download').replace(/"/g, '')}" title="Save / Download to PC">
-                  <i data-lucide="download"></i>
-                </a>
-                <button class="btn btn-secondary btn-sm" onclick="App.openFolder('${item.id}')" title="Show in Folder">
-                  <i data-lucide="folder"></i>
-                </button>
-              ` : (isFailedOrCanceled ? `
-                <button class="btn btn-secondary btn-sm" onclick="App.resumeTask('${item.id}')" title="Retry Download">
-                  <i data-lucide="rotate-cw"></i>
-                </button>
-              ` : '')))}
-              <button class="btn btn-secondary btn-sm" onclick="App.copyLink('${item.url}')" title="Copy Link">
-                <i data-lucide="copy"></i>
-              </button>
-              <button class="btn btn-danger btn-sm" onclick="App.deleteDownload('${item.id}')" title="Delete">
-                <i data-lucide="trash-2"></i>
-              </button>
+              </div>
+              <div class="primary-action">
+                ${isDownloading ? `
+                  <button class="ghost-btn text-amber" onclick="App.pauseTask('${item.id}')" title="Pause Download">
+                    <i data-lucide="pause"></i>
+                  </button>
+                ` : (isPaused ? `
+                  <button class="ghost-btn text-mint" onclick="App.resumeTask('${item.id}')" title="Resume Download">
+                    <i data-lucide="play"></i>
+                  </button>
+                ` : (isDone ? `
+                  <button class="ghost-btn text-mint" onclick="UI.openPlayerModal('${item.id}', '${(item.title || item.filename || '').replace(/'/g, "\\'")}')" title="Play Video / Audio">
+                    <i data-lucide="play"></i>
+                  </button>
+                ` : (isFailedOrCanceled ? `
+                  <button class="ghost-btn text-mint" onclick="App.resumeTask('${item.id}')" title="Retry Download">
+                    <i data-lucide="rotate-cw"></i>
+                  </button>
+                ` : '')))}
+              </div>
             </div>
           </td>
         </tr>
@@ -578,7 +584,7 @@ const UI = {
     lucide.createIcons();
   },
 
-  renderInspectModal(result, currentUrl) {
+  renderInspectModal(result, currentUrl, preferredQuality = '1080p') {
     const modal = document.getElementById('inspect-modal');
     const modalBody = document.getElementById('modal-body-content');
     const startBtn = document.getElementById('modal-start-btn');
@@ -586,6 +592,21 @@ const UI = {
 
     if (result.type === 'stream') {
       const data = result.data;
+      const isAudioPreferred = preferredQuality === 'mp3';
+
+      let selectedVideoIndex = 0;
+      if (data.video_options && data.video_options.length > 0) {
+        if (preferredQuality === '1080p') {
+          const idx = data.video_options.findIndex(o => (o.resolution && o.resolution.includes('1080')) || (o.label && o.label.includes('1080')));
+          if (idx !== -1) selectedVideoIndex = idx;
+        } else if (preferredQuality === '720p') {
+          const idx = data.video_options.findIndex(o => (o.resolution && o.resolution.includes('720')) || (o.label && o.label.includes('720')));
+          if (idx !== -1) selectedVideoIndex = idx;
+        } else if (preferredQuality === '4k') {
+          const idx = data.video_options.findIndex(o => (o.resolution && (o.resolution.includes('2160') || o.resolution.toLowerCase().includes('4k'))) || (o.label && (o.label.includes('2160') || o.label.toLowerCase().includes('4k'))));
+          if (idx !== -1) selectedVideoIndex = idx;
+        }
+      }
 
       // Ensure audio options fallback if empty
       if (!data.audio_options || data.audio_options.length === 0) {
@@ -620,15 +641,16 @@ const UI = {
         </div>
 
         <div class="format-tabs">
-          <button type="button" class="format-tab-btn active" onclick="UI.switchFormatTab('video')">🎬 Video Qualities</button>
-          <button type="button" class="format-tab-btn" onclick="UI.switchFormatTab('audio')">🎵 Audio (MP3 / M4A)</button>
+          <button type="button" class="format-tab-btn ${isAudioPreferred ? '' : 'active'}" onclick="UI.switchFormatTab('video')">🎬 Video Qualities</button>
+          <button type="button" class="format-tab-btn ${isAudioPreferred ? 'active' : ''}" onclick="UI.switchFormatTab('audio')">🎵 Audio (MP3 / M4A)</button>
         </div>
 
-        <div id="tab-video-content" class="format-grid">
+        <div id="tab-video-content" class="format-grid ${isAudioPreferred ? 'tab-hidden' : ''}" style="${isAudioPreferred ? 'display: none;' : ''}">
           ${(data.video_options || []).map((opt, i) => {
             const tag = UI.getResolutionTag(opt.resolution || opt.label);
+            const isSelected = (!isAudioPreferred && i === selectedVideoIndex);
             return `
-              <div class="format-item ${i === 0 ? 'selected' : ''}" data-format-id="${opt.format_id}" data-type="video" data-filesize="${opt.filesize || ''}" onclick="UI.selectFormatItem(this)">
+              <div class="format-item ${isSelected ? 'selected' : ''}" data-format-id="${opt.format_id}" data-type="video" data-filesize="${opt.filesize || ''}" onclick="UI.selectFormatItem(this)">
                 <div class="format-label">
                   <span class="res-tag ${tag.class}">${tag.text}</span>
                   <span class="format-name" title="${this.escapeHtml(opt.label)}">${opt.label}</span>
@@ -639,16 +661,19 @@ const UI = {
           }).join('')}
         </div>
 
-        <div id="tab-audio-content" class="format-grid tab-hidden" style="display: none;">
-          ${(data.audio_options || []).map((opt, i) => `
-            <div class="format-item ${i === 0 ? 'selected' : ''}" data-format-id="${opt.format_id}" data-type="audio" data-ext="${opt.ext}" data-filesize="${opt.filesize || ''}" onclick="UI.selectFormatItem(this)">
+        <div id="tab-audio-content" class="format-grid ${isAudioPreferred ? '' : 'tab-hidden'}" style="${isAudioPreferred ? '' : 'display: none;'}">
+          ${(data.audio_options || []).map((opt, i) => {
+            const isSelected = (isAudioPreferred ? (opt.ext === 'mp3' || i === 0) : i === 0);
+            return `
+            <div class="format-item ${isSelected ? 'selected' : ''}" data-format-id="${opt.format_id}" data-type="audio" data-ext="${opt.ext}" data-filesize="${opt.filesize || ''}" onclick="UI.selectFormatItem(this)">
               <div class="format-label">
                 <span class="res-tag audio">MP3/M4A</span>
                 <span class="format-name" title="${this.escapeHtml(opt.label)}">${opt.label}</span>
               </div>
               <div class="format-meta">${opt.ext.toUpperCase()} • ${opt.filesize_str || 'HQ Audio'}</div>
             </div>
-          `).join('')}
+            `;
+          }).join('')}
         </div>
       `;
 

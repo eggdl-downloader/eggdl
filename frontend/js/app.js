@@ -376,7 +376,19 @@ const App = {
         }
       }
       this.loadDownloads();
-    } else if (msg.type === 'task_canceled' || msg.type === 'task_deleted') {
+    } else if (msg.type === 'task_canceled') {
+      delete this.activeTasks[msg.task_id];
+      const dl = this.downloads.find(d => d.id === msg.task_id);
+      if (dl) {
+        dl.status = 'canceled';
+        if (msg.progress !== undefined) dl.progress = msg.progress;
+      }
+      UI.renderActiveTasks(this.activeTasks);
+      this.updateGlobalSpeed();
+      this.updateCategoryCounts();
+      this.renderDownloads();
+      this.updateDashboardStats();
+    } else if (msg.type === 'task_deleted') {
       delete this.activeTasks[msg.task_id];
       this.downloads = this.downloads.filter(d => d.id !== msg.task_id);
       UI.renderActiveTasks(this.activeTasks);
@@ -834,10 +846,13 @@ const App = {
     inspectBtn.disabled = true;
     if (window.lucide) window.lucide.createIcons();
 
+    const quickFormatSelect = document.getElementById('quick-format-select');
+    const preferredQuality = quickFormatSelect ? quickFormatSelect.value : '1080p';
+
     try {
       const res = await API.inspectUrl(url);
       if (res && res.success) {
-        UI.renderInspectModal(res, url);
+        UI.renderInspectModal(res, url, preferredQuality);
       } else {
         UI.showToast(res?.message || 'Could not inspect link', 'error', 6000);
       }
@@ -918,6 +933,15 @@ const App = {
 
   async cancelTask(taskId) {
     try {
+      if (this.activeTasks && this.activeTasks[taskId]) {
+        delete this.activeTasks[taskId];
+        UI.renderActiveTasks(this.activeTasks);
+      }
+      const item = this.downloads.find(d => d.id === taskId);
+      if (item) {
+        item.status = 'canceled';
+        this.renderDownloads();
+      }
       await API.cancelDownload(taskId);
       UI.showToast('Download canceled', 'info');
     } catch (e) {

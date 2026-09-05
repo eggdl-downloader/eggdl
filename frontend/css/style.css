@@ -3,15 +3,15 @@
    Stepped Luminance Surfaces • Crisp 1px Borders • Zero Blur • Modular Themes
    ========================================================================== */
 
-:root, [data-theme="slate"] {
+:root, [data-theme="mint"] {
   /* Surfaces & Stepped Luminance (100% Solid Blocks) */
-  --bg-canvas: #101216;
-  --bg-surface: #181C22;
-  --bg-surface-hover: #222730;
-  --bg-surface-active: #222730;
-  --bg-surface-elevated: #1C2128;
-  --bg-input: #12151A;
-  --bg-sidebar: #14171D;
+  --bg-canvas: #131321;
+  --bg-surface: #1B1B2C;
+  --bg-surface-hover: #222238;
+  --bg-surface-active: #2B2B42;
+  --bg-surface-elevated: #222238;
+  --bg-input: #10101C;
+  --bg-sidebar: #0E0E18;
 
   /* Backward-Compatibility Mappings */
   --bg-main: var(--bg-canvas);
@@ -21,18 +21,18 @@
   --bg-elevated: var(--bg-surface-elevated);
 
   /* Crisp 1px Structural Borders (Zero Blur) */
-  --border-default: #2E3540;
-  --border-subtle: #222731;
-  --border-medium: #2E3540;
-  --border-bright: #3D4654;
-  --border-focus: #3B82F6;
+  --border-default: #2B2B42;
+  --border-subtle: #202033;
+  --border-medium: #2B2B42;
+  --border-bright: #3D3D5C;
+  --border-focus: #46F0D2;
   --border-color: var(--border-default);
 
   /* Primary Accent & Controls */
-  --accent-primary: #3B82F6;
-  --accent-primary-hover: #2563EB;
-  --accent-primary-active: #1D4ED8;
-  --accent-text: #FFFFFF;
+  --accent-primary: #46F0D2;
+  --accent-primary-hover: #3AE0C3;
+  --accent-primary-active: #2EC4AA;
+  --accent-text: #131321;
   --primary: var(--accent-primary);
   --primary-hover: var(--accent-primary-hover);
   --primary-glow: transparent;
@@ -640,12 +640,12 @@ i.spin,
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 20px 32px;
+  padding: 14px 28px;
   overflow: hidden;
   width: 100%;
   max-width: 100%;
   height: 100vh;
-  gap: 16px;
+  gap: 12px;
   box-sizing: border-box;
 }
 
@@ -655,7 +655,7 @@ i.spin,
   justify-content: space-between;
   align-items: center;
   gap: 16px;
-  padding: 2px 0 14px 0;
+  padding: 0 0 10px 0;
   border-bottom: 1px solid var(--border-default);
   width: 100%;
   flex-shrink: 0;
@@ -973,18 +973,19 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
+  gap: 10px;
   flex-shrink: 0;
 }
 
 .stat-card {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 13px 16px;
+  gap: 12px;
+  padding: 8px 14px;
+  min-height: 44px;
   background: var(--bg-surface);
   border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
+  border-radius: 8px;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
@@ -994,9 +995,9 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
 }
 
 .stat-icon-wrapper {
-  width: 38px;
-  height: 38px;
-  border-radius: var(--radius-xs);
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1005,8 +1006,8 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
 }
 
 .stat-icon-wrapper i {
-  width: 19px;
-  height: 19px;
+  width: 16px;
+  height: 16px;
 }
 
 .stat-icon-wrapper.speed { background: var(--accent-cyan-bg); color: var(--accent-cyan); border-color: rgba(6, 182, 212, 0.3); }
@@ -1017,127 +1018,195 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
 .stat-card-info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
 }
 
 .stat-card-label {
-  font-size: 0.74rem;
+  font-size: 0.68rem;
   font-weight: 600;
   color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  line-height: 1.1;
 }
 
 .stat-card-val {
-  font-family: var(--font-mono);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   font-variant-numeric: tabular-nums;
-  font-size: 1.25rem;
+  font-size: 1.05rem;
   font-weight: 700;
   color: var(--text-main);
   letter-spacing: -0.2px;
+  line-height: 1.2;
 }
 
 /* ==========================================================================
-   Hero URL Input Section (Solid Inset & Native Controls)
+   Integrated URL Input Bar (48px Compact Solid Container)
    ========================================================================== */
-.url-hero-box {
+.url-integrated-container {
+  height: 48px;
   background: var(--bg-surface);
   border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  padding: 14px 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  box-shadow: var(--shadow-sm);
-  flex-shrink: 0;
-}
-
-.url-input-wrapper {
+  border-radius: 10px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: var(--bg-input);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
-  padding: 6px 8px 6px 14px;
-  transition: border-color 0.15s ease;
+  padding: 4px 6px 4px 14px;
+  gap: 8px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.url-input-wrapper:focus-within {
-  border-color: var(--border-focus);
-  box-shadow: none;
+.url-integrated-container:focus-within {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 1px var(--accent-primary);
 }
 
-.input-icon i {
-  width: 18px;
-  height: 18px;
-  color: var(--text-dim);
+.input-link-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: #8E8EA8;
 }
 
-.url-input-wrapper input {
+.input-link-icon i,
+.input-link-icon svg {
+  width: 17px !important;
+  height: 17px !important;
+  stroke: #8E8EA8 !important;
+}
+
+.url-integrated-container input {
   flex: 1;
+  min-width: 0;
   background: transparent;
   border: none;
   color: var(--text-main);
   font-family: var(--font-sans);
-  font-size: 0.92rem;
+  font-size: 0.90rem;
   outline: none;
+  padding: 0 4px;
 }
 
-.url-input-wrapper input::placeholder {
-  color: var(--text-dim);
+.url-integrated-container input::placeholder {
+  color: #8E8EA8;
 }
 
-.btn-download-action {
-  width: 100%;
-  height: 48px;
-  background: var(--accent-primary);
-  color: var(--accent-text);
-  font-family: var(--font-sans), sans-serif;
-  font-size: 0.95rem;
-  font-weight: 700;
-  letter-spacing: 0.2px;
-  border-radius: var(--radius-sm);
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-
-.btn-download-action i,
-.btn-download-action svg {
-  color: var(--accent-text) !important;
-  stroke: var(--accent-text) !important;
-}
-
-.btn-download-action:hover {
-  background: var(--accent-primary-hover);
-}
-
-.quick-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.tag {
+.btn-ghost-icon {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #8E8EA8;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  font-size: 0.72rem;
-  font-weight: 500;
-  color: var(--text-muted);
-  background: var(--bg-surface-hover);
-  border: 1px solid var(--border-default);
-  padding: 4px 10px;
-  border-radius: var(--radius-xs);
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+  transition: background 0.12s ease, color 0.12s ease;
 }
 
-.tag i {
-  width: 12px;
-  height: 12px;
-  color: var(--accent-primary);
+.btn-ghost-icon:hover {
+  background: #232338;
+  color: #FFFFFF;
+}
+
+.btn-ghost-icon i,
+.btn-ghost-icon svg {
+  width: 15px !important;
+  height: 15px !important;
+  stroke-width: 1.75px !important;
+}
+
+.format-pill-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  background: #232338;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  height: 34px;
+  padding: 0 28px 0 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.format-pill-wrapper:hover {
+  border-color: var(--border-bright);
+  background: #2B2B42;
+}
+
+.format-select-native {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+}
+
+.format-select-native option {
+  background: #1B1B2C;
+  color: #F0F6FC;
+}
+
+.format-chevron {
+  position: absolute;
+  right: 8px;
+  pointer-events: none;
+  width: 14px !important;
+  height: 14px !important;
+  color: #8E8EA8 !important;
+  stroke: #8E8EA8 !important;
+}
+
+.btn-mint-download {
+  height: 36px;
+  padding: 0 16px;
+  background: #46F0D2;
+  color: #131321;
+  font-family: var(--font-sans);
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: 0.1px;
+  border-radius: 7px;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease, transform 0.08s ease;
+}
+
+.btn-mint-download:hover {
+  background: #3AE0C3;
+}
+
+.btn-mint-download:active {
+  transform: scale(0.97);
+}
+
+.btn-mint-download i,
+.btn-mint-download svg {
+  width: 16px !important;
+  height: 16px !important;
+  stroke: #131321 !important;
+  stroke-width: 2.2px !important;
 }
 
 /* ==========================================================================
@@ -1435,8 +1504,8 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   top: 0;
   z-index: 10;
   background: var(--bg-surface-elevated);
-  padding: 10px 10px;
-  font-size: 0.72rem;
+  padding: 8px 10px;
+  font-size: 0.70rem;
   font-weight: 700;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -1447,24 +1516,24 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
 }
 
 .downloads-table th.th-type {
-  padding-left: 16px;
+  padding-left: 14px;
 }
 
 .downloads-table th.th-actions {
-  padding-right: 16px;
+  padding-right: 14px;
   text-align: right;
 }
 
 .downloads-table td {
-  padding: 9px 10px;
+  padding: 7px 10px;
   border-bottom: 1px solid var(--border-subtle);
-  font-size: 0.86rem;
+  font-size: 0.84rem;
   color: var(--text-secondary);
   vertical-align: middle;
 }
 
 .downloads-table td.col-type {
-  padding-left: 16px;
+  padding-left: 14px;
 }
 
 .downloads-table td.col-file {
@@ -1481,22 +1550,22 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
 }
 
 .downloads-table td.col-date {
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   color: var(--text-dim);
   white-space: nowrap;
-  padding: 9px 14px;
+  padding: 7px 12px;
 }
 
 .downloads-table td.col-status {
-  padding: 9px 10px;
+  padding: 7px 10px;
   white-space: nowrap;
 }
 
 .downloads-table td.col-actions {
-  padding-right: 18px;
-  padding-left: 8px;
+  padding-right: 14px;
+  padding-left: 6px;
   text-align: right;
 }
 
@@ -1529,25 +1598,25 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
 .file-cell-info {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
   min-width: 0;
   flex: 1;
   overflow: hidden;
 }
 
 .file-title {
-  font-size: 0.88rem;
+  font-size: 0.86rem;
   font-weight: 600;
   color: var(--text-main);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
-  line-height: 1.35;
+  line-height: 1.3;
 }
 
 .file-sub {
-  font-size: 0.72rem;
+  font-size: 0.70rem;
   color: var(--text-dim);
   white-space: nowrap;
   overflow: hidden;
@@ -1562,7 +1631,7 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-width: 96px;
+  min-width: 86px;
   height: 24px;
   padding: 0 10px;
   border-radius: 6px;
@@ -1594,27 +1663,130 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   border: 1px solid rgba(59, 130, 246, 0.28);
 }
 
-.status-badge.paused {
-  background: rgba(245, 158, 11, 0.12);
-  color: #FBBF24;
-  border: 1px solid rgba(245, 158, 11, 0.28);
+.status-badge.paused,
+.status-badge.stopped {
+  background: #2B2313;
+  color: #F59E0B;
+  border: 1px solid rgba(245, 158, 11, 0.35);
 }
 
 .status-badge.canceled {
-  background: rgba(148, 163, 184, 0.12);
-  color: #94A3B8;
-  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: #3A2326;
+  color: #F87171;
+  border: 1px solid rgba(248, 113, 113, 0.35);
 }
 
 .status-badge.error {
-  background: rgba(239, 68, 68, 0.12);
-  color: #F87171;
-  border: 1px solid rgba(239, 68, 68, 0.28);
+  background: rgba(239, 68, 68, 0.14);
+  color: #EF4444;
+  border: 1px solid rgba(239, 68, 68, 0.32);
+}
+
+.progress-bar-fill.canceled {
+  background: #F87171 !important;
+  opacity: 0.65;
+}
+
+.progress-bar-fill.paused,
+.progress-bar-fill.stopped {
+  background: #F59E0B !important;
 }
 
 .status-icon {
   font-size: 0.8rem;
   line-height: 1;
+}
+
+/* ==========================================================================
+   Table Row Action Buttons (Contextual Primary + Hover Revealed Secondary)
+   ========================================================================== */
+.row-actions-wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.secondary-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, visibility 0.15s ease;
+}
+
+.downloads-table tbody tr:hover .secondary-actions {
+  opacity: 1;
+  visibility: visible;
+}
+
+.primary-action {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* 28px x 28px Ghost Button Hit-Boxes */
+.ghost-btn {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #8E8EA8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-sizing: border-box;
+  padding: 0;
+  text-decoration: none;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.ghost-btn:hover {
+  background: #232338;
+  color: #FFFFFF;
+  border-color: #2B2B42;
+}
+
+.ghost-btn i,
+.ghost-btn svg {
+  width: 14px !important;
+  height: 14px !important;
+  stroke-width: 1.75px !important;
+}
+
+.ghost-btn.text-mint {
+  color: var(--accent-primary);
+}
+
+.ghost-btn.text-mint:hover {
+  background: rgba(70, 240, 210, 0.15);
+  color: #46F0D2;
+  border-color: rgba(70, 240, 210, 0.3);
+}
+
+.ghost-btn.text-amber {
+  color: #F59E0B;
+}
+
+.ghost-btn.text-amber:hover {
+  background: #2B2313;
+  color: #FBBF24;
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.ghost-btn.text-danger {
+  color: #8E8EA8;
+}
+
+.ghost-btn.text-danger:hover {
+  background: #3A2326;
+  color: #F87171;
+  border-color: rgba(248, 113, 113, 0.35);
 }
 
 .action-buttons {
