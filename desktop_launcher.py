@@ -61,23 +61,66 @@ def check_single_instance():
             import ctypes
             ERROR_ALREADY_EXISTS = 183
             kernel32 = ctypes.windll.kernel32
+            user32 = ctypes.windll.user32
             mutex_name = "Local\\EggDL_App_Single_Instance_Mutex"
             _INSTANCE_MUTEX = kernel32.CreateMutexW(None, False, mutex_name)
             if kernel32.GetLastError() == ERROR_ALREADY_EXISTS:
-                # App is already running! Trigger existing window to show
+                # 1. Try to wake and show the existing running instance
+                notified = False
                 try:
-                    urllib.request.urlopen("http://127.0.0.1:8000/api/app/show_window", timeout=1.0)
+                    with urllib.request.urlopen("http://127.0.0.1:8000/api/app/show_window", timeout=1.5) as resp:
+                        if resp.status == 200:
+                            notified = True
                 except Exception:
                     pass
+
+                hwnd = user32.FindWindowW(None, "EggDL - Ultra Turbo Downloader")
+                if not hwnd:
+                    hwnds = []
+                    WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+                    def enum_cb(h, _):
+                        length = user32.GetWindowTextLengthW(h)
+                        if length > 0:
+                            buff = ctypes.create_unicode_buffer(length + 1)
+                            user32.GetWindowTextW(h, buff, length + 1)
+                            if "EggDL" in buff.value:
+                                hwnds.append(h)
+                        return True
+                    user32.EnumWindows(WNDENUMPROC(enum_cb), 0)
+                    if hwnds:
+                        hwnd = hwnds[0]
+
+                if hwnd:
+                    user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                    user32.ShowWindow(hwnd, 5)  # SW_SHOW
+                    user32.SetForegroundWindow(hwnd)
+                    user32.BringWindowToTop(hwnd)
+                    notified = True
+
+                # If existing instance was successfully alerted and its window is active, exit this duplicate click cleanly
+                if notified and hwnd:
+                    sys.exit(0)
+
+                # If no window exists (stale, zombie, or background headless instance), terminate it so we take over cleanly
                 try:
-                    hwnd = ctypes.windll.user32.FindWindowW(None, "EggDL - Ultra Turbo Downloader")
-                    if hwnd:
-                        ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE
-                        ctypes.windll.user32.SetForegroundWindow(hwnd)
+                    import subprocess
+                    current_pid = os.getpid()
+                    out = subprocess.check_output('tasklist /FI "IMAGENAME eq EggDL.exe" /FO CSV /NH', shell=True, text=True, stderr=subprocess.DEVNULL)
+                    for line in out.splitlines():
+                        parts = [p.strip(' "') for p in line.split(",")]
+                        if len(parts) >= 2 and parts[1].isdigit():
+                            pid = int(parts[1])
+                            if pid != current_pid:
+                                subprocess.run(f"taskkill /F /PID {pid}", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 except Exception:
                     pass
-                # Terminate duplicate instance immediately
-                sys.exit(0)
+                time.sleep(0.4)
+                if _INSTANCE_MUTEX:
+                    try:
+                        kernel32.CloseHandle(_INSTANCE_MUTEX)
+                    except Exception:
+                        pass
+                _INSTANCE_MUTEX = kernel32.CreateMutexW(None, False, mutex_name)
         except Exception:
             pass
 
@@ -227,30 +270,44 @@ def show_main_window():
             _MAIN_WINDOW.restore()
         except Exception:
             pass
+        try:
+            if hasattr(_MAIN_WINDOW, "native") and _MAIN_WINDOW.native:
+                form = _MAIN_WINDOW.native
+                if hasattr(form, "InvokeRequired") and form.InvokeRequired:
+                    import System
+                    form.BeginInvoke(System.Action(lambda: (_MAIN_WINDOW.show(), _MAIN_WINDOW.restore())))
+                else:
+                    form.Show()
+                    form.BringToFront()
+                    form.Activate()
+        except Exception:
+            pass
+
     if sys.platform == "win32":
         try:
             import ctypes
-            hwnd = ctypes.windll.user32.FindWindowW(None, "EggDL - Ultra Turbo Downloader")
+            user32 = ctypes.windll.user32
+            hwnd = user32.FindWindowW(None, "EggDL - Ultra Turbo Downloader")
             if not hwnd:
-                def enum_cb(h, l):
-                    length = ctypes.windll.user32.GetWindowTextLengthW(h)
+                hwnds = []
+                WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+                def enum_cb(h, _):
+                    length = user32.GetWindowTextLengthW(h)
                     if length > 0:
                         buff = ctypes.create_unicode_buffer(length + 1)
-                        ctypes.windll.user32.GetWindowTextW(h, buff, length + 1)
+                        user32.GetWindowTextW(h, buff, length + 1)
                         if "EggDL" in buff.value:
-                            l.append(h)
+                            hwnds.append(h)
                     return True
-                hwnds = []
-                WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.py_object)
-                ctypes.windll.user32.EnumWindows(WNDENUMPROC(enum_cb), hwnds)
+                user32.EnumWindows(WNDENUMPROC(enum_cb), 0)
                 if hwnds:
                     hwnd = hwnds[0]
 
             if hwnd:
-                ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE
-                ctypes.windll.user32.ShowWindow(hwnd, 5)  # SW_SHOW
-                ctypes.windll.user32.SetForegroundWindow(hwnd)
-                ctypes.windll.user32.BringWindowToTop(hwnd)
+                user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                user32.ShowWindow(hwnd, 5)  # SW_SHOW
+                user32.SetForegroundWindow(hwnd)
+                user32.BringWindowToTop(hwnd)
         except Exception:
             pass
 

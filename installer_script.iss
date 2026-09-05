@@ -49,3 +49,14 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall
+
+[Code]
+function InitializeSetup(): Boolean;
+var
+  ErrorCode: Integer;
+begin
+  // Forcefully terminate any running EggDL instances before installation/update
+  Exec('taskkill.exe', '/F /IM EggDL.exe', '', SW_HIDE, ewWaitUntilTerminated, ErrorCode);
+  Result := True;
+end;
+
