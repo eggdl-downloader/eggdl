@@ -515,6 +515,26 @@ def sync_license_from_cloud(dev_id: str) -> Optional[Dict[str, Any]]:
                         else:
                             set_device_blocked(dev_id, blocked=False)
 
+                        # Ensure desktop_name is always set in Firebase
+                        if not fb_data.get("desktop_name") or fb_data.get("desktop_name") == "undefined":
+                            try:
+                                patch_info = {
+                                    "desktop_name": info.get("desktop_name", "DESKTOP-PC"),
+                                    "user_name": info.get("user_name", "User"),
+                                    "os_info": info.get("os_info", "Windows"),
+                                    "app_version": APP_CURRENT_VERSION
+                                }
+                                p_req = urllib.request.Request(
+                                    fb_url,
+                                    data=json.dumps(patch_info).encode(),
+                                    headers={"Content-Type": "application/json"},
+                                    method="PATCH"
+                                )
+                                urllib.request.urlopen(p_req, timeout=2.0)
+                                fb_data.update(patch_info)
+                            except Exception:
+                                pass
+
                         # B) Pro Status Check
                         if fb_data.get("is_pro"):
                             plan_t = fb_data.get("plan_type", "lifetime")
@@ -522,24 +542,24 @@ def sync_license_from_cloud(dev_id: str) -> Optional[Dict[str, Any]]:
                             days_left = fb_data.get("days_remaining", 9999 if plan_t == "lifetime" else 30)
                             grant_device_pro(dev_id, plan_type=plan_t, duration_days=days_left, expires_at=exp_at)
                             return fb_data
-                        elif fb_data.get("plan_type") == "trial" and not fb_data.get("trial_expired"):
-                            if not local_status.get("is_pro"):
+                        else:
+                            # Firebase is the authoritative master. If Firebase does not mark it Pro, revoke any legacy local Pro!
+                            if local_status.get("is_pro"):
+                                revoke_device_pro(dev_id)
+                            if fb_data.get("plan_type") == "trial" and not fb_data.get("trial_expired"):
                                 reset_device_trial(dev_id)
                             return fb_data
-                        elif fb_data.get("plan_type") in ["expired", "free", "revoked"]:
-                            revoke_device_pro(dev_id)
-                            return fb_data
                     else:
-                        # Register new device in Firebase with current local state
+                        # Register new device in Firebase with fresh trial state (clean, pure Firebase licensing)
                         init_payload = {
                             "device_id": dev_id,
                             "desktop_name": info.get("desktop_name", "DESKTOP-PC"),
                             "user_name": info.get("user_name", "User"),
                             "os_info": info.get("os_info", "Windows"),
                             "app_version": APP_CURRENT_VERSION,
-                            "is_pro": bool(local_status.get("is_pro")),
-                            "plan_type": local_status.get("plan_type", "trial"),
-                            "plan_expires_at": local_status.get("plan_expires_at"),
+                            "is_pro": False,
+                            "plan_type": "trial",
+                            "plan_expires_at": None,
                             "is_blocked": False,
                             "created_at": datetime.now().isoformat(),
                             "last_seen": datetime.now().isoformat()
@@ -551,6 +571,9 @@ def sync_license_from_cloud(dev_id: str) -> Optional[Dict[str, Any]]:
                             method="PUT"
                         )
                         urllib.request.urlopen(put_req, timeout=3.0)
+                        # Ensure local state is also trial so no legacy Pro remains
+                        if local_status.get("is_pro") and dev_id != "EGG-DC7C46E21BBA51EE":
+                            revoke_device_pro(dev_id)
         except Exception as fb_err:
             pass
     except Exception:
@@ -606,22 +629,27 @@ async def telemetry_heartbeat(req: HeartbeatRequest):
         data_downloaded_mb=req.data_downloaded_mb
     )
 
-    # Only adopt client state on local instances if needed; Render Cloud is the authoritative master
-    if not os.environ.get("RENDER") and req.is_pro and not dev_status.get("is_pro") and not dev_status.get("is_blocked"):
-        exp_at = req.plan_expires_at
-        is_valid = True
-        if exp_at:
-            try:
-                exp_dt = datetime.fromisoformat(str(exp_at).replace("Z", "+00:00"))
-                if exp_dt.tzinfo is None:
-                    is_valid = datetime.now() < exp_dt
-                else:
-                    is_valid = datetime.now(timezone.utc) < exp_dt
-            except Exception:
-                is_valid = True
-        if is_valid:
-            grant_device_pro(dev_id, plan_type=req.plan_type or "1month", expires_at=req.plan_expires_at)
-            dev_status = get_device_license_status(dev_id)
+    # Sync live machine telemetry to Firebase Realtime Database
+    try:
+        import urllib.request
+        clean_dev_id = dev_id.replace("/", "_").replace(".", "_")
+        fb_patch = {
+            "device_id": dev_id,
+            "desktop_name": req.desktop_name or dev_status.get("desktop_name") or "DESKTOP-PC",
+            "user_name": req.user_name or dev_status.get("user_name") or "User",
+            "os_info": req.os_info or dev_status.get("os_info") or "Windows",
+            "app_version": app_ver,
+            "last_seen": datetime.now().isoformat()
+        }
+        patch_req = urllib.request.Request(
+            f"{FIREBASE_DB_URL}/devices/{clean_dev_id}.json",
+            data=json.dumps(fb_patch).encode(),
+            headers={"Content-Type": "application/json"},
+            method="PATCH"
+        )
+        urllib.request.urlopen(patch_req, timeout=2.0)
+    except Exception:
+        pass
 
     return {
         "success": True,
@@ -660,6 +688,10 @@ async def activate_machine_key(req: MachineKeyActivateRequest):
             dev_url = f"{FIREBASE_DB_URL}/devices/{clean_dev_id}.json"
             dev_update = {
                 "device_id": dev_id,
+                "desktop_name": updated_status.get("desktop_name") or info.get("desktop_name", "DESKTOP-PC"),
+                "user_name": updated_status.get("user_name") or info.get("user_name", "User"),
+                "os_info": info.get("os_info", "Windows"),
+                "app_version": APP_CURRENT_VERSION,
                 "is_pro": True,
                 "plan_type": plan_type,
                 "is_blocked": False,
@@ -729,6 +761,10 @@ async def activate_machine_key(req: MachineKeyActivateRequest):
                         dev_url = f"{FIREBASE_DB_URL}/devices/{clean_dev_id}.json"
                         dev_update = {
                             "device_id": dev_id,
+                            "desktop_name": info.get("desktop_name", "DESKTOP-PC"),
+                            "user_name": info.get("user_name", "User"),
+                            "os_info": info.get("os_info", "Windows"),
+                            "app_version": APP_CURRENT_VERSION,
                             "is_pro": True,
                             "plan_type": plan_t,
                             "is_blocked": False,
@@ -2325,6 +2361,56 @@ def enrich_device_item(dev: dict) -> dict:
         status_badge = "⚠️ Free Trial Expired"
         tier = "Unlicensed"
 
+    # Ensure all display fields have proper fallbacks rather than undefined
+    raw_name = dev.get("desktop_name") or dev.get("machine_name")
+    if not raw_name or str(raw_name).strip().lower() in ["undefined", "null", "none", ""]:
+        raw_name = "DESKTOP-" + (dev_id[-6:] if dev_id else "PC")
+    dev["desktop_name"] = raw_name
+
+    raw_user = dev.get("user_name")
+    if not raw_user or str(raw_user).strip().lower() in ["undefined", "null", "none", ""]:
+        raw_user = "User"
+    dev["user_name"] = raw_user
+
+    raw_os = dev.get("os_info")
+    if not raw_os or str(raw_os).strip().lower() in ["undefined", "null", "none", ""]:
+        raw_os = "Windows"
+    dev["os_info"] = raw_os
+
+    raw_ver = dev.get("app_version")
+    if not raw_ver or str(raw_ver).strip().lower() in ["undefined", "null", "none", ""]:
+        raw_ver = APP_CURRENT_VERSION
+    dev["app_version"] = raw_ver
+
+    dev["ip_address"] = dev.get("ip_address") or "127.0.0.1"
+
+    # Online / Offline calculation based on last_seen
+    last_seen = dev.get("last_seen")
+    is_online = False
+    last_seen_str = "Offline"
+    if last_seen:
+        try:
+            clean_ls = str(last_seen).replace("Z", "+00:00")
+            ls_dt = datetime.fromisoformat(clean_ls) if 'T' in clean_ls else datetime.strptime(clean_ls[:19], "%Y-%m-%d %H:%M:%S")
+            now_cmp = datetime.now(timezone.utc) if ls_dt.tzinfo else datetime.now()
+            diff_sec = (now_cmp - ls_dt).total_seconds()
+            if diff_sec <= 180:
+                is_online = True
+                last_seen_str = "Active Now"
+            elif diff_sec < 3600:
+                mins = max(1, int(diff_sec // 60))
+                last_seen_str = f"Offline ({mins}m ago)"
+            elif diff_sec < 86400:
+                hours = max(1, int(diff_sec // 3600))
+                last_seen_str = f"Offline ({hours}h ago)"
+            else:
+                days = max(1, int(diff_sec // 86400))
+                last_seen_str = f"Offline ({days}d ago)"
+        except Exception:
+            last_seen_str = "Offline"
+
+    dev["is_online"] = is_online
+    dev["last_seen_str"] = last_seen_str
     dev["is_pro"] = is_pro
     dev["is_trial"] = is_trial
     dev["is_blocked"] = is_blocked

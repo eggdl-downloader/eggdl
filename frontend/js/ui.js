@@ -1342,14 +1342,14 @@ const UI = {
             </div>
             <div>
               <div style="font-weight:700;font-size:0.96rem;color:var(--text-main);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                <span>${dev.desktop_name}</span>
+                <span>${dev.desktop_name || dev.machine_name || ('DESKTOP-' + (dev.device_id ? dev.device_id.slice(-6) : 'PC'))}</span>
                 ${onlineBadge}
                 <span style="font-size:0.72rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);padding:2px 6px;border-radius:5px;font-family:ui-monospace,monospace;color:var(--text-dim);cursor:pointer;" title="Click to copy Machine ID" onclick="navigator.clipboard.writeText('${dev.device_id}'); UI.showToast('Copied Machine ID: ${dev.device_id}', 'info', 1800);">
                   ${dev.device_id}
                 </span>
               </div>
               <div style="font-size:0.78rem;color:var(--text-secondary);margin-top:4px;">
-                User: <span style="color:#CBD5E1;font-weight:600;">${dev.user_name || 'User'}</span> • ${dev.os_info || 'Windows'} • v${dev.app_version} • <span style="font-family:monospace;color:#94A3B8;">${dev.ip_address || '127.0.0.1'}</span>
+                User: <span style="color:#CBD5E1;font-weight:600;">${dev.user_name || 'User'}</span> • ${dev.os_info || 'Windows'} • v${dev.app_version || '2.1.7'} • <span style="font-family:monospace;color:#94A3B8;">${dev.ip_address || '127.0.0.1'}</span>
               </div>
             </div>
           </div>
