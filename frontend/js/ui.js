@@ -843,6 +843,18 @@ const UI = {
     if (modal) modal.style.display = 'none';
   },
 
+  getPlanDisplayName(planType) {
+    if (!planType) return 'Pro';
+    const key = String(planType).toLowerCase().trim();
+    if (key === '1month' || key === 'starter') return 'Starter';
+    if (key === '3month' || key === 'pro') return 'Pro';
+    if (key === '6month' || key === 'elite') return 'Elite';
+    if (key === '1year' || key === 'ultra' || key === 'ultra elite') return 'Ultra Elite';
+    if (key === 'lifetime' || key === 'ultimate' || key === 'ultimate pass') return 'Lifetime VIP';
+    if (key === 'trial') return 'Free Trial';
+    return key.charAt(0).toUpperCase() + key.slice(1);
+  },
+
   // --- Machine ID & License UI ---
   renderUserProfile(authData) {
     const container = document.getElementById('user-header-area');
@@ -851,62 +863,53 @@ const UI = {
     const user = (authData && authData.user) || {};
     const machine = (authData && authData.machine) || {};
     
+    // Hardware real name: preserve exact casing (e.g. SRIMAN)
     let desktopName = machine.desktop_name || user.name || '';
     if (!desktopName || desktopName.toLowerCase().includes('guest') || desktopName === 'DESKTOP-PC' || desktopName === 'WEB-CLIENT') {
       const stored = localStorage.getItem('eggdl_pc_name');
       if (stored && !stored.toLowerCase().includes('guest') && stored !== 'DESKTOP-PC' && stored !== 'WEB-CLIENT') {
         desktopName = stored;
       } else {
-        desktopName = typeof API !== 'undefined' ? API.getDeviceName() : 'Sriman';
+        desktopName = typeof API !== 'undefined' ? API.getDeviceName() : 'SRIMAN';
       }
     }
     if (desktopName.startsWith('DESKTOP-WIN-') && machine.desktop_name && !machine.desktop_name.startsWith('DESKTOP-WIN-')) {
       desktopName = machine.desktop_name;
     }
 
-    // Format to clean Title Case (e.g. SRIMAN -> Sriman)
-    const formatTitleCase = (str) => {
-      if (!str) return 'Sriman';
-      const clean = str.trim();
-      if (clean.toUpperCase() === 'SRIMAN') return 'Sriman';
-      if (clean.toUpperCase() === 'DESKTOP-PC' || clean.toUpperCase() === 'WEB-CLIENT') return 'Sriman';
-      if (clean === clean.toUpperCase() && !clean.includes(' ') && !clean.includes('-')) {
-        return clean.charAt(0).toUpperCase() + clean.slice(1).toLowerCase();
-      }
-      return clean.charAt(0).toUpperCase() + clean.slice(1);
-    };
-    const formattedName = formatTitleCase(desktopName);
-
     const isPro = authData && authData.is_pro;
     const isTrial = authData && authData.is_trial;
     const trialDaysLeft = (authData && authData.trial_days_remaining) || 0;
     const daysLeft = authData && authData.days_remaining;
 
+    const rawPlanType = (authData && authData.plan_type) || user.plan_type || machine.plan_type || (authData?.plan && authData.plan.id) || (authData?.plan && authData.plan.name);
+    const planName = this.getPlanDisplayName(rawPlanType);
+
     let badgeClass = 'user-plan-badge trial';
-    let badgeText = 'TRIAL';
+    let badgeText = `Trial (${trialDaysLeft}d Left)`;
 
     if (user.plan_type === 'lifetime' || (isPro && (!daysLeft || daysLeft >= 36500))) {
       badgeClass = 'user-plan-badge pro lifetime';
-      badgeText = 'PRO';
+      badgeText = 'Pro Lifetime';
     } else if (isPro) {
       badgeClass = 'user-plan-badge pro';
-      badgeText = 'PRO';
+      badgeText = `Pro (${daysLeft}d Left)`;
     } else if (isTrial && !authData.trial_expired) {
       badgeClass = 'user-plan-badge trial';
-      badgeText = 'TRIAL';
+      badgeText = `Trial (${trialDaysLeft}d Left)`;
     } else {
       badgeClass = 'user-plan-badge expired';
-      badgeText = 'EXPIRED';
+      badgeText = 'Trial Expired';
     }
 
     const titleTooltip = isPro 
-      ? `Pro Active (${daysLeft || 30} days remaining) • Click to view license details`
-      : `Trial Active (${trialDaysLeft} days remaining) • Click to view license details`;
+      ? `${planName} Active (${daysLeft || 30}d remaining) • Click to view license details`
+      : `Trial Active (${trialDaysLeft}d remaining) • Click to view license details`;
 
     container.innerHTML = `
       <button class="user-pill-btn" id="user-profile-btn" title="${titleTooltip}">
-        <div class="user-avatar"><i data-lucide="monitor" style="width: 13px; height: 13px;"></i></div>
-        <span class="user-name">${formattedName}</span>
+        <i data-lucide="monitor" class="user-pc-icon"></i>
+        <span class="user-name">${desktopName}</span>
         <span class="${badgeClass}">${badgeText}</span>
       </button>
     `;
@@ -954,11 +957,13 @@ const UI = {
     const modal = document.getElementById('account-modal');
     const user = (authData && authData.user) || { name: '', email: '', plan_type: 'free' };
     const machine = (authData && authData.machine) || {};
-    const desktopName = machine.desktop_name || user.name || 'DESKTOP-PC';
+    const desktopName = machine.desktop_name || user.name || 'SRIMAN';
     const machineId = machine.machine_id || user.id || 'EGG-UNKNOWN';
-    const plan = (authData && authData.plan) || { badge: 'Free', name: 'Free Plan' };
     const isPro = authData && authData.is_pro;
     const daysLeft = authData && authData.days_remaining;
+
+    const rawPlanType = (authData && authData.plan_type) || user.plan_type || machine.plan_type || (authData?.plan && authData.plan.id) || (authData?.plan && authData.plan.name);
+    const planName = this.getPlanDisplayName(rawPlanType);
 
     const nameEl = document.getElementById('acc-name-display');
     const machineIdEl = document.getElementById('acc-machine-id');
@@ -966,18 +971,7 @@ const UI = {
     const keyInput = document.getElementById('license-key-input');
     const feedbackMsg = document.getElementById('license-feedback-msg');
 
-    const formatTitleCase = (str) => {
-      if (!str) return 'Sriman';
-      const clean = str.trim();
-      if (clean.toUpperCase() === 'SRIMAN') return 'Sriman';
-      if (clean.toUpperCase() === 'DESKTOP-PC' || clean.toUpperCase() === 'WEB-CLIENT') return 'Sriman';
-      if (clean === clean.toUpperCase() && !clean.includes(' ') && !clean.includes('-')) {
-        return clean.charAt(0).toUpperCase() + clean.slice(1).toLowerCase();
-      }
-      return clean.charAt(0).toUpperCase() + clean.slice(1);
-    };
-
-    if (nameEl) nameEl.innerText = formatTitleCase(desktopName);
+    if (nameEl) nameEl.innerText = desktopName;
     if (machineIdEl) machineIdEl.innerText = machineId;
     if (keyInput) keyInput.value = '';
     if (feedbackMsg) feedbackMsg.style.display = 'none';
@@ -985,16 +979,16 @@ const UI = {
     if (pillEl) {
       if (user.plan_type === 'lifetime' || (isPro && (!daysLeft || daysLeft >= 36500))) {
         pillEl.className = 'plan-pill lifetime';
-        pillEl.innerHTML = '<span class="user-plan-badge pro" style="margin-right: 8px;">PRO</span> Ultimate Pass • Lifetime VIP (Unlimited Downloads)';
+        pillEl.innerHTML = 'Ultimate Pass • Lifetime VIP (Unlimited Downloads)';
       } else if (isPro) {
         pillEl.className = 'plan-pill pro';
-        pillEl.innerHTML = `<span class="user-plan-badge pro" style="margin-right: 8px;">PRO</span> ${plan.name || 'Pro Plan'} • ${daysLeft ? `${daysLeft} Days Remaining` : 'Active'} (Unlimited Downloads)`;
+        pillEl.innerHTML = `${planName} • ${daysLeft} Days Remaining (Unlimited Downloads)`;
       } else if (authData?.is_trial) {
         pillEl.className = 'plan-pill trial';
-        pillEl.innerHTML = `<span class="user-plan-badge trial" style="margin-right: 8px;">TRIAL</span> 7-Day Trial • ${authData.trial_days_remaining || 7} Days Remaining`;
+        pillEl.innerHTML = `Free Trial • ${authData.trial_days_remaining || 7} Days Remaining (Unlimited Downloads)`;
       } else {
         pillEl.className = 'plan-pill expired';
-        pillEl.innerHTML = `⚠️ Free Trial Expired • Enter Product Key or Purchase Plan Below`;
+        pillEl.innerHTML = 'Free Trial Expired • Enter Product Key Below';
       }
     }
 
