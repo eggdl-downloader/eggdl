@@ -43,12 +43,92 @@ if sys.stdout is None:
 if sys.stderr is None:
     sys.stderr = StreamToLogger(log_path)
 
+def debug_log(msg: str):
+    try:
+        p = os.path.join(get_user_data_dir(), "launcher_debug.log")
+        with open(p, "a", encoding="utf-8") as f:
+            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [PID {os.getpid()}] {msg}\n")
+    except Exception:
+        pass
+
+def handle_unhandled_exception(exc_type, exc_value, exc_traceback):
+    import traceback
+    err = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+    debug_log(f"FATAL UNHANDLED EXCEPTION:\n{err}")
+
+sys.excepthook = handle_unhandled_exception
+debug_log(f"desktop_launcher module loaded, argv={sys.argv}")
+
+
 # Set Windows AppUserModelID early so taskbar icon grouping is always 1:1 identical to pinned shortcut
 APP_USER_MODEL_ID = "EggDL.Downloader.App"
 if sys.platform == "win32":
     try:
         import ctypes
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_USER_MODEL_ID)
+    except Exception:
+        pass
+
+# Persistent ctypes callback type to avoid garbage collection crash
+_WNDENUMPROC_TYPE = None
+if sys.platform == "win32":
+    try:
+        import ctypes
+        _WNDENUMPROC_TYPE = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+    except Exception:
+        pass
+
+def find_eggdl_hwnd():
+    if sys.platform != "win32":
+        return None
+    try:
+        import ctypes
+        user32 = ctypes.windll.user32
+        hwnd = user32.FindWindowW(None, "EggDL - Ultra Turbo Downloader")
+        if hwnd:
+            return hwnd
+
+        found = []
+        def enum_cb(h, _):
+            length = user32.GetWindowTextLengthW(h)
+            if length > 0:
+                buff = ctypes.create_unicode_buffer(length + 1)
+                user32.GetWindowTextW(h, buff, length + 1)
+                if "EggDL" in buff.value:
+                    found.append(h)
+            return True
+
+        if _WNDENUMPROC_TYPE:
+            cb_ref = _WNDENUMPROC_TYPE(enum_cb)
+            user32.EnumWindows(cb_ref, 0)
+        return found[0] if found else None
+    except Exception:
+        return None
+
+def force_foreground_window(hwnd):
+    if not hwnd or sys.platform != "win32":
+        return
+    try:
+        import ctypes
+        user32 = ctypes.windll.user32
+        kernel32 = ctypes.windll.kernel32
+
+        user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+        user32.ShowWindow(hwnd, 5)  # SW_SHOW
+
+        fore_wnd = user32.GetForegroundWindow()
+        if fore_wnd:
+            fore_thread = user32.GetWindowThreadProcessId(fore_wnd, None)
+            curr_thread = kernel32.GetCurrentThreadId()
+            if fore_thread != curr_thread:
+                user32.AttachThreadInput(curr_thread, fore_thread, True)
+                user32.BringWindowToTop(hwnd)
+                user32.SetForegroundWindow(hwnd)
+                user32.AttachThreadInput(curr_thread, fore_thread, False)
+                return
+
+        user32.BringWindowToTop(hwnd)
+        user32.SetForegroundWindow(hwnd)
     except Exception:
         pass
 
@@ -61,47 +141,31 @@ def check_single_instance():
             import ctypes
             ERROR_ALREADY_EXISTS = 183
             kernel32 = ctypes.windll.kernel32
-            user32 = ctypes.windll.user32
             mutex_name = "Local\\EggDL_App_Single_Instance_Mutex"
             _INSTANCE_MUTEX = kernel32.CreateMutexW(None, False, mutex_name)
             if kernel32.GetLastError() == ERROR_ALREADY_EXISTS:
-                # 1. Try to wake and show the existing running instance
+                debug_log(f"[PID {os.getpid()}] Another instance detected via mutex. Attempting to wake...")
                 notified = False
                 try:
-                    with urllib.request.urlopen("http://127.0.0.1:8000/api/app/show_window", timeout=1.5) as resp:
+                    with urllib.request.urlopen("http://127.0.0.1:8000/api/app/show_window", timeout=2.0) as resp:
                         if resp.status == 200:
                             notified = True
-                except Exception:
-                    pass
+                            debug_log(f"[PID {os.getpid()}] Existing instance responded 200 to /api/app/show_window")
+                except Exception as net_err:
+                    debug_log(f"[PID {os.getpid()}] Could not ping running instance: {net_err}")
 
-                hwnd = user32.FindWindowW(None, "EggDL - Ultra Turbo Downloader")
-                if not hwnd:
-                    hwnds = []
-                    WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
-                    def enum_cb(h, _):
-                        length = user32.GetWindowTextLengthW(h)
-                        if length > 0:
-                            buff = ctypes.create_unicode_buffer(length + 1)
-                            user32.GetWindowTextW(h, buff, length + 1)
-                            if "EggDL" in buff.value:
-                                hwnds.append(h)
-                        return True
-                    user32.EnumWindows(WNDENUMPROC(enum_cb), 0)
-                    if hwnds:
-                        hwnd = hwnds[0]
-
+                hwnd = find_eggdl_hwnd()
                 if hwnd:
-                    user32.ShowWindow(hwnd, 9)  # SW_RESTORE
-                    user32.ShowWindow(hwnd, 5)  # SW_SHOW
-                    user32.SetForegroundWindow(hwnd)
-                    user32.BringWindowToTop(hwnd)
-                    notified = True
+                    debug_log(f"[PID {os.getpid()}] Found existing window HWND {hwnd}, forcing foreground")
+                    force_foreground_window(hwnd)
 
-                # If existing instance was successfully alerted and its window is active, exit this duplicate click cleanly
-                if notified and hwnd:
+                # If the running instance was contacted OR has an active window, this click was a wake request -> exit cleanly
+                if notified or hwnd:
+                    debug_log(f"[PID {os.getpid()}] Wake signal delivered successfully. Exiting duplicate instance.")
                     sys.exit(0)
 
-                # If no window exists (stale, zombie, or background headless instance), terminate it so we take over cleanly
+                # If NEITHER notified NOR hwnd: The background instance is an unresponsive zombie. Kill it and take over cleanly.
+                debug_log(f"[PID {os.getpid()}] Existing instance is unresponsive zombie without a window. Cleaning up...")
                 try:
                     import subprocess
                     current_pid = os.getpid()
@@ -114,15 +178,15 @@ def check_single_instance():
                                 subprocess.run(f"taskkill /F /PID {pid}", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 except Exception:
                     pass
-                time.sleep(0.4)
+                time.sleep(0.5)
                 if _INSTANCE_MUTEX:
                     try:
                         kernel32.CloseHandle(_INSTANCE_MUTEX)
                     except Exception:
                         pass
                 _INSTANCE_MUTEX = kernel32.CreateMutexW(None, False, mutex_name)
-        except Exception:
-            pass
+        except Exception as e:
+            debug_log(f"check_single_instance exception: {e}")
 
 # check_single_instance is invoked exclusively under __name__ == '__main__'
 
@@ -262,14 +326,19 @@ _IS_EXITING = False
 def on_open_eggdl(icon=None, item=None):
     show_main_window()
 
+_TARGET_URL = "http://localhost:8000/"
+
 def show_main_window():
-    global _MAIN_WINDOW
+    global _MAIN_WINDOW, _TARGET_URL
+    debug_log("show_main_window called")
+    shown = False
     if _MAIN_WINDOW:
         try:
             _MAIN_WINDOW.show()
             _MAIN_WINDOW.restore()
-        except Exception:
-            pass
+            shown = True
+        except Exception as e:
+            debug_log(f"_MAIN_WINDOW.show error: {e}")
         try:
             if hasattr(_MAIN_WINDOW, "native") and _MAIN_WINDOW.native:
                 form = _MAIN_WINDOW.native
@@ -280,36 +349,20 @@ def show_main_window():
                     form.Show()
                     form.BringToFront()
                     form.Activate()
-        except Exception:
-            pass
+                shown = True
+        except Exception as e:
+            debug_log(f"form Show error: {e}")
 
-    if sys.platform == "win32":
-        try:
-            import ctypes
-            user32 = ctypes.windll.user32
-            hwnd = user32.FindWindowW(None, "EggDL - Ultra Turbo Downloader")
-            if not hwnd:
-                hwnds = []
-                WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
-                def enum_cb(h, _):
-                    length = user32.GetWindowTextLengthW(h)
-                    if length > 0:
-                        buff = ctypes.create_unicode_buffer(length + 1)
-                        user32.GetWindowTextW(h, buff, length + 1)
-                        if "EggDL" in buff.value:
-                            hwnds.append(h)
-                    return True
-                user32.EnumWindows(WNDENUMPROC(enum_cb), 0)
-                if hwnds:
-                    hwnd = hwnds[0]
+    # Win32 bring to front
+    hwnd = find_eggdl_hwnd()
+    if hwnd:
+        force_foreground_window(hwnd)
+        shown = True
 
-            if hwnd:
-                user32.ShowWindow(hwnd, 9)  # SW_RESTORE
-                user32.ShowWindow(hwnd, 5)  # SW_SHOW
-                user32.SetForegroundWindow(hwnd)
-                user32.BringWindowToTop(hwnd)
-        except Exception:
-            pass
+    # If no window exists and app is running headless, launch browser fallback
+    if not shown and not _IS_EXITING:
+        debug_log("show_main_window: No window available, launching browser fallback")
+        threading.Thread(target=launch_browser_fallback, args=(_TARGET_URL,), daemon=True).start()
 
 def on_desktop_download_completed(task_dict):
     global _MAIN_WINDOW
@@ -507,6 +560,7 @@ def on_exit_app(icon=None, item=None):
     os._exit(0)
 
 def launch_browser_fallback(target_url: str):
+    debug_log(f"launch_browser_fallback called for {target_url}")
     import subprocess
     app_profile_dir = os.path.join(get_user_data_dir(), "BrowserAppProfile")
     os.makedirs(app_profile_dir, exist_ok=True)
@@ -532,11 +586,11 @@ def launch_browser_fallback(target_url: str):
                     "--disable-extensions",
                     "--disable-plugins"
                 ]
-                proc = subprocess.Popen(cmd)
-                proc.wait()
+                subprocess.Popen(cmd)
+                debug_log(f"Launched browser app mode with {browser_exe}")
                 return
             except Exception as e:
-                sys.stderr.write(f"[App Mode Note] {e}\n")
+                debug_log(f"Browser app mode failed for {browser_exe}: {e}")
 
     import webbrowser
     webbrowser.open(target_url)
@@ -563,16 +617,21 @@ class DesktopApi:
         return {"success": False, "error": "Update manager not found"}
 
 def main():
-    global _MAIN_WINDOW, _TRAY_ICON
+    global _MAIN_WINDOW, _TRAY_ICON, _TARGET_URL
+    debug_log(f"main() entered, is_frozen={getattr(sys, 'frozen', False)}, argv={sys.argv}")
     ensure_autostart_registry()
     is_tray_start = any(arg in sys.argv for arg in ["--tray", "--minimized", "--startup", "-t", "-m"])
+    debug_log(f"is_tray_start={is_tray_start}")
 
     port = find_available_port(8000)
+    debug_log(f"find_available_port selected port {port}")
     server_thread = threading.Thread(target=run_server, args=(port,), daemon=True)
     server_thread.start()
-    wait_for_server(port)
+    server_ok = wait_for_server(port)
+    debug_log(f"wait_for_server returned {server_ok}")
 
     target_url = f"http://localhost:{port}/"
+    _TARGET_URL = target_url
     icon_path = os.path.join(BUNDLE_DIR, "eggdl.ico")
     if not os.path.exists(icon_path):
         exe_dir = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else BASE_DIR
@@ -604,11 +663,15 @@ def main():
             menu=menu
         )
         _TRAY_ICON.run_detached()
+        debug_log("pystray tray icon initialized and run_detached called")
     except Exception as tray_err:
+        debug_log(f"Tray error: {tray_err}")
         sys.stderr.write(f"[Tray Init Note] {tray_err}\n")
 
     # Launch native webview on the Main Thread with DesktopApi native bridge
+    start_ts = time.time()
     try:
+        debug_log(f"Creating webview window pointing to {target_url} (hidden={is_tray_start})")
         import webview
         _MAIN_WINDOW = webview.create_window(
             title="EggDL - Ultra Turbo Downloader",
@@ -623,22 +686,54 @@ def main():
             js_api=DesktopApi()
         )
         _MAIN_WINDOW.events.closing += on_closing
-        webview.start(debug=False, icon=icon_path if os.path.exists(icon_path) else None)
+
+        def on_window_shown():
+            debug_log("events.shown fired - bringing window to foreground")
+            show_main_window()
+
+        _MAIN_WINDOW.events.shown += on_window_shown
+
+        # Also schedule a watchdog to bring to foreground at 1.5s after start
+        def focus_watchdog():
+            time.sleep(1.5)
+            if not is_tray_start:
+                debug_log("focus_watchdog running show_main_window()")
+                show_main_window()
+
+        threading.Thread(target=focus_watchdog, daemon=True).start()
+
+        ico_arg = icon_path if (os.path.exists(icon_path) and icon_path.lower().endswith(".ico")) else None
+        debug_log(f"Calling webview.start(icon={ico_arg})")
+        storage_dir = os.path.join(get_user_data_dir(), "WebViewData")
+        os.makedirs(storage_dir, exist_ok=True)
+        webview.start(private_mode=False, storage_path=storage_dir, debug=False, icon=ico_arg)
+        debug_log(f"webview.start() returned after {time.time() - start_ts:.2f}s")
     except Exception as err:
+        debug_log(f"WebView Exception: {err}")
         sys.stderr.write(f"[WebView Note] {err}\n")
         if not is_tray_start:
             launch_browser_fallback(target_url)
 
+    # Fallback watchdog: If webview.start returned in under 5 seconds without user exit, pywebview failed!
+    if not _IS_EXITING and not is_tray_start and (time.time() - start_ts < 5.0):
+        debug_log("webview.start() exited prematurely (<5s)! Triggering browser fallback...")
+        launch_browser_fallback(target_url)
+
     # Keep background server and tray running until user explicitly exits
+    debug_log(f"Entering background loop, _IS_EXITING={_IS_EXITING}")
     if not _IS_EXITING:
         try:
             while not _IS_EXITING:
                 time.sleep(1)
-        except (KeyboardInterrupt, SystemExit):
+        except (KeyboardInterrupt, SystemExit) as exit_err:
+            debug_log(f"Exiting background loop: {exit_err}")
             sys.exit(0)
 
 if __name__ == "__main__":
+    debug_log(f"__main__ reached, PID={os.getpid()}")
     import multiprocessing
     multiprocessing.freeze_support()
     check_single_instance()
+    debug_log(f"check_single_instance passed, PID={os.getpid()}")
     main()
+

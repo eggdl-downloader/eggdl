@@ -57,6 +57,16 @@ var
 begin
   // Forcefully terminate any running EggDL instances before installation/update
   Exec('taskkill.exe', '/F /IM EggDL.exe', '', SW_HIDE, ewWaitUntilTerminated, ErrorCode);
+  Sleep(400);
+  Result := True;
+end;
+
+function InitializeUninstall(): Boolean;
+var
+  ErrorCode: Integer;
+begin
+  Exec('taskkill.exe', '/F /IM EggDL.exe', '', SW_HIDE, ewWaitUntilTerminated, ErrorCode);
+  Sleep(400);
   Result := True;
 end;
 
