@@ -793,6 +793,8 @@ async def activate_machine_key(req: MachineKeyActivateRequest):
     if not key:
         raise HTTPException(status_code=400, detail="Please enter a valid product key.")
         
+    info = get_machine_info()
+
     # 1. Try local activation first
     try:
         updated_status = activate_product_key_for_device(dev_id, key)
@@ -812,6 +814,8 @@ async def activate_machine_key(req: MachineKeyActivateRequest):
                 "app_version": APP_CURRENT_VERSION,
                 "is_pro": True,
                 "plan_type": plan_type,
+                "days_remaining": updated_status.get("days_remaining", 9999),
+                "plan_expires_at": updated_status.get("plan_expires_at"),
                 "is_blocked": False,
                 "license_key": key,
                 "last_seen": datetime.now().isoformat()
@@ -825,7 +829,15 @@ async def activate_machine_key(req: MachineKeyActivateRequest):
             urllib.request.urlopen(patch_req, timeout=3.0)
         except Exception:
             pass
-            
+
+        broadcast_sync({
+            "type": "license_updated",
+            "is_pro": True,
+            "plan_type": plan_type,
+            "days_remaining": updated_status.get("days_remaining", 9999),
+            "license": updated_status
+        })
+
         return {
             "success": True,
             "message": f"✨ Product key activated successfully for this PC ({updated_status.get('desktop_name')})!",
@@ -874,6 +886,11 @@ async def activate_machine_key(req: MachineKeyActivateRequest):
                         )
                         urllib.request.urlopen(bind_req, timeout=3.0)
 
+                        # Grant Pro locally first so we have accurate dates and days remaining
+                        updated_status = grant_device_pro(dev_id, plan_type=plan_t, duration_days=duration)
+                        create_license_key(key, plan_t, duration)
+                        plan_info = PLAN_CONFIGS.get(plan_t, PLAN_CONFIGS["lifetime"])
+
                         # Update device state in Firebase
                         clean_dev_id = dev_id.replace("/", "_").replace(".", "_")
                         dev_url = f"{FIREBASE_DB_URL}/devices/{clean_dev_id}.json"
@@ -885,6 +902,8 @@ async def activate_machine_key(req: MachineKeyActivateRequest):
                             "app_version": APP_CURRENT_VERSION,
                             "is_pro": True,
                             "plan_type": plan_t,
+                            "days_remaining": updated_status.get("days_remaining", duration),
+                            "plan_expires_at": updated_status.get("plan_expires_at"),
                             "is_blocked": False,
                             "license_key": key,
                             "last_seen": datetime.now().isoformat()
@@ -897,10 +916,13 @@ async def activate_machine_key(req: MachineKeyActivateRequest):
                         )
                         urllib.request.urlopen(patch_req, timeout=3.0)
 
-                        # Grant Pro locally
-                        updated_status = grant_device_pro(dev_id, plan_type=plan_t, duration_days=duration)
-                        create_license_key(key, plan_t, duration)
-                        plan_info = PLAN_CONFIGS.get(plan_t, PLAN_CONFIGS["lifetime"])
+                        broadcast_sync({
+                            "type": "license_updated",
+                            "is_pro": True,
+                            "plan_type": plan_t,
+                            "days_remaining": updated_status.get("days_remaining", duration),
+                            "license": updated_status
+                        })
                         return {
                             "success": True,
                             "message": f"✨ Product key verified with Cloud & activated successfully for this PC ({updated_status.get('desktop_name')})!",
@@ -910,8 +932,8 @@ async def activate_machine_key(req: MachineKeyActivateRequest):
                         }
         except HTTPException:
             raise
-        except Exception:
-            pass
+        except Exception as cloud_err:
+            print(f"[CloudLicenseActivate Error]: {cloud_err}")
 
         raise HTTPException(status_code=400, detail=str(local_err))
 
