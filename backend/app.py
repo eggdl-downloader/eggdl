@@ -2434,27 +2434,37 @@ class UpdateDownloadManager:
             else:
                 raise Exception("Update installer is not ready.")
 
-        # Detached batch script to wait for clean exit, terminate old process, run installer, and restart
+        # 100% Silent detached updater runner without console windows or ping commands
+        CREATE_NO_WINDOW = 0x08000000
+        flags = CREATE_NO_WINDOW if os.name == 'nt' else 0
+
         try:
             import tempfile
-            bat_path = os.path.join(tempfile.gettempdir(), "eggdl_apply_update.bat")
-            with open(bat_path, "w", encoding="utf-8") as f:
-                f.write(f'''@echo off
-ping 127.0.0.1 -n 2 > nul
-taskkill /F /IM EggDL.exe > nul 2>&1
-start "" /wait "{target_exe}" /VERYSILENT /SUPPRESSMSGBOXES /SP- /CLOSEAPPLICATIONS /FORCECLOSEAPPLICATIONS /NORESTART
-ping 127.0.0.1 -n 2 > nul
-set "NEW_EXE=%LOCALAPPDATA%\\EggDL\\EggDL.exe"
-if exist "%NEW_EXE%" (
-    start "" "%NEW_EXE%"
-)
-del "%~f0"
+            vbs_path = os.path.join(tempfile.gettempdir(), "eggdl_silent_update.vbs")
+            with open(vbs_path, "w", encoding="utf-8") as f:
+                f.write(f'''Option Explicit
+Dim WshShell, newExe, fso
+Set WshShell = CreateObject("WScript.Shell")
+WScript.Sleep 1000
+On Error Resume Next
+WshShell.Run "taskkill /F /IM EggDL.exe", 0, True
+WshShell.Run """{target_exe}"" /VERYSILENT /SUPPRESSMSGBOXES /SP- /CLOSEAPPLICATIONS /FORCECLOSEAPPLICATIONS /NORESTART", 0, True
+WScript.Sleep 1000
+newExe = WshShell.ExpandEnvironmentStrings("%LOCALAPPDATA%\\EggDL\\EggDL.exe")
+WshShell.Run """" & newExe & """", 1, False
+Set fso = CreateObject("Scripting.FileSystemObject")
+If fso.FileExists(WScript.ScriptFullName) Then fso.DeleteFile WScript.ScriptFullName, True
 ''')
-            flags = subprocess.DETACHED_PROCESS if os.name == 'nt' else 0
-            subprocess.Popen(["cmd.exe", "/c", bat_path], creationflags=flags, close_fds=True)
-        except Exception:
-            flags = subprocess.DETACHED_PROCESS if os.name == 'nt' else 0
-            subprocess.Popen([target_exe, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/SP-", "/CLOSEAPPLICATIONS", "/FORCECLOSEAPPLICATIONS"], creationflags=flags, close_fds=True)
+            wscript_exe = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "wscript.exe")
+            if not os.path.exists(wscript_exe):
+                wscript_exe = "wscript.exe"
+            subprocess.Popen([wscript_exe, "//B", "//Nologo", vbs_path], creationflags=flags, close_fds=True)
+        except Exception as vbs_err:
+            print(f"[SilentUpdate Error]: {vbs_err}")
+            try:
+                subprocess.Popen([target_exe, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/SP-", "/CLOSEAPPLICATIONS", "/FORCECLOSEAPPLICATIONS"], creationflags=flags, close_fds=True)
+            except Exception:
+                pass
 
         # Allow FastAPI to cleanly deliver the HTTP response before process exits
         def _delayed_exit():

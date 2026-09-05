@@ -445,13 +445,13 @@ def on_restart_app(icon=None, item=None):
         import subprocess
         if getattr(sys, 'frozen', False):
             exe_path = sys.executable
-            cmd = f'ping 127.0.0.1 -n 2 > nul & start "" "{exe_path}"'
+            cmd = f'timeout /t 1 /nobreak > nul 2>&1 & start "" "{exe_path}"'
         else:
             py_exe = sys.executable.replace("python.exe", "pythonw.exe")
             if not os.path.exists(py_exe):
                 py_exe = sys.executable
             script_path = os.path.abspath(sys.argv[0])
-            cmd = f'ping 127.0.0.1 -n 2 > nul & start "" "{py_exe}" "{script_path}"'
+            cmd = f'timeout /t 1 /nobreak > nul 2>&1 & start "" "{py_exe}" "{script_path}"'
 
         subprocess.Popen(cmd, shell=True, creationflags=0x08000000)
     except Exception as e:

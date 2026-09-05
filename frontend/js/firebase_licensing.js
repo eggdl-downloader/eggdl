@@ -101,8 +101,10 @@ const FirebaseLicensing = {
       if (changed && window.UI) {
         UI.renderUserProfile(App.authData);
         if (isPro) {
-          UI.showToast('👑 Pro Activated by Master Admin!', 'success');
-          UI.closeAccountModal();
+          if (!window.App?._isActivatingKey) {
+            UI.showToast('👑 Pro Activated by Master Admin!', 'success');
+            UI.closeAccountModal();
+          }
         } else if (planType === 'expired') {
           UI.showToast('⚠️ License status changed: Expired', 'warning');
         }

@@ -405,8 +405,8 @@ const App = {
       }
       UI.renderUserProfile(this.authData);
       if (msg.is_pro) {
-        if (!wasPro) UI.showToast('👑 Pro License Activated by Administrator!', 'success');
-        UI.closeAccountModal();
+        if (!wasPro && !this._isActivatingKey) UI.showToast('👑 Pro License Activated by Administrator!', 'success');
+        if (!this._isActivatingKey) UI.closeAccountModal();
       } else {
         UI.showToast('ℹ️ License status updated: ' + this.authData.plan_type, 'info');
       }
@@ -1506,6 +1506,7 @@ const App = {
     }
 
     try {
+      this._isActivatingKey = true;
       if (btn) btn.disabled = true;
       const machineId = this.authData?.machine?.machine_id || this.authData?.user?.id || (typeof API !== 'undefined' ? API.getOrCreateDeviceId() : '');
       const res = await API.activateMachineKey(key, machineId);
@@ -1519,8 +1520,12 @@ const App = {
         
         // Refresh authentication & hardware state immediately
         await this.initAuth();
-        UI.openAccountModal(this.authData);
         if (typeof this.updateStats === 'function') this.updateStats();
+
+        // Close the modal cleanly after showing success checkmark - DO NOT re-open!
+        setTimeout(() => {
+          UI.closeAccountModal();
+        }, 1200);
       }
     } catch (e) {
       if (feedbackMsg) {
@@ -1530,6 +1535,9 @@ const App = {
       }
     } finally {
       if (btn) btn.disabled = false;
+      setTimeout(() => {
+        this._isActivatingKey = false;
+      }, 2000);
     }
   },
 
