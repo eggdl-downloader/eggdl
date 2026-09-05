@@ -664,7 +664,7 @@ i.spin,
 /* Top Bar */
 .topbar {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   gap: 16px;
   padding: 2px 0 14px 0;
@@ -821,6 +821,7 @@ i.spin,
   -webkit-backdrop-filter: none;
   box-shadow: var(--shadow-sm);
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 /* Theme Switcher Native Utility Control */
@@ -2840,10 +2841,12 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   cursor: pointer;
   color: var(--text-main);
   font-family: var(--font-sans);
-  font-size: 0.82rem;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 500;
   transition: all 0.12s ease;
   outline: none;
+  height: 30px;
+  box-sizing: border-box;
 }
 
 .user-pill-btn:hover {
@@ -2851,40 +2854,69 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   border-color: var(--border-bright);
 }
 
+.user-pill-btn .user-name {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: #F0F6FC;
+  letter-spacing: 0.01em;
+}
+
 .user-avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: var(--radius-xs);
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
   background: var(--bg-surface-active);
   border: 1px solid var(--border-default);
   color: var(--accent-primary);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.76rem;
-  font-weight: 700;
+  font-size: 0.72rem;
+  flex-shrink: 0;
 }
 
+/* Elegant Pro Micro-Badge:
+   Height: 20px, border-radius: 4px
+   Font: Geist / Inter, 10.5px, font-weight: 600, letter-spacing: 0.05em, uppercase
+   Padding: 2px 6px */
 .user-plan-badge {
-  font-size: 0.68rem;
-  font-weight: 700;
-  padding: 1px 6px;
-  border-radius: var(--radius-xs);
-  background: var(--bg-input);
-  color: var(--accent-primary);
-  border: 1px solid var(--border-default);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  line-height: 1;
+  box-sizing: border-box;
+  white-space: nowrap;
 }
 
+/* Subtle Warm Amber Gold Palette for Pro */
+.user-plan-badge.pro,
 .user-plan-badge.lifetime {
-  background: var(--accent-amber-bg);
-  color: #FBBF24;
-  border-color: rgba(245, 158, 11, 0.4);
+  background: #252016 !important;
+  border: 1px solid #483A20 !important;
+  color: #FBBF24 !important;
 }
 
-.user-plan-badge.pro {
-  background: var(--accent-emerald-bg);
-  color: #34D399;
-  border-color: rgba(16, 185, 129, 0.35);
+/* Solid Dark Slate Palette for Trial */
+.user-plan-badge.trial {
+  background: #1E222A !important;
+  border: 1px solid #2F3746 !important;
+  color: #94A3B8 !important;
+}
+
+/* Expired Badge */
+.user-plan-badge.expired {
+  background: #2D1718 !important;
+  border: 1px solid #5C2B30 !important;
+  color: #F87171 !important;
 }
 
 /* Google OAuth Button */

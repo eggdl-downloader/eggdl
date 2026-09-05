@@ -857,12 +857,25 @@ const UI = {
       if (stored && !stored.toLowerCase().includes('guest') && stored !== 'DESKTOP-PC' && stored !== 'WEB-CLIENT') {
         desktopName = stored;
       } else {
-        desktopName = typeof API !== 'undefined' ? API.getDeviceName() : 'SRIMAN';
+        desktopName = typeof API !== 'undefined' ? API.getDeviceName() : 'Sriman';
       }
     }
     if (desktopName.startsWith('DESKTOP-WIN-') && machine.desktop_name && !machine.desktop_name.startsWith('DESKTOP-WIN-')) {
       desktopName = machine.desktop_name;
     }
+
+    // Format to clean Title Case (e.g. SRIMAN -> Sriman)
+    const formatTitleCase = (str) => {
+      if (!str) return 'Sriman';
+      const clean = str.trim();
+      if (clean.toUpperCase() === 'SRIMAN') return 'Sriman';
+      if (clean.toUpperCase() === 'DESKTOP-PC' || clean.toUpperCase() === 'WEB-CLIENT') return 'Sriman';
+      if (clean === clean.toUpperCase() && !clean.includes(' ') && !clean.includes('-')) {
+        return clean.charAt(0).toUpperCase() + clean.slice(1).toLowerCase();
+      }
+      return clean.charAt(0).toUpperCase() + clean.slice(1);
+    };
+    const formattedName = formatTitleCase(desktopName);
 
     const isPro = authData && authData.is_pro;
     const isTrial = authData && authData.is_trial;
@@ -870,26 +883,30 @@ const UI = {
     const daysLeft = authData && authData.days_remaining;
 
     let badgeClass = 'user-plan-badge trial';
-    let badgeText = `⏳ ${trialDaysLeft}d Trial Left`;
+    let badgeText = 'TRIAL';
 
     if (user.plan_type === 'lifetime' || (isPro && (!daysLeft || daysLeft >= 36500))) {
-      badgeClass = 'user-plan-badge lifetime';
-      badgeText = '👑 Pro Lifetime';
+      badgeClass = 'user-plan-badge pro lifetime';
+      badgeText = 'PRO';
     } else if (isPro) {
       badgeClass = 'user-plan-badge pro';
-      badgeText = `⚡ Pro (${daysLeft}d Left)`;
+      badgeText = 'PRO';
     } else if (isTrial && !authData.trial_expired) {
       badgeClass = 'user-plan-badge trial';
-      badgeText = `⏳ 7-Day Trial (${trialDaysLeft}d Left)`;
+      badgeText = 'TRIAL';
     } else {
       badgeClass = 'user-plan-badge expired';
-      badgeText = `⚠️ Trial Expired`;
+      badgeText = 'EXPIRED';
     }
 
+    const titleTooltip = isPro 
+      ? `Pro Active (${daysLeft || 30} days remaining) • Click to view license details`
+      : `Trial Active (${trialDaysLeft} days remaining) • Click to view license details`;
+
     container.innerHTML = `
-      <button class="user-pill-btn" id="user-profile-btn" title="Click to view License & Registration">
-        <div class="user-avatar"><i data-lucide="monitor" style="width: 14px; height: 14px;"></i></div>
-        <span class="user-name">${desktopName}</span>
+      <button class="user-pill-btn" id="user-profile-btn" title="${titleTooltip}">
+        <div class="user-avatar"><i data-lucide="monitor" style="width: 13px; height: 13px;"></i></div>
+        <span class="user-name">${formattedName}</span>
         <span class="${badgeClass}">${badgeText}</span>
       </button>
     `;
@@ -949,21 +966,32 @@ const UI = {
     const keyInput = document.getElementById('license-key-input');
     const feedbackMsg = document.getElementById('license-feedback-msg');
 
-    if (nameEl) nameEl.innerText = desktopName;
+    const formatTitleCase = (str) => {
+      if (!str) return 'Sriman';
+      const clean = str.trim();
+      if (clean.toUpperCase() === 'SRIMAN') return 'Sriman';
+      if (clean.toUpperCase() === 'DESKTOP-PC' || clean.toUpperCase() === 'WEB-CLIENT') return 'Sriman';
+      if (clean === clean.toUpperCase() && !clean.includes(' ') && !clean.includes('-')) {
+        return clean.charAt(0).toUpperCase() + clean.slice(1).toLowerCase();
+      }
+      return clean.charAt(0).toUpperCase() + clean.slice(1);
+    };
+
+    if (nameEl) nameEl.innerText = formatTitleCase(desktopName);
     if (machineIdEl) machineIdEl.innerText = machineId;
     if (keyInput) keyInput.value = '';
     if (feedbackMsg) feedbackMsg.style.display = 'none';
 
     if (pillEl) {
-      if (user.plan_type === 'lifetime') {
+      if (user.plan_type === 'lifetime' || (isPro && (!daysLeft || daysLeft >= 36500))) {
         pillEl.className = 'plan-pill lifetime';
-        pillEl.innerHTML = '👑 Ultimate Pass • Lifetime VIP (Unlimited Downloads)';
+        pillEl.innerHTML = '<span class="user-plan-badge pro" style="margin-right: 8px;">PRO</span> Ultimate Pass • Lifetime VIP (Unlimited Downloads)';
       } else if (isPro) {
         pillEl.className = 'plan-pill pro';
-        pillEl.innerHTML = `⚡ ${plan.name || 'Pro'} • ${daysLeft} Days Remaining (Unlimited Downloads)`;
+        pillEl.innerHTML = `<span class="user-plan-badge pro" style="margin-right: 8px;">PRO</span> ${plan.name || 'Pro Plan'} • ${daysLeft ? `${daysLeft} Days Remaining` : 'Active'} (Unlimited Downloads)`;
       } else if (authData?.is_trial) {
         pillEl.className = 'plan-pill trial';
-        pillEl.innerHTML = `⏳ 7-Day Free Trial • ${authData.trial_days_remaining} Days Remaining (Unlimited Downloads)`;
+        pillEl.innerHTML = `<span class="user-plan-badge trial" style="margin-right: 8px;">TRIAL</span> 7-Day Trial • ${authData.trial_days_remaining || 7} Days Remaining`;
       } else {
         pillEl.className = 'plan-pill expired';
         pillEl.innerHTML = `⚠️ Free Trial Expired • Enter Product Key or Purchase Plan Below`;
