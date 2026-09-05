@@ -907,5 +907,41 @@
     "used_by_user_id": null,
     "activated_at": null,
     "created_at": "2026-09-05T00:58:54.825941"
+  },
+  {
+    "key": "EGGDL-3M-79D9-DC42-DA2E",
+    "plan_type": "3month",
+    "duration_days": 90,
+    "is_used": 0,
+    "used_by_user_id": null,
+    "activated_at": null,
+    "created_at": "2026-09-05T01:24:16.970640"
+  },
+  {
+    "key": "EGGDL-3M-284D-C657-7E0C",
+    "plan_type": "3month",
+    "duration_days": 90,
+    "is_used": 0,
+    "used_by_user_id": null,
+    "activated_at": null,
+    "created_at": "2026-09-05T19:47:30.046842"
+  },
+  {
+    "key": "EGGDL-1M-1354-3219-2EE4",
+    "plan_type": "1month",
+    "duration_days": 30,
+    "is_used": 0,
+    "used_by_user_id": null,
+    "activated_at": null,
+    "created_at": "2026-09-05T21:10:41.844836"
+  },
+  {
+    "key": "EGGDL-TEST-DEBUG-9999",
+    "plan_type": "1month",
+    "duration_days": 30,
+    "is_used": 0,
+    "used_by_user_id": null,
+    "activated_at": null,
+    "created_at": "2026-09-05T21:14:45.970714"
   }
 ]

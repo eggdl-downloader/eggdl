@@ -300,7 +300,7 @@ const API = {
   },
 
   async checkVersion() {
-    let currentVer = '2.1.7';
+    let currentVer = '2.1.8';
     let localData = null;
 
     // 1. Try local server with fast 2.5s timeout

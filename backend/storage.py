@@ -290,7 +290,7 @@ def init_db():
     # Initialize default app release if not present
     cursor.execute("""
     INSERT OR REPLACE INTO app_releases (version, release_notes, download_url, mandatory, is_active)
-    VALUES ('2.1.7', '⚡ Ultra-Fast Native MP4 Engine\n🚀 Instant Single-File Output & Zero 99% Lag\n🎬 4K/8K stream download optimizations.', 'https://raw.githubusercontent.com/eggdl-downloader/eggdl/main/frontend/downloads/EggDL_Setup.exe', 0, 1)
+    VALUES ('2.1.8', '⚡ Ultra-Fast Native MP4 Engine\n🚀 Instant Single-File Output & Zero 99% Lag\n👑 Cloud Product Key Activation & Real-Time Sync\n🎬 4K/8K stream download optimizations.', 'https://raw.githubusercontent.com/eggdl-downloader/eggdl/main/frontend/downloads/EggDL_Setup.exe', 0, 1)
     """)
 
     # Load persistent devices & keys registry so subscription & product keys are NEVER lost across restarts/deploys
@@ -1222,14 +1222,14 @@ def get_latest_app_release() -> Dict[str, Any]:
     conn.close()
     if row:
         d = dict(row)
-        if d.get("version") in ("2.0.0", "2.1.0", "2.1.1", "2.1.2", "2.1.3", "2.1.4", "2.1.5", "2.1.6"):
-            d["version"] = "2.1.7"
-            d["release_notes"] = "⚡ Ultra-Fast Native MP4 Engine\n🚀 Instant Single-File Output & Zero 99% Lag\n🎨 Glassmorphic Toast UI & Custom Filename Preservation\n🎬 4K/8K stream download optimizations."
+        if d.get("version") in ("2.0.0", "2.1.0", "2.1.1", "2.1.2", "2.1.3", "2.1.4", "2.1.5", "2.1.6", "2.1.7"):
+            d["version"] = "2.1.8"
+            d["release_notes"] = "⚡ Ultra-Fast Native MP4 Engine\n🚀 Instant Single-File Output & Zero 99% Lag\n👑 Cloud Product Key Activation & Real-Time Sync\n🎬 4K/8K stream download optimizations."
             d["download_url"] = "https://raw.githubusercontent.com/eggdl-downloader/eggdl/main/frontend/downloads/EggDL_Setup.exe"
         return d
     return {
-        "version": "2.1.7",
-        "release_notes": "⚡ Ultra-Fast Native MP4 Engine\n🚀 Instant Single-File Output & Zero 99% Lag\n🎨 Glassmorphic Toast UI & Custom Filename Preservation\n🎬 4K/8K stream download optimizations.",
+        "version": "2.1.8",
+        "release_notes": "⚡ Ultra-Fast Native MP4 Engine\n🚀 Instant Single-File Output & Zero 99% Lag\n👑 Cloud Product Key Activation & Real-Time Sync\n🎬 4K/8K stream download optimizations.",
         "download_url": "https://raw.githubusercontent.com/eggdl-downloader/eggdl/main/frontend/downloads/EggDL_Setup.exe",
         "mandatory": 0
     }
