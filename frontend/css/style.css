@@ -4052,7 +4052,6 @@ html, body {
   }
 
   .topbar-actions .theme-select-wrapper,
-  .topbar-actions #install-pwa-btn,
   .topbar-actions #open-folder-btn,
   .topbar-actions #clear-all-btn {
     display: none !important;
