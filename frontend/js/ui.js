@@ -492,12 +492,13 @@ const UI = {
       const isFailedOrCanceled = effectiveStatus === 'canceled' || effectiveStatus === 'stopped' || effectiveStatus === 'error';
       const statusClass = (effectiveStatus === 'stopped') ? 'canceled' : effectiveStatus;
       
-      let statusLabel = effectiveStatus;
+      let statusLabel = `<span>${effectiveStatus}</span>`;
       if (effectiveStatus === 'completed') statusLabel = '<i data-lucide="check"></i> <span>Completed</span>';
       else if (effectiveStatus === 'downloading') statusLabel = '<i data-lucide="download"></i> <span>Downloading</span>';
       else if (effectiveStatus === 'paused') statusLabel = '<i data-lucide="pause"></i> <span>Paused</span>';
-      else if (effectiveStatus === 'error') statusLabel = '<i data-lucide="x"></i> <span>Error</span>';
-      else if (effectiveStatus === 'canceled' || effectiveStatus === 'stopped') statusLabel = '<i data-lucide="x-circle"></i> <span>Canceled</span>';
+      else if (effectiveStatus === 'canceled' || effectiveStatus === 'stopped') statusLabel = '<i data-lucide="x"></i> <span>Canceled</span>';
+      else if (effectiveStatus === 'error') statusLabel = '<i data-lucide="alert-circle"></i> <span>Error</span>';
+      else if (effectiveStatus === 'queued') statusLabel = '<i data-lucide="clock"></i> <span>Queued</span>';
       
       const title = item.title || item.filename || 'Download';
       const cleanUrl = (item.url && item.url.startsWith('data:')) ? 'data:image/... [Embedded Image Data]' : (item.url || '');
