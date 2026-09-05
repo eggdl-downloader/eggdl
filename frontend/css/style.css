@@ -2944,18 +2944,19 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   white-space: nowrap;
 }
 
-/* Premium Pro Badge (Emerald Aesthetic - Clean Typography & No Bolt Icon) */
+/* Premium Pro Badge (Option 1: Minimal Emerald PRO Micro-Badge) */
 .user-plan-badge {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  height: 22px !important;
-  padding: 0 8px !important;
-  border-radius: 5px !important;
+  height: 20px !important;
+  padding: 0 7px !important;
+  border-radius: 4px !important;
   font-family: var(--font-sans) !important;
-  font-size: 0.72rem !important;
-  font-weight: 600 !important;
-  letter-spacing: 0.01em !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
   line-height: 1 !important;
   box-sizing: border-box !important;
   white-space: nowrap !important;

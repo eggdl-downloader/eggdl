@@ -886,20 +886,20 @@ const UI = {
     const planName = this.getPlanDisplayName(rawPlanType);
 
     let badgeClass = 'user-plan-badge trial';
-    let badgeText = `Trial (${trialDaysLeft}d Left)`;
+    let badgeText = 'TRIAL';
 
     if (user.plan_type === 'lifetime' || (isPro && (!daysLeft || daysLeft >= 36500))) {
       badgeClass = 'user-plan-badge pro lifetime';
-      badgeText = 'Pro Lifetime';
+      badgeText = 'PRO';
     } else if (isPro) {
       badgeClass = 'user-plan-badge pro';
-      badgeText = `Pro (${daysLeft}d Left)`;
+      badgeText = 'PRO';
     } else if (isTrial && !authData.trial_expired) {
       badgeClass = 'user-plan-badge trial';
-      badgeText = `Trial (${trialDaysLeft}d Left)`;
+      badgeText = 'TRIAL';
     } else {
       badgeClass = 'user-plan-badge expired';
-      badgeText = 'Trial Expired';
+      badgeText = 'EXPIRED';
     }
 
     const titleTooltip = isPro 
