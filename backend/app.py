@@ -2961,6 +2961,11 @@ async def admin_block_device(req: BlockDeviceRequest):
         raise HTTPException(status_code=403, detail="Invalid Master Admin Key")
     set_device_blocked(req.device_id, blocked=req.blocked, reason=req.reason or "Access revoked by admin")
     clean_id = req.device_id.replace("/", "_").replace(".", "_")
+    if req.device_id == get_device_id():
+        if req.blocked:
+            broadcast_sync({"type": "device_blocked", "reason": req.reason or "Access revoked by admin"})
+        else:
+            broadcast_sync({"type": "device_unblocked"})
     try:
         import urllib.request
         patch_req = urllib.request.Request(

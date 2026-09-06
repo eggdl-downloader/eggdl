@@ -209,13 +209,7 @@ const UI = {
   showSettingsSavedNotification(folderPath) {
     if (!folderPath) return;
 
-    // 1. Play the signature techy completion sound
-    try {
-      this._lastSoundPlayTime = 0; // Bypass cooldown so user action always triggers sound
-      this.playTechyCompletionSound();
-    } catch (_) {}
-
-    // 2. Render rich in-app notification card matching the completion card
+    // Render rich in-app notification card matching the completion card (silent, no download audio)
     const container = document.getElementById('download-notification-container');
     if (!container) return;
 
@@ -302,13 +296,7 @@ const UI = {
   },
 
   showPreferencesSavedNotification(codecLabel, enabled) {
-    // 1. Play signature techy completion sound
-    try {
-      this._lastSoundPlayTime = 0;
-      this.playTechyCompletionSound();
-    } catch (_) {}
-
-    // 2. Render rich in-app notification card matching the completion popup
+    // Render rich in-app notification card matching the completion popup (silent, no download audio)
     const container = document.getElementById('download-notification-container');
     if (!container) return;
 

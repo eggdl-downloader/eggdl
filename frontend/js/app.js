@@ -378,9 +378,14 @@ const App = {
         UI.openAccountModal(this.authData, true);
       }
       if (msg.is_pro) {
-        if (!wasPro && !this._isActivatingKey) UI.showToast('👑 Pro License Activated by Administrator!', 'success');
+        if (!this._isActivatingKey) {
+          const planLabel = (msg.plan_type || 'Pro').toUpperCase();
+          UI.showToast(`👑 Pro Plan Activated by Administrator (${planLabel})`, 'success', 8000);
+        }
+      } else if (msg.plan_type === 'trial') {
+        UI.showToast('⏳ 7-Day Free Trial updated by Administrator', 'info', 7000);
       } else {
-        UI.showToast('ℹ️ License status updated: ' + this.authData.plan_type, 'info');
+        UI.showToast('⚠️ Pro License revoked by Administrator', 'warning', 7000);
       }
     } else if (msg.type === 'device_blocked') {
       if (!this.authData) this.authData = {};
@@ -388,6 +393,7 @@ const App = {
       this.authData.can_download = false;
       this.authData.is_pro = false;
       UI.renderDeviceSuspended(msg.reason || 'Access suspended by master administrator.');
+      UI.showToast(`🚨 Device blocked and terminated by Administrator: ${msg.reason || 'Access suspended'}`, 'error', 12000);
     } else if (msg.type === 'device_unblocked') {
       const wasBlocked = !!(this.authData && this.authData.is_blocked);
       if (this.authData) {
@@ -395,9 +401,7 @@ const App = {
         this.authData.can_download = true;
       }
       UI.removeDeviceSuspended();
-      if (wasBlocked) {
-        UI.showToast('✅ Device access restored by administrator', 'success');
-      }
+      UI.showToast('✅ Device access restored by Administrator', 'success', 7000);
     }
   },
 
@@ -1039,17 +1043,16 @@ const App = {
     const segments = parseInt(document.getElementById('setting-segments')?.value || 8);
     const maxActive = parseInt(document.getElementById('setting-max-active')?.value || 3);
 
-    // Instant premium tactile feedback - NO loading spinner, NO lag!
-    const origHtml = saveBtn ? saveBtn.innerHTML : '';
+    // Instant premium tactile feedback - locked size, clean text only (NO tick icon)
     if (saveBtn) {
       saveBtn.classList.add('btn-saved-pulse');
-      saveBtn.innerHTML = '<i data-lucide="check-check"></i> Saved!';
-      if (window.lucide) window.lucide.createIcons();
+      saveBtn.textContent = 'Saved!';
     }
 
-    // Play signature techy chime and show rich card notification immediately
+    // Right downside toast notification for saved preferences (silent, no download audio)
+    UI.showToast('Saved preferences', 'success', 4000);
+
     const savedDir = dlDir || this.settings?.download_dir;
-    UI.showSettingsSavedNotification(savedDir);
 
     try {
       const res = await API.saveSettings({
@@ -1071,8 +1074,7 @@ const App = {
       document.getElementById('settings-modal').style.display = 'none';
       if (saveBtn) {
         saveBtn.classList.remove('btn-saved-pulse');
-        saveBtn.innerHTML = origHtml;
-        if (window.lucide) window.lucide.createIcons();
+        saveBtn.textContent = 'Save Settings';
       }
     }, 280);
   },
@@ -1132,19 +1134,14 @@ const App = {
     const enabled = Boolean(toggle?.checked);
     const selectedCodec = document.querySelector('input[name="video_codec_selection"]:checked')?.value || 'h264';
 
-    // Instant premium tactile feedback - NO loading spinner, NO lag!
-    const origHtml = saveBtn ? saveBtn.innerHTML : '';
+    // Instant premium tactile feedback - locked size, clean text only (NO tick icon)
     if (saveBtn) {
       saveBtn.classList.add('btn-saved-pulse');
-      saveBtn.innerHTML = '<i data-lucide="check-check"></i> Saved!';
-      if (window.lucide) window.lucide.createIcons();
+      saveBtn.textContent = 'Saved!';
     }
 
-    // Play signature audio chime & rich notification card immediately
-    try {
-      const codecNames = { h264: 'H.264 (AVC)', hevc: 'H.265 (HEVC)', av1: 'AV1 (AOMedia)' };
-      UI.showPreferencesSavedNotification(codecNames[selectedCodec] || selectedCodec.toUpperCase(), enabled);
-    } catch (_) {}
+    // Right downside toast notification for saved preferences (silent, no download audio)
+    UI.showToast('Saved preferences', 'success', 4000);
 
     try {
       const res = await API.saveSettings({
@@ -1169,8 +1166,7 @@ const App = {
       if (modal) modal.style.display = 'none';
       if (saveBtn) {
         saveBtn.classList.remove('btn-saved-pulse');
-        saveBtn.innerHTML = origHtml;
-        if (window.lucide) window.lucide.createIcons();
+        saveBtn.textContent = 'Save Preferences';
       }
     }, 280);
   },
