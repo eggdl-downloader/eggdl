@@ -54,7 +54,7 @@ try:
         generate_product_key, mask_license_key, PLAN_CONFIGS
     )
     from downloader_engine import DownloadTask, detect_category, sanitize_filename
-    from media_extractor import MediaExtractor, StreamDownloadTask, clean_stream_url, get_ffmpeg_exe, ensure_premiere_compatibility
+    from media_extractor import MediaExtractor, StreamDownloadTask, clean_stream_url, get_ffmpeg_exe, ensure_premiere_compatibility, _INSPECT_CACHE
     from page_sniffer import sniff_webpage
 except ImportError:
     from backend.storage import (
@@ -76,7 +76,7 @@ except ImportError:
         generate_product_key, mask_license_key, PLAN_CONFIGS
     )
     from backend.downloader_engine import DownloadTask, detect_category, sanitize_filename
-    from backend.media_extractor import MediaExtractor, StreamDownloadTask, clean_stream_url, get_ffmpeg_exe, ensure_premiere_compatibility
+    from backend.media_extractor import MediaExtractor, StreamDownloadTask, clean_stream_url, get_ffmpeg_exe, ensure_premiere_compatibility, _INSPECT_CACHE
     from backend.page_sniffer import sniff_webpage
 
 app = FastAPI(title="EggDL API", version="2.0.0")
@@ -1009,8 +1009,10 @@ async def auth_me(request: Request):
         "is_unlimited": status.get("is_unlimited", True),
         "is_blocked": status.get("is_blocked", False),
         "block_reason": status.get("block_reason"),
-        "daily_downloads_used": 0,
-        "daily_downloads_limit": None
+        "daily_downloads_used": status.get("daily_downloads_used", 0),
+        "daily_downloads_limit": status.get("daily_downloads_limit"),
+        "max_concurrent": status.get("max_concurrent", 2),
+        "max_resolution": status.get("max_resolution", "4K")
     }
 
 @app.post("/api/auth/logout")
@@ -1286,7 +1288,18 @@ async def save_direct_file(req: SaveFileRequest, user: Optional[Dict[str, Any]] 
     user_id = user["id"] if user else None
     status = get_trial_and_subscription_status(user_id=user_id)
     
-    if not status["can_download"]:
+    if status.get("is_blocked"):
+        return JSONResponse(
+            status_code=403,
+            content={
+                "success": False,
+                "error": "device_blocked",
+                "message": f"🚨 Access Suspended: {status.get('block_reason', 'This device has been blocked by the administrator.')}",
+                "is_blocked": True
+            }
+        )
+
+    if status.get("trial_expired") or status.get("plan_type") == "expired":
         return JSONResponse(
             status_code=403,
             content={
@@ -1294,9 +1307,25 @@ async def save_direct_file(req: SaveFileRequest, user: Optional[Dict[str, Any]] 
                 "error": "trial_expired",
                 "message": "Your 7-Day Free Trial has ended. Please enter a product key or select a plan to continue downloading unlimited files.",
                 "trial_expired": True,
-                "plan_type": "free"
+                "plan_type": "expired"
             }
         )
+
+    # Enforce strictly 3 downloads a day for Trial
+    if status.get("is_trial") and not status.get("is_pro"):
+        daily_count = get_daily_downloads_count(user_id)
+        if daily_count >= 3:
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "success": False,
+                    "error": "trial_daily_limit_reached",
+                    "message": "⚠️ Daily Free Trial Limit Reached (3/3): You can download 3 files per day on the Free Trial. Upgrade to Starter or Pro for unlimited downloads!",
+                    "daily_downloads_limit": 3,
+                    "daily_downloads_used": daily_count,
+                    "limit_reached": True
+                }
+            )
 
     settings = get_settings()
     target_dir = settings.get("download_dir", str(Path.home() / "Downloads" / "EggDL"))
@@ -1390,7 +1419,7 @@ async def start_download(req: StartDownloadRequest, user: Optional[Dict[str, Any
     if not url:
         raise HTTPException(status_code=400, detail="URL is required")
 
-    user_id = user["id"] if user else None
+    user_id = user["id"] if user else get_device_id()
     status = get_trial_and_subscription_status(user_id=user_id)
     
     if status.get("is_blocked"):
@@ -1404,7 +1433,7 @@ async def start_download(req: StartDownloadRequest, user: Optional[Dict[str, Any
             }
         )
 
-    if not status["can_download"]:
+    if status.get("trial_expired") or status.get("plan_type") == "expired":
         return JSONResponse(
             status_code=403,
             content={
@@ -1412,16 +1441,75 @@ async def start_download(req: StartDownloadRequest, user: Optional[Dict[str, Any
                 "error": "trial_expired",
                 "message": "Your 7-Day Free Trial has ended. Please enter a product key or select a plan to continue downloading unlimited files.",
                 "trial_expired": True,
-                "plan_type": "free"
+                "plan_type": "expired"
+            }
+        )
+
+    plan_key = status.get("plan_type") if (status.get("is_pro") or status.get("is_trial")) else "trial"
+    plan_info = PLAN_CONFIGS.get(plan_key, PLAN_CONFIGS.get("trial", {}))
+
+    # 1. Strictly enforce 3 downloads a day for trial mode
+    if status.get("is_trial") and not status.get("is_pro"):
+        daily_count = get_daily_downloads_count(user_id)
+        if daily_count >= 3:
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "success": False,
+                    "error": "trial_daily_limit_reached",
+                    "message": "⚠️ Daily Free Trial Limit Reached (3/3): You can download 3 files per day on the Free Trial. Upgrade to Starter or Pro for unlimited downloads!",
+                    "daily_downloads_limit": 3,
+                    "daily_downloads_used": daily_count,
+                    "limit_reached": True
+                }
+            )
+
+    # 2. Simultaneous Downloads Cap (e.g. Starter = 2 active simultaneous downloads)
+    max_concurrent = plan_info.get("max_concurrent", 2)
+    active_running = len([t for t in active_tasks.values() if getattr(t, 'is_running', False) or (isinstance(t, dict) and t.get('status') == 'downloading')])
+    if active_running >= max_concurrent:
+        plan_name = plan_info.get("name", "Starter")
+        return JSONResponse(
+            status_code=429,
+            content={
+                "success": False,
+                "error": "simultaneous_limit_reached",
+                "message": f"Simultaneous download limit reached ({active_running}/{max_concurrent} active for {plan_name}). Please wait for an active download to complete, or upgrade your plan.",
+                "max_concurrent": max_concurrent,
+                "active_count": active_running
+            }
+        )
+
+    # 3. Resolution Restriction: Starter & Trial can only download up to 4K, NOT 8K
+    is_8k_requested = False
+    fmt_lower = (req.format_id or "").lower()
+    title_lower = (req.custom_title or req.custom_filename or "").lower()
+    if "8k" in fmt_lower or "4320" in fmt_lower or "8k" in title_lower or "4320p" in title_lower:
+        is_8k_requested = True
+    elif req.url in _INSPECT_CACHE:
+        cached_info = _INSPECT_CACHE[req.url].get("data", {})
+        for opt in cached_info.get("video_options", []):
+            if opt.get("format_id") == req.format_id:
+                res_str = str(opt.get("resolution", "")).lower()
+                lbl_str = str(opt.get("label", "")).lower()
+                if "8k" in res_str or "4320" in res_str or "8k" in lbl_str or "4320" in lbl_str:
+                    is_8k_requested = True
+                break
+
+    if is_8k_requested and plan_info.get("max_resolution") == "4K":
+        return JSONResponse(
+            status_code=403,
+            content={
+                "success": False,
+                "error": "resolution_upgrade_required",
+                "message": "Please upgrade your plan to Pro to download seamlessly in 8K video.",
+                "required_plan": "Pro"
             }
         )
 
     task_id = str(uuid.uuid4())[:8]
     settings = get_settings()
     target_dir = resolve_target_dir(req.download_dir)
-    
-    plan_key = status["plan_type"] if (status["is_pro"] or status["is_trial"]) else "trial"
-    plan_info = PLAN_CONFIGS.get(plan_key, PLAN_CONFIGS["trial"])
     max_threads = plan_info.get("max_threads", 16)
     segments = min(req.segments_count or settings.get("max_segments_per_download", 8), max_threads)
 

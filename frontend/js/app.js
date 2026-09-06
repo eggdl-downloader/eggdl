@@ -139,11 +139,10 @@ const App = {
         window.FirebaseLicensing.init(machineId);
       }
 
-      // If 7-Day Free Trial has expired and user is not Pro, automatically show the paywall & product key modal
+      // If 7-Day Free Trial has expired and user is not Pro, block app with dedicated lockout popup
       if (this.authData && this.authData.trial_expired && !this.authData.is_pro) {
         setTimeout(() => {
-          UI.openAccountModal(this.authData);
-          UI.showToast('⏳ Your 7-day free trial has expired. Enter a product key or select a plan to continue downloading.', 'warning', 9000);
+          UI.showTrialExpiredLockout();
         }, 600);
       }
     } catch (e) {
@@ -859,10 +858,21 @@ const App = {
       }
     } catch (e) {
       if (e.errorType === 'trial_expired' || (e.message && (e.message.includes('Trial has ended') || e.message.includes('trial has expired') || e.message.includes('Trial Expired') || e.message.includes('trial_expired')))) {
-        UI.showToast('⚠️ Your 7-Day Free Trial has ended. Enter a product key or choose a plan to continue!', 'warning', 8000);
-        setTimeout(() => {
-          UI.openAccountModal(this.authData);
-        }, 500);
+        UI.showTrialExpiredLockout();
+      } else if (e.errorType === 'trial_daily_limit_reached' || (e.message && e.message.includes('Daily Free Trial Limit Reached'))) {
+        UI.showUpgradePrompt(
+          'Daily Trial Limit Reached',
+          '⚠️ You have used your 3 free downloads for today on the Free Trial. Upgrade to Starter or Pro for unlimited downloads!',
+          'Starter'
+        );
+      } else if (e.errorType === 'resolution_upgrade_required' || (e.message && e.message.includes('upgrade your plan to Pro to download seamlessly in 8K'))) {
+        UI.showUpgradePrompt(
+          '8K Ultra HD Support',
+          'Please upgrade your plan to Pro to download seamlessly in 8K video.',
+          'Pro'
+        );
+      } else if (e.errorType === 'simultaneous_limit_reached' || (e.message && e.message.includes('Simultaneous download limit reached'))) {
+        UI.showToast(e.message || '⚠️ Simultaneous download limit reached (max 2 active for Starter). Please wait for an active download to complete!', 'warning', 7000);
       } else {
         UI.showToast(e.message || 'Failed to start download', 'error');
       }

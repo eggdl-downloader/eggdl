@@ -636,11 +636,16 @@ const UI = {
         <div id="tab-video-content" class="format-grid">
           ${(data.video_options || []).map((opt, i) => {
             const tag = UI.getResolutionTag(opt.resolution || opt.label);
+            const is8k = (opt.resolution && (opt.resolution.includes('8K') || opt.resolution.includes('4320'))) ||
+                         (opt.label && (opt.label.includes('8K') || opt.label.includes('4320')));
+            const is8kLocked = is8k && (!App.authData || !App.authData.is_pro || App.authData.plan_type === '1month' || App.authData.plan_type === 'starter');
+            const lockTag = is8kLocked ? `<span class="res-tag lock" style="background: rgba(245, 158, 11, 0.2); color: #FBBF24; font-size: 0.68rem; padding: 2px 6px; border-radius: 4px; margin-left: 6px; border: 1px solid rgba(245, 158, 11, 0.4);">🔒 Pro Only</span>` : '';
             return `
-              <div class="format-item ${i === 0 ? 'selected' : ''}" data-format-id="${opt.format_id}" data-type="video" data-filesize="${opt.filesize || ''}" onclick="UI.selectFormatItem(this)">
+              <div class="format-item ${i === 0 ? 'selected' : ''}" data-format-id="${opt.format_id}" data-type="video" data-is-8k="${is8kLocked ? 'true' : 'false'}" data-filesize="${opt.filesize || ''}" onclick="UI.selectFormatItem(this)">
                 <div class="format-label">
                   <span class="res-tag ${tag.class}">${tag.text}</span>
                   <span class="format-name" title="${this.escapeHtml(opt.label)}">${opt.label}</span>
+                  ${lockTag}
                 </div>
                 <div class="format-meta">${opt.ext.toUpperCase()} • ${opt.filesize_str || 'Auto'}</div>
               </div>
@@ -666,6 +671,16 @@ const UI = {
 
       startBtn.onclick = () => {
         const selected = modalBody.querySelector('.format-item.selected');
+        const is8kSelected = selected ? selected.dataset.is8k === 'true' : false;
+        if (is8kSelected) {
+          UI.showUpgradePrompt(
+            '8K Ultra HD Support',
+            'Please upgrade your plan to Pro to download seamlessly in 8K video.',
+            'Pro'
+          );
+          return;
+        }
+
         const isAudio = selected ? selected.dataset.type === 'audio' : false;
         const formatId = selected ? selected.dataset.formatId : 'bestvideo+bestaudio/best';
         const audioExt = selected ? (selected.dataset.ext || 'mp3') : 'mp3';
@@ -1084,6 +1099,51 @@ const UI = {
   closeAccountModal() {
     const modal = document.getElementById('account-modal');
     if (modal) modal.style.display = 'none';
+    if (App.authData && App.authData.trial_expired && !App.authData.is_pro) {
+      this.showTrialExpiredLockout();
+    }
+  },
+
+  showTrialExpiredLockout() {
+    const modal = document.getElementById('trial-expired-lockout-modal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    if (window.lucide) window.lucide.createIcons();
+
+    const buyBtn = document.getElementById('trial-lockout-buy-btn');
+    if (buyBtn) {
+      buyBtn.onclick = () => {
+        modal.style.display = 'none';
+        UI.openAccountModal(App.authData);
+      };
+    }
+  },
+
+  showUpgradePrompt(title = 'Upgrade Required', message = 'Please upgrade your plan to continue.', highlightPlan = 'Pro') {
+    const modal = document.getElementById('upgrade-prompt-modal');
+    if (!modal) return;
+    const titleEl = document.getElementById('upgrade-prompt-title');
+    const descEl = document.getElementById('upgrade-prompt-desc');
+    const btnText = document.getElementById('upgrade-prompt-btn-text');
+    const actionBtn = document.getElementById('upgrade-prompt-action-btn');
+    const cancelBtn = document.getElementById('upgrade-prompt-cancel-btn');
+
+    if (titleEl) titleEl.innerText = title;
+    if (descEl) descEl.innerText = message;
+    if (btnText) btnText.innerText = `Upgrade to ${highlightPlan}`;
+
+    modal.style.display = 'flex';
+    if (window.lucide) window.lucide.createIcons();
+
+    if (cancelBtn) {
+      cancelBtn.onclick = () => { modal.style.display = 'none'; };
+    }
+    if (actionBtn) {
+      actionBtn.onclick = () => {
+        modal.style.display = 'none';
+        UI.openAccountModal(App.authData);
+      };
+    }
   },
 
   // --- Payment Checkout UI ---

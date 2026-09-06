@@ -392,18 +392,12 @@ def get_daily_downloads_count(user_id: Optional[str] = None) -> int:
     conn = get_db_connection()
     cursor = conn.cursor()
     today_str = datetime.now().strftime("%Y-%m-%d")
-    # Count downloads started today
-    if user_id and user_id != "guest":
-        cursor.execute("""
-            SELECT COUNT(*) FROM downloads 
-            WHERE user_id = ? AND created_at LIKE ?
-        """, (user_id, f"{today_str}%"))
-    else:
-        cursor.execute("""
-            SELECT COUNT(*) FROM downloads 
-            WHERE (user_id IS NULL OR user_id = 'guest' OR user_id = '') 
-            AND created_at LIKE ?
-        """, (f"{today_str}%",))
+    dev_id = user_id or get_device_id()
+    cursor.execute("""
+        SELECT COUNT(*) FROM downloads 
+        WHERE (user_id = ? OR user_id IS NULL OR user_id = 'guest' OR user_id = '') 
+        AND created_at LIKE ?
+    """, (dev_id, f"{today_str}%"))
     row = cursor.fetchone()
     count = row[0] if row else 0
     conn.close()
@@ -799,6 +793,7 @@ def get_device_license_status(device_id: str) -> Dict[str, Any]:
     
     if is_pro and plan_type not in ["free", "trial", "blocked"]:
         if plan_type == "lifetime" or not plan_expires_at:
+            daily_used = get_daily_downloads_count()
             return {
                 "device_id": device_id,
                 "desktop_name": dev.get("machine_name") or "DESKTOP-PC",
@@ -810,6 +805,10 @@ def get_device_license_status(device_id: str) -> Dict[str, Any]:
                 "trial_expired": False,
                 "can_download": True,
                 "is_unlimited": True,
+                "daily_downloads_used": daily_used,
+                "daily_downloads_limit": None,
+                "max_concurrent": 50,
+                "max_resolution": "8K",
                 "days_remaining": 9999,
                 "trial_days_remaining": 0,
                 "plan_type": "lifetime",
@@ -837,6 +836,9 @@ def get_device_license_status(device_id: str) -> Dict[str, Any]:
                     days_left = max(0, int(seconds_left // 86400))
                     if days_left in (90, 30, 180, 365):
                         days_left -= 1
+                    daily_used = get_daily_downloads_count()
+                    max_conc = 2 if plan_type == "1month" else (5 if plan_type == "3month" else (10 if plan_type == "6month" else (20 if plan_type == "1year" else 50)))
+                    max_res = "4K" if plan_type == "1month" else "8K"
                     return {
                         "device_id": device_id,
                         "desktop_name": dev.get("machine_name") or "DESKTOP-PC",
@@ -848,6 +850,10 @@ def get_device_license_status(device_id: str) -> Dict[str, Any]:
                         "trial_expired": False,
                         "can_download": True,
                         "is_unlimited": True,
+                        "daily_downloads_used": daily_used,
+                        "daily_downloads_limit": None,
+                        "max_concurrent": max_conc,
+                        "max_resolution": max_res,
                         "days_remaining": days_left,
                         "trial_days_remaining": 0,
                         "plan_type": plan_type,
@@ -857,6 +863,8 @@ def get_device_license_status(device_id: str) -> Dict[str, Any]:
             except Exception:
                 pass
                 
+    daily_used = get_daily_downloads_count()
+
     # If device was revoked or marked expired, immediately return expired trial status
     if plan_type in ["expired", "revoked", "free"]:
         return {
@@ -870,6 +878,10 @@ def get_device_license_status(device_id: str) -> Dict[str, Any]:
             "trial_expired": True,
             "can_download": False,
             "is_unlimited": False,
+            "daily_downloads_used": daily_used,
+            "daily_downloads_limit": 0,
+            "max_concurrent": 0,
+            "max_resolution": None,
             "days_remaining": 0,
             "trial_days_remaining": 0,
             "plan_type": "expired",
@@ -902,8 +914,12 @@ def get_device_license_status(device_id: str) -> Dict[str, Any]:
             "is_pro": False,
             "is_trial": True,
             "trial_expired": False,
-            "can_download": True,
-            "is_unlimited": True,
+            "can_download": daily_used < 3,
+            "is_unlimited": False,
+            "daily_downloads_used": daily_used,
+            "daily_downloads_limit": 3,
+            "max_concurrent": 1,
+            "max_resolution": "4K",
             "days_remaining": 0,
             "trial_days_remaining": days_left,
             "plan_type": "trial",
@@ -921,11 +937,24 @@ def get_device_license_status(device_id: str) -> Dict[str, Any]:
             "trial_expired": True,
             "can_download": False,
             "is_unlimited": False,
+            "daily_downloads_used": daily_used,
+            "daily_downloads_limit": 0,
+            "max_concurrent": 0,
+            "max_resolution": None,
             "days_remaining": 0,
             "trial_days_remaining": 0,
             "plan_type": "expired",
             "plan_expires_at": None
         }
+
+def get_active_simultaneous_downloads_count() -> int:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM downloads WHERE status = 'downloading'")
+    row = cursor.fetchone()
+    count = row[0] if row else 0
+    conn.close()
+    return count
 
 def get_trial_and_subscription_status(user_id: Optional[str] = None, device_id: Optional[str] = None) -> Dict[str, Any]:
     dev_id = device_id or get_device_id()

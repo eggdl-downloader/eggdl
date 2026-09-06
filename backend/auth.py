@@ -18,17 +18,17 @@ PLAN_CONFIGS = {
         "price": 0,
         "effective_monthly": "Free Trial",
         "duration_days": 7,
-        "badge": "7-Day Trial",
-        "max_downloads_per_day": None,
+        "badge": "Trial",
+        "max_downloads_per_day": 3,
         "max_threads": 16,
-        "max_concurrent": 3,
+        "max_concurrent": 1,
         "max_resolution": "4K",
         "features": [
-            "Unlimited Downloads",
+            "3 Downloads Per Day",
             "16 Turbo Acceleration Threads",
             "Up to 4K Ultra HD Support",
-            "3 Simultaneous Downloads",
-            "Full Features Included"
+            "1 Simultaneous Download",
+            "7 Days Validity"
         ]
     },
     "free": {
