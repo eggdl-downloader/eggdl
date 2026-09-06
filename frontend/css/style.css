@@ -5004,3 +5004,14 @@ html, body {
   width: 100% !important;
 }
 
+/* Premium instant save button feedback */
+.btn-saved-pulse {
+  transform: scale(1.02) !important;
+  transition: all 0.12s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  box-shadow: 0 0 18px rgba(16, 185, 129, 0.5) !important;
+  background: #10B981 !important;
+  border-color: #10B981 !important;
+  color: #FFFFFF !important;
+}
+
+

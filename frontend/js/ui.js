@@ -301,6 +301,66 @@ const UI = {
     }, 6500);
   },
 
+  showPreferencesSavedNotification(codecLabel, enabled) {
+    // 1. Play signature techy completion sound
+    try {
+      this._lastSoundPlayTime = 0;
+      this.playTechyCompletionSound();
+    } catch (_) {}
+
+    // 2. Render rich in-app notification card matching the completion popup
+    const container = document.getElementById('download-notification-container');
+    if (!container) return;
+
+    const popup = document.createElement('div');
+    popup.className = 'dl-complete-popup settings-saved-popup';
+    popup.innerHTML = `
+      <div class="dl-complete-header">
+        <div class="dl-complete-brand">
+          <img src="/static/images/egg-icon.png" class="dl-complete-logo" alt="EggDL" onerror="this.src='/images/egg-icon.png'">
+          <span class="dl-complete-title"><span class="dl-complete-pulse-dot" style="background: #10B981; box-shadow: 0 0 8px #10B981;"></span> Preferences Saved</span>
+        </div>
+        <button type="button" class="dl-complete-close-btn" title="Close">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <div class="dl-complete-body">
+        <div class="dl-complete-file-row">
+          <div class="dl-complete-icon-box" style="background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.35); color: #10B981;">
+            <i data-lucide="sliders"></i>
+          </div>
+          <div class="dl-complete-file-info">
+            <div class="dl-complete-filename" title="Encoder Preferences">${enabled ? 'Video Transcoding Active' : 'Native Source Download Mode'}</div>
+            <div class="dl-complete-filesize" style="color: #34D399; font-weight: 600;">${enabled ? `Codec: ${codecLabel}` : '✓ Instant Single-File Output (Zero Lag)'}</div>
+          </div>
+        </div>
+      </div>
+      <div class="dl-complete-footer">
+        <button type="button" class="dl-complete-folder-btn dl-settings-dismiss-btn" style="width: 100%; justify-content: center; background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.12); color: #CBD5E1;">
+          <i data-lucide="check" style="width: 13px; height: 13px;"></i>
+          <span>Got it</span>
+        </button>
+      </div>
+    `;
+
+    container.appendChild(popup);
+    if (window.lucide) window.lucide.createIcons();
+
+    const closePopup = () => {
+      popup.classList.add('dismissing');
+      setTimeout(() => popup.remove(), 250);
+    };
+
+    popup.querySelector('.dl-complete-close-btn')?.addEventListener('click', closePopup);
+    popup.querySelector('.dl-settings-dismiss-btn')?.addEventListener('click', closePopup);
+
+    setTimeout(() => {
+      if (popup.parentElement) {
+        closePopup();
+      }
+    }, 5000);
+  },
+
   renderInAppDownloadCompleteCard(task) {
     const container = document.getElementById('download-notification-container');
     if (!container) return;

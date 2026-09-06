@@ -739,6 +739,12 @@ const App = {
       this.applySettingsUI();
       document.getElementById('settings-modal').style.display = 'none';
     });
+    document.getElementById('settings-modal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'settings-modal') {
+        this.applySettingsUI();
+        document.getElementById('settings-modal').style.display = 'none';
+      }
+    });
     document.getElementById('browse-dl-dir-btn')?.addEventListener('click', () => this.browseDownloadDirectory());
     document.getElementById('save-settings-btn')?.addEventListener('click', () => this.saveSettings());
     document.getElementById('btn-check-updates')?.addEventListener('click', () => this.checkVersion(true));
@@ -1013,16 +1019,11 @@ const App = {
       }
 
       if (chosenPath) {
-        if (input) input.value = chosenPath;
-        // Automatically save the setting and update UI indicators
-        const saveRes = await API.saveSettings({ download_dir: chosenPath });
-        if (saveRes && saveRes.success) {
-          this.settings = saveRes.settings;
-          this.applySettingsUI();
-          UI.showSettingsSavedNotification(chosenPath);
-        } else {
-          UI.showToast(`Selected folder: ${chosenPath}`, 'info');
+        if (input) {
+          input.value = chosenPath;
+          input.focus();
         }
+        // ONLY stage the path in the input box. Zero auto-saving! User must click "Save Settings" button to apply.
       }
     } catch (err) {
       console.error('Browse directory error:', err);
@@ -1038,12 +1039,17 @@ const App = {
     const segments = parseInt(document.getElementById('setting-segments')?.value || 8);
     const maxActive = parseInt(document.getElementById('setting-max-active')?.value || 3);
 
+    // Instant premium tactile feedback - NO loading spinner, NO lag!
     const origHtml = saveBtn ? saveBtn.innerHTML : '';
     if (saveBtn) {
-      saveBtn.disabled = true;
-      saveBtn.innerHTML = '<i data-lucide="loader-2" class="spin"></i> Saving...';
+      saveBtn.classList.add('btn-saved-pulse');
+      saveBtn.innerHTML = '<i data-lucide="check-check"></i> Saved!';
       if (window.lucide) window.lucide.createIcons();
     }
+
+    // Play signature techy chime and show rich card notification immediately
+    const savedDir = dlDir || this.settings?.download_dir;
+    UI.showSettingsSavedNotification(savedDir);
 
     try {
       const res = await API.saveSettings({
@@ -1051,48 +1057,24 @@ const App = {
         max_segments_per_download: segments,
         max_concurrent_downloads: maxActive
       });
-      if (res.success) {
+      if (res && res.success) {
         this.settings = res.settings;
         this.applySettingsUI();
-
-        // Button feedback
-        if (saveBtn) {
-          saveBtn.innerHTML = '<i data-lucide="check-check"></i> Saved!';
-          saveBtn.style.background = '#10B981';
-          saveBtn.style.borderColor = '#10B981';
-          if (window.lucide) window.lucide.createIcons();
-        }
-
-        // Show rich notification card (sound + popup card + open folder button)
-        const savedDir = this.settings.download_dir || dlDir;
-        UI.showSettingsSavedNotification(savedDir);
-
-        setTimeout(() => {
-          document.getElementById('settings-modal').style.display = 'none';
-          if (saveBtn) {
-            saveBtn.disabled = false;
-            saveBtn.innerHTML = origHtml;
-            saveBtn.style.background = '';
-            saveBtn.style.borderColor = '';
-            if (window.lucide) window.lucide.createIcons();
-          }
-        }, 600);
-      } else {
-        UI.showToast(res.message || 'Failed to save settings', 'error');
-        if (saveBtn) {
-          saveBtn.disabled = false;
-          saveBtn.innerHTML = origHtml;
-          if (window.lucide) window.lucide.createIcons();
-        }
       }
     } catch (e) {
+      console.error('Save settings error:', e);
       UI.showToast('Failed to save settings: ' + (e.message || 'Server error'), 'error');
+    }
+
+    // Snappy dismissal (280ms) so user sees the instant "Saved!" confirmation with zero lag
+    setTimeout(() => {
+      document.getElementById('settings-modal').style.display = 'none';
       if (saveBtn) {
-        saveBtn.disabled = false;
+        saveBtn.classList.remove('btn-saved-pulse');
         saveBtn.innerHTML = origHtml;
         if (window.lucide) window.lucide.createIcons();
       }
-    }
+    }, 280);
   },
 
   updateVideoEncoderUI(enabled) {
@@ -1145,29 +1127,52 @@ const App = {
   },
 
   async saveAdvancedSettings() {
+    const saveBtn = document.getElementById('save-advanced-settings-btn');
     const toggle = document.getElementById('toggle-video-encoder');
     const enabled = Boolean(toggle?.checked);
     const selectedCodec = document.querySelector('input[name="video_codec_selection"]:checked')?.value || 'h264';
+
+    // Instant premium tactile feedback - NO loading spinner, NO lag!
+    const origHtml = saveBtn ? saveBtn.innerHTML : '';
+    if (saveBtn) {
+      saveBtn.classList.add('btn-saved-pulse');
+      saveBtn.innerHTML = '<i data-lucide="check-check"></i> Saved!';
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    // Play signature audio chime & rich notification card immediately
+    try {
+      const codecNames = { h264: 'H.264 (AVC)', hevc: 'H.265 (HEVC)', av1: 'AV1 (AOMedia)' };
+      UI.showPreferencesSavedNotification(codecNames[selectedCodec] || selectedCodec.toUpperCase(), enabled);
+    } catch (_) {}
 
     try {
       const res = await API.saveSettings({
         video_encoder_enabled: enabled,
         video_codec: selectedCodec
       });
-      if (res.success) {
+      if (res && res.success) {
         if (!this.settings) this.settings = {};
         this.settings.video_encoder_enabled = enabled;
         this.settings.video_codec = selectedCodec;
         localStorage.setItem('eggdl_video_encoder_enabled', enabled ? 'true' : 'false');
         localStorage.setItem('eggdl_video_codec', selectedCodec);
-
-        UI.showToast(enabled ? `Preferences saved: Video Encoder active (${selectedCodec.toUpperCase()})` : 'Preferences saved: Video Encoder disabled (Fast native downloads active)', 'success');
-        const modal = document.getElementById('advanced-settings-modal');
-        if (modal) modal.style.display = 'none';
       }
     } catch (e) {
+      console.error('Save advanced settings error:', e);
       UI.showToast('Failed to save preferences', 'error');
     }
+
+    // Snappy dismissal (280ms)
+    setTimeout(() => {
+      const modal = document.getElementById('advanced-settings-modal');
+      if (modal) modal.style.display = 'none';
+      if (saveBtn) {
+        saveBtn.classList.remove('btn-saved-pulse');
+        saveBtn.innerHTML = origHtml;
+        if (window.lucide) window.lucide.createIcons();
+      }
+    }, 280);
   },
 
   // Media Sniffer
