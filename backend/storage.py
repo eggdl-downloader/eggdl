@@ -50,7 +50,7 @@ def import_devices_from_registry(cursor):
     if not os.path.exists(REGISTRY_FILE):
         return
     try:
-        with open(REGISTRY_FILE, "r", encoding="utf-8") as f:
+        with open(REGISTRY_FILE, "r", encoding="utf-8-sig") as f:
             devices = json.load(f)
         for d in devices:
             dev_id = d.get("device_id")
@@ -117,7 +117,7 @@ def import_keys_from_registry(cursor):
     if not os.path.exists(KEYS_REGISTRY_FILE):
         return
     try:
-        with open(KEYS_REGISTRY_FILE, "r", encoding="utf-8") as f:
+        with open(KEYS_REGISTRY_FILE, "r", encoding="utf-8-sig") as f:
             keys = json.load(f)
         for k in keys:
             key_str = k.get("key")
