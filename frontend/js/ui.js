@@ -953,7 +953,7 @@ const UI = {
     if (o2) o2.remove();
   },
 
-  openAccountModal(authData) {
+  openAccountModal(authData, preserveKeyInput = false) {
     const modal = document.getElementById('account-modal');
     const user = (authData && authData.user) || { name: '', email: '', plan_type: 'free' };
     const machine = (authData && authData.machine) || {};
@@ -973,8 +973,10 @@ const UI = {
 
     if (nameEl) nameEl.innerText = desktopName;
     if (machineIdEl) machineIdEl.innerText = machineId;
-    if (keyInput) keyInput.value = '';
-    if (feedbackMsg) feedbackMsg.style.display = 'none';
+    if (!preserveKeyInput) {
+      if (keyInput) keyInput.value = '';
+      if (feedbackMsg) feedbackMsg.style.display = 'none';
+    }
 
     if (pillEl) {
       if (user.plan_type === 'lifetime' || (isPro && (!daysLeft || daysLeft >= 36500))) {

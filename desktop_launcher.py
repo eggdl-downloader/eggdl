@@ -334,24 +334,32 @@ def show_main_window():
     shown = False
     if _MAIN_WINDOW:
         try:
-            _MAIN_WINDOW.show()
-            _MAIN_WINDOW.restore()
-            shown = True
-        except Exception as e:
-            debug_log(f"_MAIN_WINDOW.show error: {e}")
-        try:
             if hasattr(_MAIN_WINDOW, "native") and _MAIN_WINDOW.native:
                 form = _MAIN_WINDOW.native
                 if hasattr(form, "InvokeRequired") and form.InvokeRequired:
                     import System
-                    form.BeginInvoke(System.Action(lambda: (_MAIN_WINDOW.show(), _MAIN_WINDOW.restore())))
+                    form.BeginInvoke(System.Action(lambda: (
+                        setattr(form, "ShowInTaskbar", True),
+                        form.Show(),
+                        _MAIN_WINDOW.show(),
+                        _MAIN_WINDOW.restore(),
+                        form.BringToFront(),
+                        form.Activate()
+                    )))
                 else:
+                    form.ShowInTaskbar = True
                     form.Show()
+                    _MAIN_WINDOW.show()
+                    _MAIN_WINDOW.restore()
                     form.BringToFront()
                     form.Activate()
                 shown = True
+            else:
+                _MAIN_WINDOW.show()
+                _MAIN_WINDOW.restore()
+                shown = True
         except Exception as e:
-            debug_log(f"form Show error: {e}")
+            debug_log(f"_MAIN_WINDOW.show error: {e}")
 
     # Win32 bring to front
     hwnd = find_eggdl_hwnd()
@@ -394,6 +402,13 @@ def on_closing():
     if _MAIN_WINDOW:
         try:
             _MAIN_WINDOW.hide()
+            if hasattr(_MAIN_WINDOW, "native") and _MAIN_WINDOW.native:
+                form = _MAIN_WINDOW.native
+                if hasattr(form, "InvokeRequired") and form.InvokeRequired:
+                    import System
+                    form.BeginInvoke(System.Action(lambda: setattr(form, "ShowInTaskbar", False)))
+                else:
+                    form.ShowInTaskbar = False
         except Exception:
             pass
         return False
@@ -697,12 +712,19 @@ def main():
         _MAIN_WINDOW.events.closing += on_closing
 
         def on_window_shown():
-            debug_log("events.shown fired - bringing window to foreground")
-            show_main_window()
+            if not is_tray_start:
+                debug_log("events.shown fired - bringing window to foreground")
+                show_main_window()
+            else:
+                debug_log("events.shown fired during tray start - keeping window hidden")
+                try:
+                    _MAIN_WINDOW.hide()
+                except Exception:
+                    pass
 
         _MAIN_WINDOW.events.shown += on_window_shown
 
-        # Also schedule a watchdog to bring to foreground at 1.5s after start
+        # Also schedule a watchdog to bring to foreground at 1.5s after start if normal start
         def focus_watchdog():
             time.sleep(1.5)
             if not is_tray_start:
@@ -710,6 +732,33 @@ def main():
                 show_main_window()
 
         threading.Thread(target=focus_watchdog, daemon=True).start()
+
+        # If starting in tray mode, enforce window remains completely hidden and not in taskbar
+        def tray_start_watchdog():
+            if not is_tray_start:
+                return
+            debug_log("tray_start_watchdog active: ensuring window stays hidden in tray")
+            for _ in range(12):
+                time.sleep(0.4)
+                if _MAIN_WINDOW:
+                    try:
+                        _MAIN_WINDOW.hide()
+                        if hasattr(_MAIN_WINDOW, "native") and _MAIN_WINDOW.native:
+                            form = _MAIN_WINDOW.native
+                            if hasattr(form, "InvokeRequired") and form.InvokeRequired:
+                                import System
+                                form.BeginInvoke(System.Action(lambda: (
+                                    setattr(form, "ShowInTaskbar", False),
+                                    form.Hide()
+                                )))
+                            else:
+                                form.ShowInTaskbar = False
+                                form.Hide()
+                    except Exception:
+                        pass
+
+        if is_tray_start:
+            threading.Thread(target=tray_start_watchdog, daemon=True).start()
 
         ico_arg = icon_path if (os.path.exists(icon_path) and icon_path.lower().endswith(".ico")) else None
         debug_log(f"Calling webview.start(icon={ico_arg})")

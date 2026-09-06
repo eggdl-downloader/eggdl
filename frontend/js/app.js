@@ -372,9 +372,12 @@ const App = {
         this.authData.plan = window.PLAN_CONFIGS[this.authData.plan_type];
       }
       UI.renderUserProfile(this.authData);
+      const accModal = document.getElementById('account-modal');
+      if (accModal && accModal.style.display !== 'none') {
+        UI.openAccountModal(this.authData, true);
+      }
       if (msg.is_pro) {
         if (!wasPro && !this._isActivatingKey) UI.showToast('👑 Pro License Activated by Administrator!', 'success');
-        if (!this._isActivatingKey) UI.closeAccountModal();
       } else {
         UI.showToast('ℹ️ License status updated: ' + this.authData.plan_type, 'info');
       }
@@ -1417,9 +1420,10 @@ const App = {
               UI.renderUserProfile(this.authData);
               if (typeof this.updateStats === 'function') this.updateStats();
 
-              // Automatically dismiss paywall modal if upgraded or trial renewed
-              if (nowPro || (!nowTrialExpired && res.is_trial)) {
-                UI.closeAccountModal();
+              // If account modal is currently open, seamlessly update the displayed stats/plan without closing it
+              const accModal = document.getElementById('account-modal');
+              if (accModal && accModal.style.display !== 'none') {
+                UI.openAccountModal(this.authData, true);
               }
             }
           }
