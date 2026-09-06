@@ -900,7 +900,7 @@ const UI = {
 
     let badgeClass = 'user-plan-badge trial';
     let badgeText = 'Trial';
-    let showStar = true;
+    let showStar = false;
 
     if (user.plan_type === 'lifetime' || (isPro && (!daysLeft || daysLeft >= 36500)) || tierKey === 'lifetime') {
       badgeClass = 'user-plan-badge lifetime';
@@ -913,7 +913,7 @@ const UI = {
     } else if (isTrial && !authData.trial_expired) {
       badgeClass = 'user-plan-badge trial';
       badgeText = 'Trial';
-      showStar = true;
+      showStar = false;
     } else {
       badgeClass = 'user-plan-badge expired';
       badgeText = 'Expired';

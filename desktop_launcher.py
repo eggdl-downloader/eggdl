@@ -671,7 +671,7 @@ def main():
     server_ok = wait_for_server(port)
     debug_log(f"wait_for_server returned {server_ok}")
 
-    target_url = f"http://localhost:{port}/?v=62.0"
+    target_url = f"http://localhost:{port}/?v=63.0"
     _TARGET_URL = target_url
     icon_path = os.path.join(BUNDLE_DIR, "eggdl.ico")
     if not os.path.exists(icon_path):

@@ -2918,19 +2918,19 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
 .user-pill-btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   background: var(--bg-input);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-xs);
-  padding: 0 8px 0 10px;
+  padding: 0 6px 0 9px;
   cursor: pointer;
   color: var(--text-main);
   font-family: var(--font-sans);
-  font-size: 0.80rem;
+  font-size: 0.81rem;
   font-weight: 600;
   transition: all 0.12s ease;
   outline: none;
-  height: 32px;
+  height: 30px;
   box-sizing: border-box;
   line-height: 1;
 }
@@ -2941,8 +2941,8 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
 }
 
 .user-pill-btn .user-pc-icon {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
   color: var(--accent-primary);
   flex-shrink: 0;
   display: inline-block;
@@ -2951,10 +2951,10 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
 
 .user-pill-btn .user-name {
   font-family: var(--font-sans);
-  font-size: 0.80rem;
+  font-size: 0.81rem;
   font-weight: 600;
   color: var(--text-main);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.015em;
   text-transform: none; /* Preserves hardware real name, e.g. SRIMAN */
   line-height: 1;
   display: inline-flex;
@@ -2967,14 +2967,14 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  gap: 5px !important;
-  height: 23px !important;
-  padding: 0 8px 0 7px !important;
-  border-radius: 7px !important;
+  gap: 3.5px !important;
+  height: 19px !important;
+  padding: 0 6px 0 5px !important;
+  border-radius: 5px !important;
   font-family: var(--font-sans) !important;
-  font-size: 11.5px !important;
+  font-size: 10.5px !important;
   font-weight: 700 !important;
-  letter-spacing: 0.01em !important;
+  letter-spacing: 0.02em !important;
   line-height: 1 !important;
   box-sizing: border-box !important;
   white-space: nowrap !important;
@@ -2982,9 +2982,15 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   transition: all 0.15s ease !important;
 }
 
+.user-plan-badge.trial,
+.user-plan-badge.expired {
+  padding: 0 7px !important;
+  gap: 0 !important;
+}
+
 .user-plan-badge .badge-star {
-  width: 10.5px !important;
-  height: 10.5px !important;
+  width: 8.5px !important;
+  height: 8.5px !important;
   flex-shrink: 0 !important;
   display: inline-block !important;
 }
@@ -2992,57 +2998,57 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
 /* 1. Starter (Platinum / Silver Metallic) */
 .user-plan-badge.starter {
   background: linear-gradient(180deg, rgba(226, 232, 240, 0.14) 0%, rgba(148, 163, 184, 0.04) 100%), #0D121D !important;
-  border: 1.5px solid rgba(226, 232, 240, 0.55) !important;
+  border: 1px solid rgba(226, 232, 240, 0.45) !important;
   color: #E2E8F0 !important;
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.25), 0 0 10px rgba(226, 232, 240, 0.20) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 0 8px rgba(226, 232, 240, 0.18) !important;
 }
 
 /* 2. Pro (Emerald / Mint Neon) */
 .user-plan-badge.pro {
   background: linear-gradient(180deg, rgba(16, 185, 129, 0.18) 0%, rgba(5, 150, 105, 0.05) 100%), #061815 !important;
-  border: 1.5px solid rgba(16, 185, 129, 0.65) !important;
+  border: 1px solid rgba(16, 185, 129, 0.55) !important;
   color: #34D399 !important;
-  box-shadow: inset 0 1px 1px rgba(52, 211, 153, 0.25), 0 0 10px rgba(16, 185, 129, 0.25) !important;
+  box-shadow: inset 0 1px 0 rgba(52, 211, 153, 0.25), 0 0 8px rgba(16, 185, 129, 0.22) !important;
 }
 
 /* 3. Elite (Sapphire / Royal Blue) */
 .user-plan-badge.elite {
   background: linear-gradient(180deg, rgba(59, 130, 246, 0.18) 0%, rgba(37, 99, 235, 0.05) 100%), #091527 !important;
-  border: 1.5px solid rgba(59, 130, 246, 0.65) !important;
+  border: 1px solid rgba(59, 130, 246, 0.55) !important;
   color: #60A5FA !important;
-  box-shadow: inset 0 1px 1px rgba(96, 165, 250, 0.25), 0 0 10px rgba(59, 130, 246, 0.25) !important;
+  box-shadow: inset 0 1px 0 rgba(96, 165, 250, 0.25), 0 0 8px rgba(59, 130, 246, 0.22) !important;
 }
 
 /* 4. Ultra Elite (Violet / Purple Neon) */
 .user-plan-badge.ultra_elite,
 .user-plan-badge.ultra {
   background: linear-gradient(180deg, rgba(168, 85, 247, 0.18) 0%, rgba(147, 51, 234, 0.05) 100%), #160C23 !important;
-  border: 1.5px solid rgba(168, 85, 247, 0.65) !important;
+  border: 1px solid rgba(168, 85, 247, 0.55) !important;
   color: #C084FC !important;
-  box-shadow: inset 0 1px 1px rgba(192, 132, 252, 0.25), 0 0 10px rgba(168, 85, 247, 0.25) !important;
+  box-shadow: inset 0 1px 0 rgba(192, 132, 252, 0.25), 0 0 8px rgba(168, 85, 247, 0.22) !important;
 }
 
 /* 5. Lifetime (Radiant Gold / Amber) */
 .user-plan-badge.lifetime {
   background: linear-gradient(180deg, rgba(245, 158, 11, 0.18) 0%, rgba(217, 119, 6, 0.05) 100%), #1F1406 !important;
-  border: 1.5px solid rgba(245, 158, 11, 0.70) !important;
+  border: 1px solid rgba(245, 158, 11, 0.60) !important;
   color: #FBBF24 !important;
-  box-shadow: inset 0 1px 1px rgba(251, 191, 36, 0.25), 0 0 10px rgba(245, 158, 11, 0.28) !important;
+  box-shadow: inset 0 1px 0 rgba(251, 191, 36, 0.25), 0 0 8px rgba(245, 158, 11, 0.25) !important;
 }
 
-/* Trial (Cyan / Sky) */
+/* 6. Trial (Ruby / Crimson Red - NO STAR) */
 .user-plan-badge.trial {
-  background: linear-gradient(180deg, rgba(56, 189, 248, 0.16) 0%, rgba(2, 132, 199, 0.05) 100%), #081926 !important;
-  border: 1.5px solid rgba(56, 189, 248, 0.60) !important;
-  color: #38BDF8 !important;
-  box-shadow: inset 0 1px 1px rgba(56, 189, 248, 0.25), 0 0 10px rgba(56, 189, 248, 0.25) !important;
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.18) 0%, rgba(185, 28, 28, 0.05) 100%), #1A090B !important;
+  border: 1px solid rgba(239, 68, 68, 0.60) !important;
+  color: #F87171 !important;
+  box-shadow: inset 0 1px 0 rgba(248, 113, 113, 0.22), 0 0 8px rgba(239, 68, 68, 0.22) !important;
 }
 
-/* Expired Badge */
+/* 7. Expired Badge */
 .user-plan-badge.expired {
   background: rgba(239, 68, 68, 0.10) !important;
-  border: 1.5px solid rgba(239, 68, 68, 0.40) !important;
-  color: #F87171 !important;
+  border: 1px solid rgba(239, 68, 68, 0.35) !important;
+  color: #EF4444 !important;
   box-shadow: none !important;
 }
 
@@ -3181,6 +3187,18 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   background: var(--accent-amber-bg);
   color: #FBBF24;
   border-color: rgba(245, 158, 11, 0.45);
+}
+
+.plan-pill.trial {
+  background: rgba(239, 68, 68, 0.12);
+  color: #F87171;
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.plan-pill.expired {
+  background: rgba(239, 68, 68, 0.08);
+  color: #EF4444;
+  border-color: rgba(239, 68, 68, 0.3);
 }
 
 /* License Activation Box */
