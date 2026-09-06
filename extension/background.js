@@ -979,12 +979,21 @@ if (typeof chrome !== 'undefined' && chrome.downloads && chrome.downloads.onCrea
         } catch (_) {}
       }
 
+      let configuredDir = null;
+      try {
+        const settingsRes = await fetchFromBackend("/api/settings");
+        if (settingsRes && settingsRes.settings && settingsRes.settings.download_dir) {
+          configuredDir = settingsRes.settings.download_dir;
+        }
+      } catch (_) {}
+
       const downloadInfo = {
         url: url,
         filename: filename,
         file_size: fileSize,
         mime: mime,
-        referrer: downloadItem.referrer || ''
+        referrer: downloadItem.referrer || '',
+        download_dir: configuredDir
       };
 
       // 3. Send message to active tab to display centered IDM dialog

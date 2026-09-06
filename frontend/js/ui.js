@@ -206,6 +206,101 @@ const UI = {
     this.renderInAppDownloadCompleteCard(task);
   },
 
+  showSettingsSavedNotification(folderPath) {
+    if (!folderPath) return;
+
+    // 1. Play the signature techy completion sound
+    try {
+      this._lastSoundPlayTime = 0; // Bypass cooldown so user action always triggers sound
+      this.playTechyCompletionSound();
+    } catch (_) {}
+
+    // 2. Render rich in-app notification card matching the completion card
+    const container = document.getElementById('download-notification-container');
+    if (!container) return;
+
+    const popup = document.createElement('div');
+    popup.className = 'dl-complete-popup settings-saved-popup';
+    popup.innerHTML = `
+      <div class="dl-complete-header">
+        <div class="dl-complete-brand">
+          <img src="/static/images/egg-icon.png" class="dl-complete-logo" alt="EggDL" onerror="this.src='/images/egg-icon.png'">
+          <span class="dl-complete-title"><span class="dl-complete-pulse-dot" style="background: #10B981; box-shadow: 0 0 8px #10B981;"></span> Settings Saved</span>
+        </div>
+        <button type="button" class="dl-complete-close-btn" title="Close">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <div class="dl-complete-body">
+        <div class="dl-complete-file-row">
+          <div class="dl-complete-icon-box" style="background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.35); color: #10B981;">
+            <i data-lucide="folder-check"></i>
+          </div>
+          <div class="dl-complete-file-info">
+            <div class="dl-complete-filename" title="Saved to this location">Saved to this location</div>
+            <div class="dl-complete-filesize" style="color: #34D399; font-weight: 600;">✓ Active Download Folder</div>
+          </div>
+        </div>
+        <div class="dl-complete-path-container">
+          <div class="dl-complete-path-text-area" title="Open containing folder: ${folderPath}">
+            <i data-lucide="folder" style="width: 14px; height: 14px; color: #10B981; flex-shrink: 0;"></i>
+            <span class="dl-complete-path-text" style="color: #E2E8F0; font-weight: 500;">${folderPath}</span>
+          </div>
+          <button type="button" class="dl-complete-copy-path-btn" title="Copy directory path">
+            <i data-lucide="copy" style="width: 13px; height: 13px;"></i>
+          </button>
+        </div>
+      </div>
+      <div class="dl-complete-footer">
+        <button type="button" class="dl-complete-open-btn dl-settings-open-btn" style="background: linear-gradient(135deg, #059669 0%, #10B981 100%); border-color: rgba(52, 211, 153, 0.3); color: #FFFFFF;">
+          <i data-lucide="folder-open" style="width: 13px; height: 13px;"></i>
+          <span>Open Folder</span>
+        </button>
+        <button type="button" class="dl-complete-folder-btn dl-settings-dismiss-btn" style="background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.12); color: #CBD5E1;">
+          <i data-lucide="check" style="width: 13px; height: 13px;"></i>
+          <span>Got it</span>
+        </button>
+      </div>
+    `;
+
+    container.appendChild(popup);
+    if (window.lucide) window.lucide.createIcons();
+
+    const closePopup = () => {
+      popup.classList.add('dismissing');
+      setTimeout(() => popup.remove(), 250);
+    };
+
+    popup.querySelector('.dl-complete-close-btn')?.addEventListener('click', closePopup);
+    popup.querySelector('.dl-settings-dismiss-btn')?.addEventListener('click', closePopup);
+
+    const openFolderFn = () => {
+      if (typeof API !== 'undefined' && API.openFolder) {
+        API.openFolder(null, folderPath).catch(err => {
+          console.warn('Could not open folder:', err);
+        });
+      }
+      closePopup();
+    };
+
+    popup.querySelector('.dl-settings-open-btn')?.addEventListener('click', openFolderFn);
+    popup.querySelector('.dl-complete-path-text-area')?.addEventListener('click', openFolderFn);
+
+    popup.querySelector('.dl-complete-copy-path-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(folderPath);
+        this.showToast('Copied download path to clipboard', 'info', 2000);
+      }
+    });
+
+    setTimeout(() => {
+      if (popup.parentElement) {
+        closePopup();
+      }
+    }, 6500);
+  },
+
   renderInAppDownloadCompleteCard(task) {
     const container = document.getElementById('download-notification-container');
     if (!container) return;

@@ -872,10 +872,15 @@
       }
       return { ext, catLabel, catBadgeColor, catBg, catBorder, catIcon };
     }
-
     let meta = getExtAndCategory(initialFilename);
     const realLogoUrl = (typeof chrome !== 'undefined' && chrome.runtime?.getURL) ? (chrome.runtime.getURL('icons/egg-icon.png') || chrome.runtime.getURL('icons/icon128.png')) : '';
-    const defaultFolder = 'Downloads\\Eggdl Downloads\\';
+    let defaultFolder = 'Downloads\\Eggdl Downloads\\';
+    if (downloadInfo && downloadInfo.download_dir) {
+      defaultFolder = downloadInfo.download_dir;
+      if (!defaultFolder.endsWith('\\') && !defaultFolder.endsWith('/')) {
+        defaultFolder += '\\';
+      }
+    }
 
     backdrop.innerHTML = `
       <div class="egg-dl-idm-modal">
@@ -1102,6 +1107,12 @@
         finalFilename = fullPath;
       }
 
+      // If customDir wasn't provided, use configured download_dir if available
+      let dirToSend = customDir;
+      if (!dirToSend && downloadInfo && downloadInfo.download_dir) {
+        dirToSend = downloadInfo.download_dir;
+      }
+
       // Always guarantee proper file extension (.jpg, .mp4, .mp3, etc.)
       if (!finalFilename.includes('.') && targetExt) {
         finalFilename = `${finalFilename}${targetExt}`;
@@ -1117,7 +1128,7 @@
           is_audio_only: downloadInfo.is_audio_only || false,
           custom_filename: finalFilename,
           custom_title: finalFilename,
-          download_dir: customDir,
+          download_dir: dirToSend,
           referer: downloadInfo.referrer || window.location.href,
           expected_size: rawBytes > 0 ? rawBytes : null
         }

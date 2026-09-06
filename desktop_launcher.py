@@ -425,7 +425,10 @@ def on_license_details(icon=None, item=None):
 
 def on_open_downloads(icon=None, item=None):
     try:
-        dl_dir = Path.home() / "Downloads" / "Eggdl Downloads"
+        from backend.storage import get_settings
+        settings = get_settings()
+        configured = settings.get("download_dir")
+        dl_dir = Path(configured) if (configured and os.path.exists(os.path.dirname(configured))) else (Path.home() / "Downloads" / "Eggdl Downloads")
         dl_dir.mkdir(parents=True, exist_ok=True)
         if sys.platform == "win32":
             os.startfile(str(dl_dir))

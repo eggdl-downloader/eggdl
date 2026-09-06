@@ -828,10 +828,12 @@ const App = {
       // Strictly use verified saved preferences from this.settings (never unsaved UI clicks)
       const isEnc = this.settings?.video_encoder_enabled === true;
       const selectedCodec = this.settings?.video_codec || 'h264';
+      const configuredDlDir = this.settings?.download_dir || null;
 
       const fullPayload = {
         video_encoder_enabled: isEnc,
         video_codec: selectedCodec,
+        download_dir: payload.download_dir || configuredDlDir,
         ...payload
       };
 
@@ -1016,12 +1018,8 @@ const App = {
         const saveRes = await API.saveSettings({ download_dir: chosenPath });
         if (saveRes && saveRes.success) {
           this.settings = saveRes.settings;
-          const dirHint = document.getElementById('download-dir-hint');
-          if (dirHint) {
-            dirHint.innerText = chosenPath;
-            dirHint.title = chosenPath;
-          }
-          UI.showToast(`Download folder set to: ${chosenPath}`, 'success');
+          this.applySettingsUI();
+          UI.showSettingsSavedNotification(chosenPath);
         } else {
           UI.showToast(`Selected folder: ${chosenPath}`, 'info');
         }
@@ -1035,9 +1033,17 @@ const App = {
   },
 
   async saveSettings() {
+    const saveBtn = document.getElementById('save-settings-btn');
     const dlDir = document.getElementById('setting-dl-dir')?.value.trim();
     const segments = parseInt(document.getElementById('setting-segments')?.value || 8);
     const maxActive = parseInt(document.getElementById('setting-max-active')?.value || 3);
+
+    const origHtml = saveBtn ? saveBtn.innerHTML : '';
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<i data-lucide="loader-2" class="spin"></i> Saving...';
+      if (window.lucide) window.lucide.createIcons();
+    }
 
     try {
       const res = await API.saveSettings({
@@ -1046,11 +1052,46 @@ const App = {
         max_concurrent_downloads: maxActive
       });
       if (res.success) {
-        UI.showToast('Settings saved successfully', 'success');
-        document.getElementById('settings-modal').style.display = 'none';
+        this.settings = res.settings;
+        this.applySettingsUI();
+
+        // Button feedback
+        if (saveBtn) {
+          saveBtn.innerHTML = '<i data-lucide="check-check"></i> Saved!';
+          saveBtn.style.background = '#10B981';
+          saveBtn.style.borderColor = '#10B981';
+          if (window.lucide) window.lucide.createIcons();
+        }
+
+        // Show rich notification card (sound + popup card + open folder button)
+        const savedDir = this.settings.download_dir || dlDir;
+        UI.showSettingsSavedNotification(savedDir);
+
+        setTimeout(() => {
+          document.getElementById('settings-modal').style.display = 'none';
+          if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = origHtml;
+            saveBtn.style.background = '';
+            saveBtn.style.borderColor = '';
+            if (window.lucide) window.lucide.createIcons();
+          }
+        }, 600);
+      } else {
+        UI.showToast(res.message || 'Failed to save settings', 'error');
+        if (saveBtn) {
+          saveBtn.disabled = false;
+          saveBtn.innerHTML = origHtml;
+          if (window.lucide) window.lucide.createIcons();
+        }
       }
     } catch (e) {
-      UI.showToast('Failed to save settings', 'error');
+      UI.showToast('Failed to save settings: ' + (e.message || 'Server error'), 'error');
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = origHtml;
+        if (window.lucide) window.lucide.createIcons();
+      }
     }
   },
 

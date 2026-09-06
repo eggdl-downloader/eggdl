@@ -1328,7 +1328,7 @@ async def save_direct_file(req: SaveFileRequest, user: Optional[Dict[str, Any]] 
             )
 
     settings = get_settings()
-    target_dir = settings.get("download_dir", str(Path.home() / "Downloads" / "EggDL"))
+    target_dir = settings.get("download_dir", str(Path.home() / "Downloads" / "Eggdl Downloads"))
     os.makedirs(target_dir, exist_ok=True)
 
     filename = sanitize_filename(req.filename)
@@ -1394,24 +1394,41 @@ async def save_direct_file(req: SaveFileRequest, user: Optional[Dict[str, Any]] 
 
 
 def resolve_target_dir(custom_dir: Optional[str]) -> str:
-    default_dir = str(Path.home() / "Downloads" / "Eggdl Downloads")
-    if not custom_dir:
-        settings = get_settings()
-        return settings.get("download_dir") or default_dir
+    settings = get_settings()
+    default_dir = os.path.normpath(str(Path.home() / "Downloads" / "Eggdl Downloads"))
+    configured_dir = settings.get("download_dir") or default_dir
     
-    clean = custom_dir.strip()
-    clean_lower = clean.lower().replace("/", "\\")
-    if clean_lower in ("downloads\\eggdl downloads", "downloads\\eggdl downloads\\", "downloads\\eggdl downloads"):
-        return default_dir
-    elif clean_lower.startswith("downloads\\"):
+    if not custom_dir:
+        return configured_dir
+    
+    clean = custom_dir.strip().strip("'\"")
+    if not clean:
+        return configured_dir
+        
+    clean_norm = os.path.normpath(clean).lower()
+    
+    # If the provided path is the legacy default folder or placeholder, honor the user's configured directory!
+    legacy_defaults = {
+        r"downloads\eggdl downloads",
+        r"eggdl downloads",
+        r"downloads\eggdl",
+        r"eggdl",
+        default_dir.lower()
+    }
+    if clean_norm in legacy_defaults:
+        return configured_dir
+
+    if os.path.isabs(clean):
+        return clean
+
+    if clean_norm.startswith("downloads\\") or clean_norm.startswith("downloads/"):
         sub = clean[10:].strip("\\/")
         return str(Path.home() / "Downloads" / sub) if sub else str(Path.home() / "Downloads")
-    elif clean_lower.startswith("desktop\\") or clean_lower == "desktop":
+    elif clean_norm.startswith("desktop\\") or clean_norm == "desktop":
         sub = clean[8:].strip("\\/")
         return str(Path.home() / "Desktop" / sub) if sub else str(Path.home() / "Desktop")
-    elif not os.path.isabs(clean):
+    else:
         return str(Path.home() / clean)
-    return clean
 
 @app.post("/api/download/start")
 async def start_download(req: StartDownloadRequest, user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)):
@@ -1669,7 +1686,7 @@ async def resume_download(task_id: str):
             return {"success": True, "message": "Already running"}
 
     settings = get_settings()
-    target_dir = settings.get("download_dir", str(Path.home() / "Downloads" / "EggDL"))
+    target_dir = settings.get("download_dir", str(Path.home() / "Downloads" / "Eggdl Downloads"))
     segments = settings.get("max_segments_per_download", 8)
 
     if task_record["download_type"] == "stream":
@@ -2010,7 +2027,7 @@ async def open_file(req: FileActionRequest):
 @app.post("/api/system/open-folder")
 async def open_folder(req: FileActionRequest):
     settings = get_settings()
-    dl_dir = settings.get("download_dir", str(Path.home() / "Downloads" / "EggDL"))
+    dl_dir = settings.get("download_dir", str(Path.home() / "Downloads" / "Eggdl Downloads"))
     os.makedirs(dl_dir, exist_ok=True)
 
     file_path = req.file_path
@@ -2045,6 +2062,8 @@ async def open_folder(req: FileActionRequest):
                     subprocess.Popen(f'explorer.exe /select,"{norm_f}"', shell=True)
                 except Exception:
                     os.startfile(os.path.dirname(norm_f))
+            elif real_file_path and os.path.isdir(real_file_path):
+                os.startfile(os.path.normpath(real_file_path))
             else:
                 norm_d = os.path.normpath(dl_dir)
                 os.startfile(norm_d)
