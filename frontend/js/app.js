@@ -25,6 +25,8 @@ const App = {
     setInterval(() => this.updateSystemStats(), 8000);
     this.initPWA();
     this.checkVersion(false);
+    setInterval(() => this.checkVersion(false), 15 * 60 * 1000);
+    window.addEventListener('focus', () => this.checkVersion(false));
     this.initAdminPanel();
     this.startSmoothProgressTicker();
   },
@@ -1386,7 +1388,7 @@ const App = {
           desktop_name: machine.desktop_name || API.getDeviceName(),
           user_name: machine.user_name || 'User',
           os_info: machine.os_info || navigator.platform || 'Windows',
-          app_version: '2.1.7',
+          app_version: '2.1.8',
           total_downloads: this.downloads?.length || 0,
           data_downloaded_mb: 0
         });
@@ -1550,7 +1552,7 @@ const App = {
 
     try {
       const info = await API.checkVersion();
-      const curVer = info?.current_version || '2.1.7';
+      const curVer = info?.current_version || '2.1.8';
       const latVer = info?.latest_version || curVer;
 
       if (versionBadge) versionBadge.innerText = `v${curVer}`;
@@ -1571,7 +1573,14 @@ const App = {
           const updateBtn = document.getElementById('top-update-btn');
           if (updateBtn) updateBtn.onclick = () => this.showUpdateModal(info);
           const dismissBtn = document.getElementById('top-update-dismiss');
-          if (dismissBtn) dismissBtn.onclick = () => { topBanner.style.display = 'none'; };
+          if (dismissBtn) {
+            if (info.mandatory || info.latest_release?.mandatory) {
+              dismissBtn.style.display = 'none';
+            } else {
+              dismissBtn.style.display = 'inline-flex';
+              dismissBtn.onclick = () => { topBanner.style.display = 'none'; };
+            }
+          }
         }
 
         UI.showToast(`🎉 New EggDL Update v${latVer} is available!`, 'success', 7000);
@@ -1628,10 +1637,15 @@ const App = {
     if (progressView) progressView.style.display = 'none';
     if (installBtn) installBtn.style.display = 'none';
 
-    if (verBadge) verBadge.innerText = `v${info.latest_version || '2.1.5'} Available`;
+    if (verBadge) verBadge.innerText = `v${info.latest_version || '2.1.8'} Available`;
     if (notesBox) {
-      const rawNotes = info.release_notes || '⚡ Ultra-Fast Native MP4 Engine\n🚀 Zero 99% Lag & Instant Single-File Output\n🎬 4K/8K stream download optimizations';
+      const rawNotes = info.release_notes || '⚡ Strict 3 Downloads/Day for Trial\n🔒 Expired Trial Product Key Lockout\n🚀 Starter Plan: 4K Max & 2 Simultaneous Active Downloads\n👑 Cloud Product Key Activation & Real-Time Sync\n🎬 4K/8K stream download optimizations';
       notesBox.innerHTML = rawNotes.split('\n').map(l => `<div style="margin-bottom: 4px;">${l}</div>`).join('');
+    }
+
+    const isMandatory = Boolean(info.mandatory || info.latest_release?.mandatory);
+    if (laterBtn) {
+      laterBtn.style.display = isMandatory ? 'none' : 'inline-block';
     }
     
     if (nowBtn) {
@@ -1939,6 +1953,34 @@ const App = {
       if (typeof this.updateStats === 'function') this.updateStats();
     } catch (e) {
       UI.showToast(e.message || 'Device action failed', 'error');
+    }
+  },
+
+  async handleAdminPublishRelease() {
+    const ver = document.getElementById('admin-release-ver')?.value.trim() || '2.1.8';
+    const notes = document.getElementById('admin-release-notes')?.value.trim() || '';
+    const url = document.getElementById('admin-release-url')?.value.trim() || 'https://raw.githubusercontent.com/eggdl-downloader/eggdl/main/frontend/downloads/EggDL_Setup.exe';
+    const mandatory = document.getElementById('admin-release-mandatory')?.checked ?? true;
+    const btn = document.getElementById('btn-admin-push-release');
+    if (!this.adminKey) {
+      return UI.showToast('Please enter master admin key first', 'error');
+    }
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<i data-lucide="loader-2" class="spin"></i> Broadcasting...';
+      if (window.lucide) window.lucide.createIcons();
+    }
+    try {
+      await API.adminPushRelease(this.adminKey, ver, notes, url, mandatory);
+      UI.showToast(`🚀 Broadcasted v${ver} update to all users!`, 'success');
+    } catch (e) {
+      UI.showToast('Push failed: ' + e.message, 'error');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i data-lucide="upload-cloud"></i> Publish App Update';
+        if (window.lucide) window.lucide.createIcons();
+      }
     }
   }
 };

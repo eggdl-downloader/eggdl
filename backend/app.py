@@ -2186,7 +2186,7 @@ class PushReleaseRequest(BaseModel):
 
 class DeviceCheckRequest(BaseModel):
     device_id: Optional[str] = None
-    app_version: Optional[str] = "2.0.0"
+    app_version: Optional[str] = "2.1.8"
     user_email: Optional[str] = None
 
 def is_newer_version(remote_ver: str, local_ver: str) -> bool:
@@ -2441,6 +2441,7 @@ class UpdateDownloadManager:
                 if download_url and download_url.startswith("http"):
                     urls_to_try.append(download_url)
                 urls_to_try.append("https://github.com/eggdl-downloader/eggdl/releases/latest/download/EggDL_Setup.exe")
+                urls_to_try.append("https://github.com/eggdl-downloader/eggdl/releases/download/v2.1.8/EggDL_Setup.exe")
                 urls_to_try.append("https://github.com/eggdl-downloader/eggdl/releases/download/v2.1.7/EggDL_Setup.exe")
                 urls_to_try.append("https://raw.githubusercontent.com/eggdl-downloader/eggdl/main/frontend/downloads/EggDL_Setup.exe")
                 urls_to_try.append("https://github.com/eggdl-downloader/eggdl/raw/main/frontend/downloads/EggDL_Setup.exe")

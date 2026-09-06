@@ -311,7 +311,7 @@ const API = {
       });
       if (res.ok) {
         localData = await res.json();
-        currentVer = localData.current_version || '2.1.7';
+        currentVer = localData.current_version || '2.1.8';
         if (localData.update_available) {
           return localData;
         }

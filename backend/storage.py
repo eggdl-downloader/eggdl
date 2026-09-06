@@ -67,7 +67,7 @@ def import_devices_from_registry(cursor):
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     dev_id, d.get("machine_name") or d.get("desktop_name"), d.get("user_name"), d.get("os_info"),
-                    d.get("app_version", "2.1.7"), d.get("ip_address"),
+                    d.get("app_version", "2.1.8"), d.get("ip_address"),
                     d.get("plan_type", "trial"), d.get("plan_expires_at"), d.get("pro_activated_at"),
                     int(d.get("is_pro", 0)), int(d.get("is_blocked", 0)), d.get("block_reason"),
                     d.get("total_downloads", 0), d.get("data_downloaded_mb", 0.0),
@@ -701,7 +701,7 @@ def register_or_update_device(
     desktop_name: Optional[str] = None,
     user_name: Optional[str] = None,
     os_info: Optional[str] = None,
-    app_version: str = "2.1.5",
+    app_version: str = "2.1.8",
     ip_address: Optional[str] = None,
     total_downloads: Optional[int] = None,
     data_downloaded_mb: Optional[float] = None
@@ -1219,7 +1219,7 @@ def get_all_devices_telemetry() -> List[Dict[str, Any]]:
             "desktop_name": dev.get("machine_name") or "DESKTOP-PC",
             "user_name": dev.get("user_name") or "User",
             "os_info": dev.get("os_info") or "Windows",
-            "app_version": dev.get("app_version") or "2.1.5",
+            "app_version": dev.get("app_version") or "2.1.8",
             "ip_address": dev.get("ip_address") or "127.0.0.1",
             "plan_type": plan_type,
             "days_remaining": days_remaining,
@@ -1274,7 +1274,7 @@ def set_app_release(version: str, release_notes: str, download_url: str, mandato
     conn.commit()
     conn.close()
 
-def register_device(device_id: str, user_email: Optional[str] = None, app_version: str = "2.1.5") -> Dict[str, Any]:
+def register_device(device_id: str, user_email: Optional[str] = None, app_version: str = "2.1.8") -> Dict[str, Any]:
     info = get_machine_info()
     return register_or_update_device(device_id, info["desktop_name"], info["user_name"], info["os_info"], app_version)
 
