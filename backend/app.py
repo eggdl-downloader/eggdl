@@ -2905,15 +2905,16 @@ async def admin_push_release(req: PushReleaseRequest):
 # Mount Frontend static files
 def get_frontend_dir() -> str:
     if getattr(sys, 'frozen', False):
+        exe_dir = os.path.dirname(sys.executable)
         base_dir = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
         for candidate in [
+            os.path.join(exe_dir, "frontend"),
             os.path.join(base_dir, "frontend"),
-            os.path.join(os.path.dirname(sys.executable), "frontend"),
             os.path.join(base_dir, "..", "frontend"),
         ]:
             if os.path.isdir(candidate):
                 return candidate
-        return os.path.join(base_dir, "frontend")
+        return os.path.join(exe_dir, "frontend")
     else:
         return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend"))
 
