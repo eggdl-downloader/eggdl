@@ -526,6 +526,23 @@ def on_clear_cache(icon=None, item=None):
                     except Exception:
                         pass
 
+        # 4. WebView2 Browser Cache
+        try:
+            wv_cache = os.path.join(data_dir, "WebViewData", "EBWebView", "Default", "Cache")
+            if os.path.exists(wv_cache):
+                for root, dirs, files in os.walk(wv_cache):
+                    for f in files:
+                        try:
+                            p = os.path.join(root, f)
+                            sz = os.path.getsize(p)
+                            os.remove(p)
+                            freed_bytes += sz
+                            deleted_files += 1
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+
         # Format human readable size
         if freed_bytes >= 1024 * 1024 * 1024:
             size_text = f"{freed_bytes / (1024 * 1024 * 1024):.2f} GB"
@@ -654,7 +671,7 @@ def main():
     server_ok = wait_for_server(port)
     debug_log(f"wait_for_server returned {server_ok}")
 
-    target_url = f"http://localhost:{port}/"
+    target_url = f"http://localhost:{port}/?v=62.0"
     _TARGET_URL = target_url
     icon_path = os.path.join(BUNDLE_DIR, "eggdl.ico")
     if not os.path.exists(icon_path):
@@ -764,6 +781,12 @@ def main():
         debug_log(f"Calling webview.start(icon={ico_arg})")
         storage_dir = os.path.join(get_user_data_dir(), "WebViewData")
         os.makedirs(storage_dir, exist_ok=True)
+        try:
+            http_cache = os.path.join(storage_dir, "EBWebView", "Default", "Cache")
+            if os.path.exists(http_cache):
+                shutil.rmtree(http_cache, ignore_errors=True)
+        except Exception:
+            pass
         webview.start(private_mode=False, storage_path=storage_dir, debug=False, icon=ico_arg)
         debug_log(f"webview.start() returned after {time.time() - start_ts:.2f}s")
     except Exception as err:

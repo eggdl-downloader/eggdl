@@ -2918,6 +2918,16 @@ def get_frontend_dir() -> str:
         return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend"))
 
 frontend_dir = get_frontend_dir()
+
+@app.middleware("http")
+async def add_no_cache_headers(request, call_next):
+    response = await call_next(request)
+    if request.url.path == "/" or request.url.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
 if os.path.exists(frontend_dir):
     app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
 
@@ -2925,7 +2935,11 @@ if os.path.exists(frontend_dir):
 async def serve_index():
     index_file = os.path.join(frontend_dir, "index.html")
     if os.path.exists(index_file):
-        return FileResponse(index_file)
+        resp = FileResponse(index_file)
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+        resp.headers["Pragma"] = "no-cache"
+        resp.headers["Expires"] = "0"
+        return resp
     return {"message": "EggDL Backend Running"}
 
 if __name__ == "__main__":

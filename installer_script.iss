@@ -47,6 +47,13 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; AppUserMo
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "{#MyAppName}"; ValueData: """{app}\{#MyAppExeName}"" --tray"; Tasks: startupicon; Flags: uninsdeletevalue
 
+[InstallDelete]
+Type: filesandordirs; Name: "{userappdata}\{#MyAppName}\WebViewData\EBWebView\Default\Cache"
+Type: filesandordirs; Name: "{userappdata}\{#MyAppName}\WebViewData\EBWebView\Default\Code Cache"
+
+[UninstallDelete]
+Type: filesandordirs; Name: "{userappdata}\{#MyAppName}\WebViewData"
+
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall
 
