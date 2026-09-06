@@ -855,6 +855,18 @@ const UI = {
     return key.charAt(0).toUpperCase() + key.slice(1);
   },
 
+  getPlanTierKey(planType) {
+    if (!planType) return 'pro';
+    const key = String(planType).toLowerCase().trim();
+    if (key === '1month' || key === 'starter') return 'starter';
+    if (key === '3month' || key === 'pro') return 'pro';
+    if (key === '6month' || key === 'elite') return 'elite';
+    if (key === '1year' || key === 'ultra' || key === 'ultra elite' || key === 'ultra_elite') return 'ultra_elite';
+    if (key === 'lifetime' || key === 'ultimate' || key === 'ultimate pass') return 'lifetime';
+    if (key === 'trial') return 'trial';
+    return 'pro';
+  },
+
   // --- Machine ID & License UI ---
   renderUserProfile(authData) {
     const container = document.getElementById('user-header-area');
@@ -884,23 +896,31 @@ const UI = {
 
     const rawPlanType = (authData && authData.plan_type) || user.plan_type || machine.plan_type || (authData?.plan && authData.plan.id) || (authData?.plan && authData.plan.name);
     const planName = this.getPlanDisplayName(rawPlanType);
+    const tierKey = this.getPlanTierKey(rawPlanType);
 
     let badgeClass = 'user-plan-badge trial';
-    let badgeText = 'TRIAL';
+    let badgeText = 'Trial';
+    let showStar = true;
 
-    if (user.plan_type === 'lifetime' || (isPro && (!daysLeft || daysLeft >= 36500))) {
-      badgeClass = 'user-plan-badge pro lifetime';
-      badgeText = 'PRO';
+    if (user.plan_type === 'lifetime' || (isPro && (!daysLeft || daysLeft >= 36500)) || tierKey === 'lifetime') {
+      badgeClass = 'user-plan-badge lifetime';
+      badgeText = 'Pro';
+      showStar = true;
     } else if (isPro) {
-      badgeClass = 'user-plan-badge pro';
-      badgeText = 'PRO';
+      badgeClass = `user-plan-badge ${tierKey}`;
+      badgeText = 'Pro';
+      showStar = true;
     } else if (isTrial && !authData.trial_expired) {
       badgeClass = 'user-plan-badge trial';
-      badgeText = 'TRIAL';
+      badgeText = 'Trial';
+      showStar = true;
     } else {
       badgeClass = 'user-plan-badge expired';
-      badgeText = 'EXPIRED';
+      badgeText = 'Expired';
+      showStar = false;
     }
+
+    const starSvg = showStar ? `<svg class="badge-star" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0.5L9.6 6.4L15.5 8L9.6 9.6L8 15.5L6.4 9.6L0.5 8L6.4 6.4L8 0.5Z"/></svg>` : '';
 
     const titleTooltip = isPro 
       ? `${planName} Active (${daysLeft || 30}d remaining) • Click to view license details`
@@ -910,7 +930,10 @@ const UI = {
       <button class="user-pill-btn" id="user-profile-btn" title="${titleTooltip}">
         <i data-lucide="monitor" class="user-pc-icon"></i>
         <span class="user-name">${desktopName}</span>
-        <span class="${badgeClass}">${badgeText}</span>
+        <span class="${badgeClass}">
+          ${starSvg}
+          <span>${badgeText}</span>
+        </span>
       </button>
     `;
 
@@ -979,11 +1002,12 @@ const UI = {
     }
 
     if (pillEl) {
-      if (user.plan_type === 'lifetime' || (isPro && (!daysLeft || daysLeft >= 36500))) {
+      const tierKey = this.getPlanTierKey(rawPlanType);
+      if (user.plan_type === 'lifetime' || (isPro && (!daysLeft || daysLeft >= 36500)) || tierKey === 'lifetime') {
         pillEl.className = 'plan-pill lifetime';
         pillEl.innerHTML = 'Ultimate Pass • Lifetime VIP (Unlimited Downloads)';
       } else if (isPro) {
-        pillEl.className = 'plan-pill pro';
+        pillEl.className = `plan-pill ${tierKey}`;
         pillEl.innerHTML = `${planName} • ${daysLeft} Days Remaining (Unlimited Downloads)`;
       } else if (authData?.is_trial) {
         pillEl.className = 'plan-pill trial';
