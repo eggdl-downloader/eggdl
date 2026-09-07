@@ -1006,6 +1006,7 @@
           catBoxEl.style.background = updatedMeta.catBg;
           catBoxEl.style.borderColor = updatedMeta.catBorder;
         }
+      });
     }
 
     // If download_dir wasn't passed directly or default fallback was used, refresh dynamically from backend
