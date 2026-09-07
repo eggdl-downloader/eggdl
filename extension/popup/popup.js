@@ -51,6 +51,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (typeof chrome !== 'undefined' && chrome.storage?.local) {
         chrome.storage.local.set({ eggdl_theme: chosen });
       }
+      try {
+        chrome.tabs.query({}, (tabs) => {
+          if (chrome.runtime?.lastError) return;
+          tabs.forEach(t => {
+            if (t.id) chrome.tabs.sendMessage(t.id, { action: "set_theme", theme: chosen }).catch(() => {});
+          });
+        });
+      } catch (_) {}
     });
   }
 

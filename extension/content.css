@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap');
 
 /* 5 Modular Utility Themes for Injected Controls */
-:root, [data-theme="slate"] {
+:root, [data-theme="slate"], html[data-theme="slate"], body[data-theme="slate"] {
   --bg-canvas: #101216;
   --bg-surface: #181C22;
   --bg-surface-hover: #222730;
@@ -14,7 +14,7 @@
   --accent-text: #FFFFFF;
 }
 
-[data-theme="navy"] {
+[data-theme="navy"], html[data-theme="navy"], body[data-theme="navy"] {
   --bg-canvas: #0A0F1D;
   --bg-surface: #101827;
   --bg-surface-hover: #1E293B;
@@ -27,20 +27,20 @@
   --accent-text: #082F49;
 }
 
-[data-theme="mint"] {
-  --bg-canvas: #0D1117;
-  --bg-surface: #161B22;
-  --bg-surface-hover: #21262D;
-  --bg-surface-active: #30363D;
-  --bg-input: #090D12;
-  --border-default: #30363D;
-  --border-bright: #484F58;
-  --accent-primary: #46F0D2;
-  --accent-primary-hover: #2DD4BF;
-  --accent-text: #042F2E;
+[data-theme="mint"], html[data-theme="mint"], body[data-theme="mint"] {
+  --bg-canvas: #0D1615;
+  --bg-surface: #132220;
+  --bg-surface-hover: #1B2E2B;
+  --bg-surface-active: #233C38;
+  --bg-input: #091312;
+  --border-default: #24423D;
+  --border-bright: #355E57;
+  --accent-primary: #10B981;
+  --accent-primary-hover: #059669;
+  --accent-text: #FFFFFF;
 }
 
-[data-theme="frost"] {
+[data-theme="frost"], html[data-theme="frost"], body[data-theme="frost"] {
   --bg-canvas: #0B131E;
   --bg-surface: #111C2B;
   --bg-surface-hover: #1A283C;
@@ -53,7 +53,7 @@
   --accent-text: #042433;
 }
 
-[data-theme="zinc"] {
+[data-theme="zinc"], html[data-theme="zinc"], body[data-theme="zinc"] {
   --bg-canvas: #121214;
   --bg-surface: #18181B;
   --bg-surface-hover: #27272A;
@@ -725,12 +725,16 @@
 .egg-dl-idm-dock-capsule {
   position: relative !important;
   pointer-events: auto !important;
+  width: 320px !important;
+  max-width: calc(100vw - 48px) !important;
+  box-sizing: border-box !important;
   background: var(--bg-surface, #181C22) !important;
   border: 1px solid var(--border-default, #2E3540) !important;
   border-radius: 8px !important;
-  padding: 8px 14px !important;
+  padding: 8px 12px !important;
   display: flex !important;
   align-items: center !important;
+  justify-content: space-between !important;
   gap: 10px !important;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.65) !important;
   cursor: pointer !important;
@@ -749,6 +753,69 @@
   transform: none !important;
   border-color: var(--accent-primary, #38BDF8) !important;
   background: var(--bg-surface-hover, #222730) !important;
+}
+
+.egg-dl-dock-content {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex: 1 !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+.egg-dl-dock-title {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: #F8FAFC !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  flex: 1 !important;
+  min-width: 0 !important;
+}
+
+.egg-dl-dock-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex-shrink: 0 !important;
+}
+
+.egg-dl-dock-restore {
+  background: rgba(56, 189, 248, 0.15) !important;
+  border: 1px solid var(--accent-primary, #38BDF8) !important;
+  color: var(--accent-primary, #38BDF8) !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  padding: 3px 10px !important;
+  border-radius: 12px !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  transition: all 0.12s ease !important;
+}
+
+.egg-dl-dock-restore:hover {
+  background: var(--accent-primary, #38BDF8) !important;
+  color: var(--accent-text, #FFFFFF) !important;
+}
+
+.egg-dl-dock-close {
+  background: transparent !important;
+  border: none !important;
+  color: #94A3B8 !important;
+  cursor: pointer !important;
+  padding: 3px 5px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 4px !important;
+  transition: all 0.12s ease !important;
+}
+
+.egg-dl-dock-close:hover {
+  color: #EF4444 !important;
+  background: rgba(239, 68, 68, 0.15) !important;
 }
 
 

@@ -28,28 +28,37 @@
   let activeEggTheme = 'slate';
   let cachedDownloadDir = '';
 
+  function applyThemeEverywhere(themeName) {
+    activeEggTheme = themeName || 'slate';
+    document.documentElement.setAttribute('data-theme', activeEggTheme);
+    if (document.body) document.body.setAttribute('data-theme', activeEggTheme);
+    document.querySelectorAll('.pro-dl-floating-badge, .egg-dl-idm-backdrop, .egg-dl-idm-dock-container, .egg-dl-idm-dock-capsule').forEach(el => {
+      el.setAttribute('data-theme', activeEggTheme);
+    });
+  }
+
   if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-    chrome.storage.local.get({ eggdl_theme: 'slate', eggdlDownloadDir: '' }, (items) => {
+    chrome.storage.local.get({ eggdl_theme: 'slate', eggdlDownloadDir: '', eggdl_dock_items: {} }, (items) => {
       if (items && items.eggdl_theme) {
-        activeEggTheme = items.eggdl_theme;
-        document.querySelectorAll('.pro-dl-floating-badge, .egg-dl-idm-backdrop').forEach(el => {
-          el.setAttribute('data-theme', activeEggTheme);
-        });
+        applyThemeEverywhere(items.eggdl_theme);
       }
       if (items && items.eggdlDownloadDir) {
         cachedDownloadDir = items.eggdlDownloadDir;
+      }
+      if (items && items.eggdl_dock_items) {
+        renderDockCapsulesFromStorage(items.eggdl_dock_items);
       }
     });
 
     chrome.storage.onChanged.addListener((changes) => {
       if (changes.eggdl_theme) {
-        activeEggTheme = changes.eggdl_theme.newValue || 'slate';
-        document.querySelectorAll('.pro-dl-floating-badge, .egg-dl-idm-backdrop').forEach(el => {
-          el.setAttribute('data-theme', activeEggTheme);
-        });
+        applyThemeEverywhere(changes.eggdl_theme.newValue || 'slate');
       }
       if (changes.eggdlDownloadDir) {
         cachedDownloadDir = changes.eggdlDownloadDir.newValue || '';
+      }
+      if (changes.eggdl_dock_items) {
+        renderDockCapsulesFromStorage(changes.eggdl_dock_items.newValue || {});
       }
     });
   }
@@ -65,15 +74,113 @@
 
   window.addEventListener('message', (e) => {
     if (e.data && e.data.type === 'eggdl_set_theme' && e.data.theme) {
-      activeEggTheme = e.data.theme;
+      applyThemeEverywhere(e.data.theme);
       if (typeof chrome !== 'undefined' && chrome.storage?.local) {
         chrome.storage.local.set({ eggdl_theme: e.data.theme });
       }
-      document.querySelectorAll('.pro-dl-floating-badge, .egg-dl-idm-backdrop').forEach(el => {
-        el.setAttribute('data-theme', activeEggTheme);
-      });
     }
   });
+
+  function getOrCreateDockContainer() {
+    let container = document.querySelector('.egg-dl-idm-dock-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.className = 'egg-dl-idm-dock-container';
+      container.setAttribute('data-theme', activeEggTheme);
+      document.body.appendChild(container);
+    }
+    return container;
+  }
+
+  function saveDockItemToStorage(item) {
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      chrome.storage.local.get({ eggdl_dock_items: {} }, (res) => {
+        const items = res.eggdl_dock_items || {};
+        items[item.id] = item;
+        chrome.storage.local.set({ eggdl_dock_items: items });
+      });
+    }
+  }
+
+  function removeDockItemFromStorage(itemId) {
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      chrome.storage.local.get({ eggdl_dock_items: {} }, (res) => {
+        const items = res.eggdl_dock_items || {};
+        if (items[itemId]) {
+          delete items[itemId];
+          chrome.storage.local.set({ eggdl_dock_items: items });
+        }
+      });
+    }
+  }
+
+  function renderDockCapsulesFromStorage(storedMap) {
+    const activeIds = Object.keys(storedMap || {});
+    if (activeIds.length === 0) {
+      document.querySelector('.egg-dl-idm-dock-container')?.remove();
+      return;
+    }
+
+    const container = getOrCreateDockContainer();
+    container.setAttribute('data-theme', activeEggTheme);
+
+    container.querySelectorAll('.egg-dl-idm-dock-capsule').forEach(el => {
+      const id = el.getAttribute('data-dialog-id');
+      if (!activeIds.includes(id)) el.remove();
+    });
+
+    const realLogoUrl = (typeof chrome !== 'undefined' && chrome.runtime?.getURL) ? (chrome.runtime.getURL('icons/egg-icon.png') || chrome.runtime.getURL('icons/icon128.png')) : '';
+
+    for (const id of activeIds) {
+      const item = storedMap[id];
+      if (!item) continue;
+      let el = container.querySelector(`.egg-dl-idm-dock-capsule[data-dialog-id="${id}"]`);
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'egg-dl-idm-dock-capsule';
+        el.setAttribute('data-dialog-id', id);
+        el.setAttribute('data-theme', activeEggTheme);
+
+        const shortTitle = item.title || item.filename || 'Download';
+        const fullTitle = item.filename || item.title || shortTitle;
+
+        el.innerHTML = `
+          <div class="egg-dl-dock-content">
+            <img src="${realLogoUrl}" alt="EggDL" style="width: 18px; height: 18px; object-fit: contain; flex-shrink: 0;">
+            <span class="egg-dl-dock-title" title="${fullTitle}">EggDL • ${shortTitle}</span>
+          </div>
+          <div class="egg-dl-dock-actions">
+            <span class="egg-dl-dock-restore">Restore</span>
+            <button type="button" class="egg-dl-dock-close" title="Close">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        `;
+
+        el.addEventListener('click', (e) => {
+          if (e.target.closest('.egg-dl-dock-close')) {
+            el.remove();
+            removeDockItemFromStorage(id);
+            safeSendMessage({ action: "dock_remove", id: id });
+            const localBackdrop = document.querySelector(`.egg-dl-idm-backdrop[data-dialog-id="${id}"]`);
+            if (localBackdrop) localBackdrop.remove();
+            return;
+          }
+          el.remove();
+          removeDockItemFromStorage(id);
+          safeSendMessage({ action: "dock_remove", id: id });
+          const localBackdrop = document.querySelector(`.egg-dl-idm-backdrop[data-dialog-id="${id}"]`);
+          if (localBackdrop) {
+            localBackdrop.classList.remove('minimized');
+          } else {
+            renderIdmDownloadDialog(item);
+          }
+        });
+
+        container.appendChild(el);
+      }
+    }
+  }
 
   function safeSendMessage(message, callback) {
     if (!isExtensionValid()) {
@@ -1120,8 +1227,7 @@
 
     const dismissModal = () => {
       backdrop.classList.remove('active');
-      const attachedCapsule = document.querySelector(`.egg-dl-idm-dock-capsule[data-dialog-id="${dialogId}"]`);
-      if (attachedCapsule) attachedCapsule.remove();
+      removeDockItemFromStorage(dialogId);
       safeSendMessage({ action: "dock_remove", id: dialogId });
       setTimeout(() => backdrop.remove(), 200);
     };
@@ -1134,33 +1240,10 @@
     backdrop.querySelector('.egg-dl-idm-min-btn')?.addEventListener('click', () => {
       backdrop.classList.add('minimized');
 
-      const container = getOrCreateDockContainer();
-      // Remove any duplicate capsule for this specific dialog if it exists
-      const existing = container.querySelector(`.egg-dl-idm-dock-capsule[data-dialog-id="${dialogId}"]`);
-      if (existing) existing.remove();
-
-      const dockCapsule = document.createElement('div');
-      dockCapsule.className = 'egg-dl-idm-dock-capsule';
-      dockCapsule.setAttribute('data-dialog-id', dialogId);
-
       let currentFname = pathInput?.value.trim().split(/[\\\/]/).pop() || initialFilename;
       if (!currentFname.includes('.') && targetExt) currentFname += targetExt;
       const shortTitle = currentFname.length > 20 ? currentFname.slice(0, 18) + '…' : currentFname;
 
-      dockCapsule.innerHTML = `
-        <img src="${realLogoUrl}" alt="EggDL" style="width: 18px; height: 18px; object-fit: contain;">
-        <span style="font-size: 12px; font-weight: 700; color: #F8FAFC;">EggDL • ${shortTitle}</span>
-        <div style="display: flex; align-items: center; gap: 5px; margin-left: 4px;">
-          <span class="egg-dl-dock-restore" style="background: rgba(59, 130, 246, 0.25); border: 1px solid rgba(59, 130, 246, 0.4); color: #60A5FA; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 10px; cursor: pointer;">Restore</span>
-          <button type="button" class="egg-dl-dock-close" style="background: transparent; border: none; color: #94A3B8; cursor: pointer; padding: 2px 4px; display: flex; align-items: center;" title="Close">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
-      `;
-
-      container.appendChild(dockCapsule);
-
-      // Sync with native desktop floating dock so it floats outside Chrome / across Windows
       const fullPath = pathInput ? pathInput.value.trim() : initialFilename;
       let chosenDir = null;
       if (fullPath.includes('\\') || fullPath.includes('/')) {
@@ -1170,33 +1253,27 @@
       }
       const dirToSend = chosenDir || (downloadInfo && downloadInfo.download_dir) || cachedDownloadDir || null;
 
+      const dockPayload = {
+        id: dialogId,
+        title: shortTitle,
+        filename: currentFname,
+        url: url,
+        download_dir: dirToSend,
+        download_type: downloadInfo.download_type || "direct",
+        format_id: downloadInfo.format_id || null,
+        thumbnail: downloadInfo.thumbnail || "",
+        is_audio_only: downloadInfo.is_audio_only || false,
+        referrer: downloadInfo.referrer || window.location.href,
+        file_size: rawBytes > 0 ? rawBytes : null
+      };
+
+      // 1. Save to local storage for instant multi-tab sync
+      saveDockItemToStorage(dockPayload);
+
+      // 2. Sync with native desktop floating dock
       safeSendMessage({
         action: "dock_add",
-        payload: {
-          id: dialogId,
-          title: shortTitle,
-          filename: currentFname,
-          url: url,
-          download_dir: dirToSend,
-          download_type: downloadInfo.download_type || "direct",
-          format_id: downloadInfo.format_id || null,
-          thumbnail: downloadInfo.thumbnail || "",
-          is_audio_only: downloadInfo.is_audio_only || false,
-          referrer: downloadInfo.referrer || window.location.href,
-          file_size: rawBytes > 0 ? rawBytes : null
-        }
-      });
-
-      dockCapsule.addEventListener('click', (e) => {
-        if (e.target.closest('.egg-dl-dock-close')) {
-          dockCapsule.remove();
-          safeSendMessage({ action: "dock_remove", id: dialogId });
-          dismissModal();
-          return;
-        }
-        dockCapsule.remove();
-        safeSendMessage({ action: "dock_remove", id: dialogId });
-        backdrop.classList.remove('minimized');
+        payload: dockPayload
       });
     });
 
@@ -1276,6 +1353,12 @@
 
         if (request.action === "show_idm_download_dialog") {
           renderIdmDownloadDialog(request.download);
+          sendResponse({ success: true });
+          return true;
+        }
+
+        if (request.action === "set_theme") {
+          applyThemeEverywhere(request.theme);
           sendResponse({ success: true });
           return true;
         }
