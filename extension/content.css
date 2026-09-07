@@ -708,29 +708,46 @@
   transform: none !important;
 }
 
-/* Minimized Dock Capsule */
-.egg-dl-idm-dock-capsule {
+/* Minimized Dock Container (Stacks Multiple Capsules Vertically) */
+.egg-dl-idm-dock-container {
   position: fixed !important;
   bottom: 24px !important;
   right: 24px !important;
   z-index: 2147483647 !important;
+  display: flex !important;
+  flex-direction: column-reverse !important;
+  gap: 8px !important;
+  pointer-events: none !important;
+  max-height: calc(100vh - 48px) !important;
+  overflow-y: auto !important;
+}
+
+.egg-dl-idm-dock-capsule {
+  position: relative !important;
+  pointer-events: auto !important;
   background: var(--bg-surface, #181C22) !important;
   border: 1px solid var(--border-default, #2E3540) !important;
-  border-radius: 6px !important;
-  padding: 8px 16px !important;
+  border-radius: 8px !important;
+  padding: 8px 14px !important;
   display: flex !important;
   align-items: center !important;
   gap: 10px !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.65) !important;
   cursor: pointer !important;
-  transition: background 0.12s ease !important;
+  transition: all 0.15s ease !important;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
   user-select: none !important;
+  animation: eggDlDockPop 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+@keyframes eggDlDockPop {
+  0% { opacity: 0; transform: translateY(10px) scale(0.95); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .egg-dl-idm-dock-capsule:hover {
   transform: none !important;
-  border-color: var(--accent-primary, #3B82F6) !important;
+  border-color: var(--accent-primary, #38BDF8) !important;
   background: var(--bg-surface-hover, #222730) !important;
 }
 

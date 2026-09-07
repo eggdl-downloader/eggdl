@@ -1826,67 +1826,52 @@ async def save_settings(req: SettingsRequest):
     return {"success": True, "settings": updated}
 
 
+_folder_dialog_lock = threading.Lock()
+
 def pick_folder_dialog(initial_dir: str = "") -> str:
     start_path = initial_dir if (initial_dir and os.path.isdir(initial_dir)) else str(Path.home() / "Downloads")
 
-    # 1. Try PyWebView active window if available
-    try:
-        import webview
-        if webview.windows and len(webview.windows) > 0:
-            win = webview.windows[0]
-            res = win.create_file_dialog(webview.FOLDER_DIALOG, directory=start_path)
-            if res:
-                chosen = res[0] if isinstance(res, (list, tuple)) else str(res)
-                if chosen and os.path.isdir(chosen):
-                    return os.path.normpath(chosen)
-            return ""
-    except Exception:
-        pass
-
-    # 2. Try Tkinter (native modern Windows IFileDialog)
-    try:
-        import tkinter as tk
-        from tkinter import filedialog
-        root = tk.Tk()
-        root.withdraw()
-        root.attributes('-topmost', True)
-        folder = filedialog.askdirectory(
-            parent=root,
-            initialdir=start_path,
-            title="Select Download Directory"
-        )
-        root.destroy()
-        if folder and os.path.isdir(folder):
-            return os.path.normpath(folder)
+    # Anti-bounce lock: prevent double-clicks or duplicate dialogs from opening together
+    if not _folder_dialog_lock.acquire(blocking=False):
+        logger.info("Folder dialog already open, ignoring duplicate request")
         return ""
-    except Exception:
-        pass
 
-    # 3. Fallback: PowerShell FolderBrowserDialog
     try:
-        ps_code = f"""
-[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null
-$dialog = New-Object System.Windows.Forms.FolderBrowserDialog
-$dialog.Description = 'Select Download Directory'
-$dialog.ShowNewFolderButton = $true
-$dialog.SelectedPath = '{start_path}'
-if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {{
-    [Console]::Out.Write($dialog.SelectedPath)
-}}
-"""
-        proc = subprocess.run(
-            ["powershell", "-NoProfile", "-Command", ps_code],
-            capture_output=True,
-            text=True,
-            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
-        )
-        selected = proc.stdout.strip()
-        if selected and os.path.isdir(selected):
-            return os.path.normpath(selected)
-    except Exception:
-        pass
+        # 1. Try PyWebView active window if available and visible
+        try:
+            import webview
+            if webview.windows and len(webview.windows) > 0:
+                win = webview.windows[0]
+                res = win.create_file_dialog(webview.FOLDER_DIALOG, directory=start_path)
+                if res:
+                    chosen = res[0] if isinstance(res, (list, tuple)) else str(res)
+                    if chosen and os.path.isdir(chosen):
+                        return os.path.normpath(chosen)
+                return ""
+        except Exception:
+            pass
 
-    return ""
+        # 2. Native Windows Modern File Explorer dialog via Tkinter
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes('-topmost', True)
+            folder = filedialog.askdirectory(
+                parent=root,
+                initialdir=start_path,
+                title="Select EggDL Download Location"
+            )
+            root.destroy()
+            if folder and os.path.isdir(folder):
+                return os.path.normpath(folder)
+            return ""
+        except Exception as e:
+            logger.warning(f"Tkinter folder picker error: {e}")
+            return ""
+    finally:
+        _folder_dialog_lock.release()
 
 
 @app.post("/api/settings/browse_directory")
@@ -2089,52 +2074,93 @@ async def open_folder(req: FileActionRequest):
 @app.post("/api/system/select-folder")
 @app.get("/api/system/select-folder")
 async def select_folder():
-    def _pick():
-        if sys.platform == "win32":
-            # 1. Tkinter native dialog (opens fast, topmost, 0 console windows)
-            try:
-                import tkinter as tk
-                from tkinter import filedialog
-                root = tk.Tk()
-                root.withdraw()
-                root.attributes('-topmost', True)
-                folder = filedialog.askdirectory(title="Select EggDL Download Location")
-                root.destroy()
-                if folder:
-                    return folder.replace("/", "\\")
-            except Exception:
-                pass
-
-            # 2. PowerShell STA FolderBrowserDialog fallback
-            try:
-                ps_script = """Add-Type -AssemblyName System.Windows.Forms
-$d = New-Object System.Windows.Forms.FolderBrowserDialog
-$d.Description = 'Select EggDL Download Location'
-$d.ShowNewFolderButton = $true
-$f = New-Object System.Windows.Forms.Form
-$f.TopMost = $true
-if ($d.ShowDialog($f) -eq [System.Windows.Forms.DialogResult]::OK) {
-    [Console]::WriteLine($d.SelectedPath)
-}
-"""
-                res = subprocess.run(
-                    ["powershell.exe", "-STA", "-NoProfile", "-Command", ps_script],
-                    capture_output=True,
-                    text=True,
-                    timeout=120,
-                    creationflags=0x08000000  # CREATE_NO_WINDOW suppresses console window while keeping dialog visible
-                )
-                out = res.stdout.strip()
-                if out:
-                    return out
-            except Exception:
-                pass
-        return ""
-    
-    selected = await asyncio.to_thread(_pick)
-    if selected:
-        return {"success": True, "folder": selected}
+    settings = get_settings()
+    initial_dir = settings.get("download_dir", "")
+    folder = await asyncio.to_thread(pick_folder_dialog, initial_dir)
+    if folder:
+        return {"success": True, "folder": folder}
     return {"success": False, "folder": ""}
+
+
+DOCK_ITEMS: Dict[str, Dict[str, Any]] = {}
+_DOCK_PROCESS: Optional[subprocess.Popen] = None
+_dock_lock = threading.Lock()
+
+def ensure_desktop_dock_running():
+    global _DOCK_PROCESS
+    with _dock_lock:
+        if not DOCK_ITEMS:
+            return
+        if _DOCK_PROCESS is not None and _DOCK_PROCESS.poll() is None:
+            return
+        dock_script = os.path.join(os.path.dirname(__file__), "desktop_dock.py")
+        if os.path.exists(dock_script):
+            try:
+                creationflags = 0x08000000 if sys.platform == "win32" else 0
+                py_exec = sys.executable
+                if "python.exe" in py_exec.lower():
+                    pyw = py_exec.lower().replace("python.exe", "pythonw.exe")
+                    if os.path.exists(pyw):
+                        py_exec = pyw
+                _DOCK_PROCESS = subprocess.Popen(
+                    [py_exec, dock_script],
+                    creationflags=creationflags
+                )
+            except Exception as e:
+                logger.warning(f"Could not launch desktop dock: {e}")
+
+class DockItemPayload(BaseModel):
+    id: str
+    title: Optional[str] = None
+    filename: Optional[str] = None
+    url: str
+    download_dir: Optional[str] = None
+    download_type: Optional[str] = "direct"
+    format_id: Optional[str] = None
+    thumbnail: Optional[str] = ""
+    is_audio_only: Optional[bool] = False
+    referrer: Optional[str] = ""
+    file_size: Optional[int] = None
+
+@app.get("/api/dock/items")
+async def get_dock_items():
+    return {"success": True, "items": list(DOCK_ITEMS.values())}
+
+@app.post("/api/dock/add")
+async def add_dock_item(item: DockItemPayload):
+    DOCK_ITEMS[item.id] = item.dict()
+    ensure_desktop_dock_running()
+    return {"success": True, "items": list(DOCK_ITEMS.values())}
+
+@app.post("/api/dock/remove")
+async def remove_dock_item(payload: Dict[str, Any]):
+    item_id = str(payload.get("id", ""))
+    if item_id and item_id in DOCK_ITEMS:
+        del DOCK_ITEMS[item_id]
+    return {"success": True, "items": list(DOCK_ITEMS.values())}
+
+@app.post("/api/dock/start")
+async def start_dock_item(payload: Dict[str, Any]):
+    item_id = str(payload.get("id", ""))
+    item = DOCK_ITEMS.get(item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Dock item not found")
+    
+    req = StartDownloadRequest(
+        url=item["url"],
+        download_type=item.get("download_type") or "direct",
+        format_id=item.get("format_id"),
+        thumbnail=item.get("thumbnail") or "",
+        is_audio_only=item.get("is_audio_only") or False,
+        custom_filename=item.get("filename"),
+        custom_title=item.get("title"),
+        download_dir=item.get("download_dir"),
+        referer=item.get("referrer")
+    )
+    res = await start_download(req)
+    if item_id in DOCK_ITEMS:
+        del DOCK_ITEMS[item_id]
+    return {"success": True, "download": res, "items": list(DOCK_ITEMS.values())}
 
 
 @app.get("/api/system/stats")

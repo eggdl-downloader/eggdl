@@ -921,6 +921,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
+  if (request.action === "dock_add") {
+    fetchFromBackend("/api/dock/add", {
+      method: "POST",
+      body: JSON.stringify(request.payload)
+    }).then(data => sendResponse(data)).catch(err => sendResponse({ success: false }));
+    return true;
+  }
+
+  if (request.action === "dock_remove") {
+    fetchFromBackend("/api/dock/remove", {
+      method: "POST",
+      body: JSON.stringify({ id: request.id })
+    }).then(data => sendResponse(data)).catch(err => sendResponse({ success: false }));
+    return true;
+  }
+
   if (request.action === "bypass_browser_download") {
     const url = request.url;
     if (url) {

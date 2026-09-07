@@ -811,12 +811,13 @@
   function renderIdmDownloadDialog(downloadInfo) {
     if (!downloadInfo || !downloadInfo.url) return;
 
-    // Remove any existing IDM dialog & dock capsule
-    document.querySelectorAll('.egg-dl-idm-backdrop').forEach(el => el.remove());
-    document.querySelectorAll('.egg-dl-idm-dock-capsule').forEach(el => el.remove());
+    // Remove any previous active (unminimized) modal, but KEEP all minimized capsules and modals
+    document.querySelectorAll('.egg-dl-idm-backdrop:not(.minimized)').forEach(el => el.remove());
 
+    const dialogId = 'egg-dl-idm-' + Math.random().toString(36).slice(2, 9);
     const backdrop = document.createElement('div');
     backdrop.className = 'egg-dl-idm-backdrop';
+    backdrop.setAttribute('data-dialog-id', dialogId);
     backdrop.setAttribute('data-theme', activeEggTheme);
 
     const url = downloadInfo.url;
@@ -1024,9 +1025,20 @@
     }
 
     // Browse folder button: opens native folder picker and updates input + storage
-    backdrop.querySelector('.egg-dl-idm-browse-btn')?.addEventListener('click', (e) => {
+    const browseBtn = backdrop.querySelector('.egg-dl-idm-browse-btn');
+    let isBrowsingFolder = false;
+    browseBtn?.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (isBrowsingFolder) return;
+      isBrowsingFolder = true;
+      browseBtn.style.opacity = '0.5';
+      browseBtn.style.pointerEvents = 'none';
+
       safeSendMessage({ action: "select_folder" }, (res) => {
+        isBrowsingFolder = false;
+        browseBtn.style.opacity = '1';
+        browseBtn.style.pointerEvents = 'auto';
+
         if (res && res.success && res.folder) {
           let chosen = res.folder;
           if (!chosen.endsWith('\\') && !chosen.endsWith('/')) chosen += '\\';
@@ -1096,9 +1108,21 @@
       window.addEventListener('mouseup', onMouseUp);
     }
 
+    function getOrCreateDockContainer() {
+      let container = document.querySelector('.egg-dl-idm-dock-container');
+      if (!container) {
+        container = document.createElement('div');
+        container.className = 'egg-dl-idm-dock-container';
+        document.body.appendChild(container);
+      }
+      return container;
+    }
+
     const dismissModal = () => {
       backdrop.classList.remove('active');
-      document.querySelectorAll('.egg-dl-idm-dock-capsule').forEach(el => el.remove());
+      const attachedCapsule = document.querySelector(`.egg-dl-idm-dock-capsule[data-dialog-id="${dialogId}"]`);
+      if (attachedCapsule) attachedCapsule.remove();
+      safeSendMessage({ action: "dock_remove", id: dialogId });
       setTimeout(() => backdrop.remove(), 200);
     };
 
@@ -1106,14 +1130,19 @@
     backdrop.querySelector('.egg-dl-idm-close-btn')?.addEventListener('click', dismissModal);
     backdrop.querySelector('.egg-dl-idm-cancel-btn')?.addEventListener('click', dismissModal);
 
-    // Minimize button -> Completely hides modal and shows small bottom-right floating dock pill
+    // Minimize button -> Hides modal and adds floating dock capsule stacked upwards ("top, top, top")
     backdrop.querySelector('.egg-dl-idm-min-btn')?.addEventListener('click', () => {
       backdrop.classList.add('minimized');
 
-      document.querySelectorAll('.egg-dl-idm-dock-capsule').forEach(el => el.remove());
+      const container = getOrCreateDockContainer();
+      // Remove any duplicate capsule for this specific dialog if it exists
+      const existing = container.querySelector(`.egg-dl-idm-dock-capsule[data-dialog-id="${dialogId}"]`);
+      if (existing) existing.remove();
 
       const dockCapsule = document.createElement('div');
       dockCapsule.className = 'egg-dl-idm-dock-capsule';
+      dockCapsule.setAttribute('data-dialog-id', dialogId);
+
       let currentFname = pathInput?.value.trim().split(/[\\\/]/).pop() || initialFilename;
       if (!currentFname.includes('.') && targetExt) currentFname += targetExt;
       const shortTitle = currentFname.length > 20 ? currentFname.slice(0, 18) + '…' : currentFname;
@@ -1122,22 +1151,51 @@
         <img src="${realLogoUrl}" alt="EggDL" style="width: 18px; height: 18px; object-fit: contain;">
         <span style="font-size: 12px; font-weight: 700; color: #F8FAFC;">EggDL • ${shortTitle}</span>
         <div style="display: flex; align-items: center; gap: 5px; margin-left: 4px;">
-          <span style="background: rgba(59, 130, 246, 0.25); border: 1px solid rgba(59, 130, 246, 0.4); color: #60A5FA; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 10px;">Restore</span>
+          <span class="egg-dl-dock-restore" style="background: rgba(59, 130, 246, 0.25); border: 1px solid rgba(59, 130, 246, 0.4); color: #60A5FA; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 10px; cursor: pointer;">Restore</span>
           <button type="button" class="egg-dl-dock-close" style="background: transparent; border: none; color: #94A3B8; cursor: pointer; padding: 2px 4px; display: flex; align-items: center;" title="Close">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
       `;
 
-      document.body.appendChild(dockCapsule);
+      container.appendChild(dockCapsule);
+
+      // Sync with native desktop floating dock so it floats outside Chrome / across Windows
+      const fullPath = pathInput ? pathInput.value.trim() : initialFilename;
+      let chosenDir = null;
+      if (fullPath.includes('\\') || fullPath.includes('/')) {
+        const parts = fullPath.split(/[\\\/]/);
+        parts.pop();
+        chosenDir = parts.join('\\');
+      }
+      const dirToSend = chosenDir || (downloadInfo && downloadInfo.download_dir) || cachedDownloadDir || null;
+
+      safeSendMessage({
+        action: "dock_add",
+        payload: {
+          id: dialogId,
+          title: shortTitle,
+          filename: currentFname,
+          url: url,
+          download_dir: dirToSend,
+          download_type: downloadInfo.download_type || "direct",
+          format_id: downloadInfo.format_id || null,
+          thumbnail: downloadInfo.thumbnail || "",
+          is_audio_only: downloadInfo.is_audio_only || false,
+          referrer: downloadInfo.referrer || window.location.href,
+          file_size: rawBytes > 0 ? rawBytes : null
+        }
+      });
 
       dockCapsule.addEventListener('click', (e) => {
         if (e.target.closest('.egg-dl-dock-close')) {
           dockCapsule.remove();
+          safeSendMessage({ action: "dock_remove", id: dialogId });
           dismissModal();
           return;
         }
         dockCapsule.remove();
+        safeSendMessage({ action: "dock_remove", id: dialogId });
         backdrop.classList.remove('minimized');
       });
     });
