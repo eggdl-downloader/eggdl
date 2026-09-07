@@ -2154,7 +2154,6 @@ async def get_dock_items():
 @app.post("/api/dock/add")
 async def add_dock_item(item: DockItemPayload):
     DOCK_ITEMS[item.id] = item.dict()
-    ensure_desktop_dock_running()
     return {"success": True, "items": list(DOCK_ITEMS.values())}
 
 @app.post("/api/dock/remove")
