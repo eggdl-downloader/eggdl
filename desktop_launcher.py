@@ -120,11 +120,13 @@ def force_foreground_window(hwnd):
         if fore_wnd:
             fore_thread = user32.GetWindowThreadProcessId(fore_wnd, None)
             curr_thread = kernel32.GetCurrentThreadId()
-            if fore_thread != curr_thread:
-                user32.AttachThreadInput(curr_thread, fore_thread, True)
-                user32.BringWindowToTop(hwnd)
-                user32.SetForegroundWindow(hwnd)
-                user32.AttachThreadInput(curr_thread, fore_thread, False)
+            if fore_thread and curr_thread and fore_thread != curr_thread:
+                try:
+                    user32.AttachThreadInput(curr_thread, fore_thread, True)
+                    user32.BringWindowToTop(hwnd)
+                    user32.SetForegroundWindow(hwnd)
+                finally:
+                    user32.AttachThreadInput(curr_thread, fore_thread, False)
                 return
 
         user32.BringWindowToTop(hwnd)
@@ -322,6 +324,7 @@ def ensure_autostart_registry():
 _MAIN_WINDOW = None
 _TRAY_ICON = None
 _IS_EXITING = False
+_WEBVIEW_LOADED_EVENT = threading.Event()
 
 def on_open_eggdl(icon=None, item=None):
     show_main_window()
@@ -329,30 +332,46 @@ def on_open_eggdl(icon=None, item=None):
 _TARGET_URL = "http://localhost:8000/"
 
 def show_main_window():
-    global _MAIN_WINDOW, _TARGET_URL
-    debug_log("show_main_window called")
+    threading.Thread(target=_do_show_main_window, daemon=True).start()
+
+def _do_show_main_window():
+    global _MAIN_WINDOW, _TARGET_URL, _IS_EXITING, _WEBVIEW_LOADED_EVENT
+    debug_log(f"_do_show_main_window called (loaded={_WEBVIEW_LOADED_EVENT.is_set()})")
+
+    # If app was started in tray on Windows boot and webview is still initializing, wait up to 8s for completion
+    if not _WEBVIEW_LOADED_EVENT.is_set():
+        debug_log("_do_show_main_window: Webview still initializing. Waiting for page load...")
+        ready = _WEBVIEW_LOADED_EVENT.wait(timeout=8.0)
+        debug_log(f"_do_show_main_window: Wait result ready={ready}")
+        if not ready:
+            debug_log("_do_show_main_window: Webview initialization timed out. Auto-restarting app...")
+            on_restart_app()
+            return
+
     shown = False
     if _MAIN_WINDOW:
         try:
-            if hasattr(_MAIN_WINDOW, "native") and _MAIN_WINDOW.native:
-                form = _MAIN_WINDOW.native
+            form = getattr(_MAIN_WINDOW, "native", None)
+            if form:
+                def _show_action():
+                    try:
+                        # Reposition back onto screen if started off-screen
+                        if form.Location.X < -1000 or form.Location.Y < -1000:
+                            form.CenterToScreen()
+                        setattr(form, "ShowInTaskbar", True)
+                        form.Opacity = 1.0
+                        form.WindowState = getattr(form.WindowState, "Normal", 0)
+                        form.Show()
+                        form.BringToFront()
+                        form.Activate()
+                    except Exception as act_err:
+                        debug_log(f"_show_action error: {act_err}")
+
                 if hasattr(form, "InvokeRequired") and form.InvokeRequired:
                     import System
-                    form.BeginInvoke(System.Action(lambda: (
-                        setattr(form, "ShowInTaskbar", True),
-                        form.Show(),
-                        _MAIN_WINDOW.show(),
-                        _MAIN_WINDOW.restore(),
-                        form.BringToFront(),
-                        form.Activate()
-                    )))
+                    form.BeginInvoke(System.Action(_show_action))
                 else:
-                    form.ShowInTaskbar = True
-                    form.Show()
-                    _MAIN_WINDOW.show()
-                    _MAIN_WINDOW.restore()
-                    form.BringToFront()
-                    form.Activate()
+                    _show_action()
                 shown = True
             else:
                 _MAIN_WINDOW.show()
@@ -715,7 +734,9 @@ def main():
     # Launch native webview on the Main Thread with DesktopApi native bridge
     start_ts = time.time()
     try:
-        debug_log(f"Creating webview window pointing to {target_url} (hidden={is_tray_start})")
+        init_x = -32000 if is_tray_start else None
+        init_y = -32000 if is_tray_start else None
+        debug_log(f"Creating webview window pointing to {target_url} (is_tray_start={is_tray_start}, x={init_x}, y={init_y})")
         import webview
         _MAIN_WINDOW = webview.create_window(
             title="EggDL - Ultra Turbo Downloader",
@@ -723,10 +744,12 @@ def main():
             width=1320,
             height=840,
             min_size=(980, 640),
+            x=init_x,
+            y=init_y,
             background_color="#0B0F19",
             easy_drag=False,
             zoomable=True,
-            hidden=is_tray_start,
+            hidden=False,  # Keep False so pywebview never calls browser.Hide() before WebView2 initializes!
             js_api=DesktopApi()
         )
         _MAIN_WINDOW.events.closing += on_closing
@@ -736,15 +759,31 @@ def main():
                 debug_log("events.shown fired - bringing window to foreground")
                 show_main_window()
             else:
-                debug_log("events.shown fired during tray start - keeping window hidden")
-                try:
-                    _MAIN_WINDOW.hide()
-                except Exception:
-                    pass
+                debug_log("events.shown fired during tray start - keeping offscreen while CoreWebView2 initializes")
 
         _MAIN_WINDOW.events.shown += on_window_shown
 
-        # Also schedule a watchdog to bring to foreground at 1.5s after start if normal start
+        def on_window_loaded():
+            global _WEBVIEW_LOADED_EVENT
+            _WEBVIEW_LOADED_EVENT.set()
+            debug_log("events.loaded fired: CoreWebView2 initialized and page loaded successfully")
+            if is_tray_start:
+                # CoreWebView2 is now completely initialized and running!
+                # Safely hide the form in the UI thread until user opens the app from tray.
+                try:
+                    form = getattr(_MAIN_WINDOW, "native", None)
+                    if form:
+                        import System
+                        form.BeginInvoke(System.Action(lambda: (
+                            form.Hide(),
+                            setattr(form, "ShowInTaskbar", False)
+                        )))
+                except Exception as e:
+                    debug_log(f"Safe hide after loaded error: {e}")
+
+        _MAIN_WINDOW.events.loaded += on_window_loaded
+
+        # Schedule watchdog to bring to foreground at 1.5s after start if normal start
         def focus_watchdog():
             time.sleep(1.5)
             if not is_tray_start:
@@ -753,43 +792,10 @@ def main():
 
         threading.Thread(target=focus_watchdog, daemon=True).start()
 
-        # If starting in tray mode, enforce window remains completely hidden and not in taskbar
-        def tray_start_watchdog():
-            if not is_tray_start:
-                return
-            debug_log("tray_start_watchdog active: ensuring window stays hidden in tray")
-            for _ in range(12):
-                time.sleep(0.4)
-                if _MAIN_WINDOW:
-                    try:
-                        _MAIN_WINDOW.hide()
-                        if hasattr(_MAIN_WINDOW, "native") and _MAIN_WINDOW.native:
-                            form = _MAIN_WINDOW.native
-                            if hasattr(form, "InvokeRequired") and form.InvokeRequired:
-                                import System
-                                form.BeginInvoke(System.Action(lambda: (
-                                    setattr(form, "ShowInTaskbar", False),
-                                    form.Hide()
-                                )))
-                            else:
-                                form.ShowInTaskbar = False
-                                form.Hide()
-                    except Exception:
-                        pass
-
-        if is_tray_start:
-            threading.Thread(target=tray_start_watchdog, daemon=True).start()
-
         ico_arg = icon_path if (os.path.exists(icon_path) and icon_path.lower().endswith(".ico")) else None
         debug_log(f"Calling webview.start(icon={ico_arg})")
         storage_dir = os.path.join(get_user_data_dir(), "WebViewData")
         os.makedirs(storage_dir, exist_ok=True)
-        try:
-            http_cache = os.path.join(storage_dir, "EBWebView", "Default", "Cache")
-            if os.path.exists(http_cache):
-                shutil.rmtree(http_cache, ignore_errors=True)
-        except Exception:
-            pass
         webview.start(private_mode=False, storage_path=storage_dir, debug=False, icon=ico_arg)
         debug_log(f"webview.start() returned after {time.time() - start_ts:.2f}s")
     except Exception as err:
