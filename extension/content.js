@@ -26,14 +26,18 @@
   }
 
   let activeEggTheme = 'slate';
+  let cachedDownloadDir = '';
 
   if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-    chrome.storage.local.get({ eggdl_theme: 'slate' }, (items) => {
+    chrome.storage.local.get({ eggdl_theme: 'slate', eggdlDownloadDir: '' }, (items) => {
       if (items && items.eggdl_theme) {
         activeEggTheme = items.eggdl_theme;
         document.querySelectorAll('.pro-dl-floating-badge, .egg-dl-idm-backdrop').forEach(el => {
           el.setAttribute('data-theme', activeEggTheme);
         });
+      }
+      if (items && items.eggdlDownloadDir) {
+        cachedDownloadDir = items.eggdlDownloadDir;
       }
     });
 
@@ -44,6 +48,18 @@
           el.setAttribute('data-theme', activeEggTheme);
         });
       }
+      if (changes.eggdlDownloadDir) {
+        cachedDownloadDir = changes.eggdlDownloadDir.newValue || '';
+      }
+    });
+  }
+
+  function fetchLatestDownloadDir(callback) {
+    safeSendMessage({ action: "get_download_dir" }, (res) => {
+      if (res && res.download_dir) {
+        cachedDownloadDir = res.download_dir;
+      }
+      if (typeof callback === 'function') callback(cachedDownloadDir);
     });
   }
 
@@ -563,16 +579,19 @@
         const cleanTitle = videoTitle.replace(/[/\?%*:|"<>]/g, '_').trim();
         const initialFname = `${cleanTitle}${ext}`;
 
-        renderIdmDownloadDialog({
-          url: directUrl || pageUrl,
-          filename: initialFname,
-          file_size: fileSize,
-          mime: isAudio ? 'audio/mpeg' : 'video/mp4',
-          download_type: directUrl ? 'direct' : 'stream',
-          format_id: formatId || (isAudio ? 'bestaudio/best' : 'bestvideo+bestaudio/best'),
-          thumbnail: data.thumbnail || '',
-          is_audio_only: isAudio,
-          referrer: window.location.href
+        fetchLatestDownloadDir((latestDir) => {
+          renderIdmDownloadDialog({
+            url: directUrl || pageUrl,
+            filename: initialFname,
+            file_size: fileSize,
+            mime: isAudio ? 'audio/mpeg' : 'video/mp4',
+            download_type: directUrl ? 'direct' : 'stream',
+            format_id: formatId || (isAudio ? 'bestaudio/best' : 'bestvideo+bestaudio/best'),
+            thumbnail: data.thumbnail || '',
+            is_audio_only: isAudio,
+            download_dir: latestDir,
+            referrer: window.location.href
+          });
         });
       });
     });
@@ -708,14 +727,17 @@
         const cleanTitle = videoTitle.replace(/[/\?%*:|"<>]/g, '_').trim() || "video";
         const initialFname = `${cleanTitle}${isAudio ? '.mp3' : '.mp4'}`;
 
-        renderIdmDownloadDialog({
-          url: streamUrl,
-          filename: initialFname,
-          file_size: fileSize,
-          mime: isAudio ? 'audio/mpeg' : 'video/mp4',
-          download_type: 'direct',
-          is_audio_only: isAudio,
-          referrer: window.location.href
+        fetchLatestDownloadDir((latestDir) => {
+          renderIdmDownloadDialog({
+            url: streamUrl,
+            filename: initialFname,
+            file_size: fileSize,
+            mime: isAudio ? 'audio/mpeg' : 'video/mp4',
+            download_type: 'direct',
+            is_audio_only: isAudio,
+            download_dir: latestDir,
+            referrer: window.location.href
+          });
         });
       });
     });
@@ -874,12 +896,9 @@
     }
     let meta = getExtAndCategory(initialFilename);
     const realLogoUrl = (typeof chrome !== 'undefined' && chrome.runtime?.getURL) ? (chrome.runtime.getURL('icons/egg-icon.png') || chrome.runtime.getURL('icons/icon128.png')) : '';
-    let defaultFolder = 'Downloads\\Eggdl Downloads\\';
-    if (downloadInfo && downloadInfo.download_dir) {
-      defaultFolder = downloadInfo.download_dir;
-      if (!defaultFolder.endsWith('\\') && !defaultFolder.endsWith('/')) {
-        defaultFolder += '\\';
-      }
+    let defaultFolder = (downloadInfo && downloadInfo.download_dir) || cachedDownloadDir || 'Downloads\\Eggdl Downloads\\';
+    if (!defaultFolder.endsWith('\\') && !defaultFolder.endsWith('/')) {
+      defaultFolder += '\\';
     }
 
     backdrop.innerHTML = `
@@ -933,6 +952,9 @@
             <div class="egg-dl-idm-input-wrapper">
               <input type="text" class="egg-dl-idm-path-input" value="${defaultFolder}${initialFilename}" spellcheck="false" title="Click to rename file or edit destination path">
             </div>
+            <button type="button" class="egg-dl-idm-browse-btn" title="Choose download directory">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            </button>
           </div>
         </div>
 
@@ -984,8 +1006,39 @@
           catBoxEl.style.background = updatedMeta.catBg;
           catBoxEl.style.borderColor = updatedMeta.catBorder;
         }
+    }
+
+    // If download_dir wasn't passed directly or default fallback was used, refresh dynamically from backend
+    if (!downloadInfo || !downloadInfo.download_dir) {
+      fetchLatestDownloadDir((freshDir) => {
+        if (freshDir && pathInput) {
+          const curVal = pathInput.value;
+          if (curVal.startsWith('Downloads\\Eggdl Downloads\\') || !curVal.includes('\\')) {
+            const fname = curVal.split(/[\\\/]/).pop() || initialFilename;
+            const pfx = (freshDir.endsWith('\\') || freshDir.endsWith('/')) ? freshDir : (freshDir + '\\');
+            pathInput.value = `${pfx}${fname}`;
+          }
+        }
       });
     }
+
+    // Browse folder button: opens native folder picker and updates input + storage
+    backdrop.querySelector('.egg-dl-idm-browse-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      safeSendMessage({ action: "select_folder" }, (res) => {
+        if (res && res.success && res.folder) {
+          let chosen = res.folder;
+          if (!chosen.endsWith('\\') && !chosen.endsWith('/')) chosen += '\\';
+          let curVal = pathInput ? pathInput.value.trim() : initialFilename;
+          let fname = curVal.split(/[\\\/]/).pop() || initialFilename;
+          if (pathInput) pathInput.value = `${chosen}${fname}`;
+          cachedDownloadDir = chosen;
+          if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+            chrome.storage.local.set({ eggdlDownloadDir: chosen });
+          }
+        }
+      });
+    });
 
     // Drag-to-Move Functionality via Header
     if (header && modal) {
@@ -1107,10 +1160,17 @@
         finalFilename = fullPath;
       }
 
-      // If customDir wasn't provided, use configured download_dir if available
+      // If customDir is empty or placeholder, prioritize user's configured download directory
+      const isPlaceholderFallback = !customDir || 
+        customDir.toLowerCase() === 'downloads\\eggdl downloads' || 
+        customDir.toLowerCase() === 'downloads/eggdl downloads';
+
+      const bestKnownDir = (downloadInfo && downloadInfo.download_dir) || cachedDownloadDir;
       let dirToSend = customDir;
-      if (!dirToSend && downloadInfo && downloadInfo.download_dir) {
-        dirToSend = downloadInfo.download_dir;
+      if (isPlaceholderFallback && bestKnownDir) {
+        dirToSend = bestKnownDir;
+      } else if (!dirToSend && bestKnownDir) {
+        dirToSend = bestKnownDir;
       }
 
       // Always guarantee proper file extension (.jpg, .mp4, .mp3, etc.)

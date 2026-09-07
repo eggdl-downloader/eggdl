@@ -624,6 +624,28 @@
   color: #FFFFFF !important;
 }
 
+.egg-dl-idm-browse-btn {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid var(--border-default, #2E3540) !important;
+  border-radius: 5px !important;
+  color: #94A3B8 !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 24px !important;
+  height: 24px !important;
+  padding: 0 !important;
+  flex-shrink: 0 !important;
+  transition: all 0.15s ease !important;
+}
+
+.egg-dl-idm-browse-btn:hover {
+  background: rgba(56, 189, 248, 0.15) !important;
+  border-color: var(--accent-primary, #38BDF8) !important;
+  color: #FFFFFF !important;
+}
+
 /* Solid Native Action Buttons */
 .egg-dl-idm-browser-btn {
   background: var(--bg-surface-hover, #222730) !important;

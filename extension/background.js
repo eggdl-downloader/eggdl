@@ -783,9 +783,23 @@ async function discoverActiveBackend() {
   return activeBackendUrl;
 }
 
-// Initial discovery and periodic keepalive
-discoverActiveBackend();
-setInterval(discoverActiveBackend, 20000);
+// Initial discovery and periodic keepalive + settings sync
+async function syncBackendSettings() {
+  try {
+    const res = await fetchFromBackend("/api/settings");
+    if (res && res.settings && res.settings.download_dir) {
+      chrome.storage.local.set({ eggdlDownloadDir: res.settings.download_dir });
+      return res.settings.download_dir;
+    }
+  } catch (_) {}
+  return null;
+}
+
+discoverActiveBackend().then(() => syncBackendSettings());
+setInterval(() => {
+  discoverActiveBackend();
+  syncBackendSettings();
+}, 8000);
 
 async function fetchFromBackend(endpoint, options = {}) {
   const isInspect = endpoint.includes('inspect') || endpoint.includes('sniff');
@@ -835,6 +849,23 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   if (request.action === "get_tab_media") {
     sendResponse({ media: tabMediaStore[tabId] || [] });
+    return true;
+  }
+
+  if (request.action === "get_download_dir" || request.action === "get_settings") {
+    syncBackendSettings().then(dir => {
+      if (dir) {
+        sendResponse({ success: true, download_dir: dir });
+      } else {
+        chrome.storage.local.get(['eggdlDownloadDir'], (st) => {
+          sendResponse({ success: !!st?.eggdlDownloadDir, download_dir: st?.eggdlDownloadDir || null });
+        });
+      }
+    }).catch(() => {
+      chrome.storage.local.get(['eggdlDownloadDir'], (st) => {
+        sendResponse({ success: !!st?.eggdlDownloadDir, download_dir: st?.eggdlDownloadDir || null });
+      });
+    });
     return true;
   }
 
@@ -984,8 +1015,17 @@ if (typeof chrome !== 'undefined' && chrome.downloads && chrome.downloads.onCrea
         const settingsRes = await fetchFromBackend("/api/settings");
         if (settingsRes && settingsRes.settings && settingsRes.settings.download_dir) {
           configuredDir = settingsRes.settings.download_dir;
+          chrome.storage.local.set({ eggdlDownloadDir: configuredDir });
         }
       } catch (_) {}
+      if (!configuredDir) {
+        try {
+          const localSt = await new Promise(r => chrome.storage.local.get(['eggdlDownloadDir'], r));
+          if (localSt && localSt.eggdlDownloadDir) {
+            configuredDir = localSt.eggdlDownloadDir;
+          }
+        } catch (_) {}
+      }
 
       const downloadInfo = {
         url: url,
