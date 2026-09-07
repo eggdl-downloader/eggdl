@@ -343,10 +343,6 @@ def _do_show_main_window():
         debug_log("_do_show_main_window: Webview still initializing. Waiting for page load...")
         ready = _WEBVIEW_LOADED_EVENT.wait(timeout=8.0)
         debug_log(f"_do_show_main_window: Wait result ready={ready}")
-        if not ready:
-            debug_log("_do_show_main_window: Webview initialization timed out. Auto-restarting app...")
-            on_restart_app()
-            return
 
     shown = False
     if _MAIN_WINDOW:
@@ -360,8 +356,14 @@ def _do_show_main_window():
                             form.CenterToScreen()
                         setattr(form, "ShowInTaskbar", True)
                         form.Opacity = 1.0
-                        form.WindowState = getattr(form.WindowState, "Normal", 0)
+                        try:
+                            from System.Windows.Forms import FormWindowState
+                            form.WindowState = FormWindowState.Normal
+                        except Exception:
+                            pass
                         form.Show()
+                        _MAIN_WINDOW.show()
+                        _MAIN_WINDOW.restore()
                         form.BringToFront()
                         form.Activate()
                     except Exception as act_err:
