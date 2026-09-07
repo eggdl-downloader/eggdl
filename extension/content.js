@@ -37,31 +37,48 @@
     });
   }
 
-  if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-    chrome.storage.local.get({ eggdl_theme: 'slate', eggdlDownloadDir: '', eggdl_dock_items: {} }, (items) => {
-      if (items && items.eggdl_theme) {
-        applyThemeEverywhere(items.eggdl_theme);
-      }
-      if (items && items.eggdlDownloadDir) {
-        cachedDownloadDir = items.eggdlDownloadDir;
-      }
-      if (items && items.eggdl_dock_items) {
-        renderDockCapsulesFromStorage(items.eggdl_dock_items);
-      }
-    });
+  function syncDockCapsulesFromStorage() {
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      chrome.storage.local.get({ eggdl_theme: 'slate', eggdlDownloadDir: '', eggdl_dock_items: {} }, (items) => {
+        if (items) {
+          if (items.eggdl_theme) applyThemeEverywhere(items.eggdl_theme);
+          if (items.eggdlDownloadDir) cachedDownloadDir = items.eggdlDownloadDir;
+          renderDockCapsulesFromStorage(items.eggdl_dock_items || {});
+        }
+      });
+    }
+  }
 
-    chrome.storage.onChanged.addListener((changes) => {
-      if (changes.eggdl_theme) {
-        applyThemeEverywhere(changes.eggdl_theme.newValue || 'slate');
-      }
-      if (changes.eggdlDownloadDir) {
-        cachedDownloadDir = changes.eggdlDownloadDir.newValue || '';
-      }
-      if (changes.eggdl_dock_items) {
-        renderDockCapsulesFromStorage(changes.eggdl_dock_items.newValue || {});
+  if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+    syncDockCapsulesFromStorage();
+
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (!areaName || areaName === 'local') {
+        if (changes.eggdl_theme) {
+          applyThemeEverywhere(changes.eggdl_theme.newValue || 'slate');
+        }
+        if (changes.eggdlDownloadDir) {
+          cachedDownloadDir = changes.eggdlDownloadDir.newValue || '';
+        }
+        if (changes.eggdl_dock_items) {
+          renderDockCapsulesFromStorage(changes.eggdl_dock_items.newValue || {});
+        }
       }
     });
   }
+
+  // Real-time tab visibility and focus sync for already opened tabs
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) syncDockCapsulesFromStorage();
+  });
+  window.addEventListener('focus', () => {
+    syncDockCapsulesFromStorage();
+  });
+
+  // Periodic heartbeat sync for visible tabs so all tabs stay updated
+  setInterval(() => {
+    if (!document.hidden) syncDockCapsulesFromStorage();
+  }, 2500);
 
   function fetchLatestDownloadDir(callback) {
     safeSendMessage({ action: "get_download_dir" }, (res) => {
@@ -1373,6 +1390,12 @@
             document.querySelectorAll('video').forEach(v => delete v.dataset.proDlAttached);
           }
           sendResponse({ success: true, isOverlayEnabled });
+          return true;
+        }
+
+        if (request.action === "dock_sync") {
+          syncDockCapsulesFromStorage();
+          sendResponse({ success: true });
           return true;
         }
 

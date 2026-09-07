@@ -803,7 +803,8 @@ setInterval(() => {
 
 async function fetchFromBackend(endpoint, options = {}) {
   const isInspect = endpoint.includes('inspect') || endpoint.includes('sniff');
-  const timeoutMs = isInspect ? 24000 : 8000;
+  const isDialog = endpoint.includes('select-folder') || endpoint.includes('browse_directory');
+  const timeoutMs = isDialog ? 180000 : (isInspect ? 24000 : 8000);
 
   // First try active URL
   try {
@@ -926,6 +927,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       method: "POST",
       body: JSON.stringify(request.payload)
     }).then(data => sendResponse(data)).catch(err => sendResponse({ success: false }));
+    chrome.tabs.query({}, (tabs) => {
+      for (const tab of (tabs || [])) {
+        if (tab && tab.id) chrome.tabs.sendMessage(tab.id, { action: "dock_sync" }).catch(() => {});
+      }
+    });
     return true;
   }
 
@@ -934,6 +940,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       method: "POST",
       body: JSON.stringify({ id: request.id })
     }).then(data => sendResponse(data)).catch(err => sendResponse({ success: false }));
+    chrome.tabs.query({}, (tabs) => {
+      for (const tab of (tabs || [])) {
+        if (tab && tab.id) chrome.tabs.sendMessage(tab.id, { action: "dock_sync" }).catch(() => {});
+      }
+    });
     return true;
   }
 

@@ -14,6 +14,9 @@ import threading
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any
 from pathlib import Path
+import logging
+
+logger = logging.getLogger("eggdl")
 
 # Ensure backend directory is in sys.path
 _BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -1828,6 +1831,108 @@ async def save_settings(req: SettingsRequest):
 
 _folder_dialog_lock = threading.Lock()
 
+def _native_windows_folder_picker(start_path: str, title: str = "Select EggDL Download Location") -> str:
+    import ctypes
+    from ctypes import wintypes, POINTER, c_void_p, c_ulong, c_wchar_p, Structure, byref, HRESULT, WINFUNCTYPE
+
+    ole32 = ctypes.windll.ole32
+    shell32 = ctypes.windll.shell32
+    user32 = ctypes.windll.user32
+
+    ole32.CoInitialize(None)
+
+    class GUID(Structure):
+        _fields_ = [
+            ("Data1", wintypes.DWORD),
+            ("Data2", wintypes.WORD),
+            ("Data3", wintypes.WORD),
+            ("Data4", wintypes.BYTE * 8)
+        ]
+
+    def parse_guid(guid_str):
+        g = GUID()
+        ole32.CLSIDFromString(ctypes.c_wchar_p(guid_str), byref(g))
+        return g
+
+    CLSID_FileOpenDialog = parse_guid("{DC1C5A9C-E88A-4DDE-A5A1-60F82A20AEF7}")
+    IID_IFileOpenDialog = parse_guid("{D57C7288-D4AD-4768-BE02-9D969532D960}")
+    IID_IShellItem = parse_guid("{43826D1E-E718-42EE-BC55-A1E261C37BFE}")
+
+    p_dialog = c_void_p()
+    hr = ole32.CoCreateInstance(
+        byref(CLSID_FileOpenDialog),
+        None,
+        1,  # CLSCTX_INPROC_SERVER
+        byref(IID_IFileOpenDialog),
+        byref(p_dialog)
+    )
+
+    if hr != 0 or not p_dialog:
+        ole32.CoUninitialize()
+        return ""
+
+    def get_vtable_func(p_obj, index, restype, argtypes):
+        vtable_ptr = ctypes.cast(p_obj, POINTER(POINTER(c_void_p))).contents
+        func_ptr = vtable_ptr[index]
+        proto = WINFUNCTYPE(restype, *argtypes)
+        return proto(func_ptr)
+
+    Release = get_vtable_func(p_dialog, 2, c_ulong, [c_void_p])
+    Show = get_vtable_func(p_dialog, 3, HRESULT, [c_void_p, wintypes.HWND])
+    SetOptions = get_vtable_func(p_dialog, 9, HRESULT, [c_void_p, wintypes.DWORD])
+    GetOptions = get_vtable_func(p_dialog, 10, HRESULT, [c_void_p, POINTER(wintypes.DWORD)])
+    SetFolder = get_vtable_func(p_dialog, 12, HRESULT, [c_void_p, c_void_p])
+    SetTitle = get_vtable_func(p_dialog, 17, HRESULT, [c_void_p, c_wchar_p])
+    GetResult = get_vtable_func(p_dialog, 20, HRESULT, [c_void_p, POINTER(c_void_p)])
+
+    try:
+        cur_opts = wintypes.DWORD(0)
+        GetOptions(p_dialog, byref(cur_opts))
+        # FOS_PICKFOLDERS = 0x20, FOS_FORCEFILESYSTEM = 0x40, FOS_PATHMUSTEXIST = 0x800
+        new_opts = cur_opts.value | 0x00000020 | 0x00000040 | 0x00000800
+        SetOptions(p_dialog, wintypes.DWORD(new_opts))
+
+        if title:
+            SetTitle(p_dialog, title)
+
+        if start_path and os.path.exists(start_path):
+            p_folder_item = c_void_p()
+            hr_folder = shell32.SHCreateItemFromParsingName(
+                ctypes.c_wchar_p(start_path),
+                None,
+                byref(IID_IShellItem),
+                byref(p_folder_item)
+            )
+            if hr_folder == 0 and p_folder_item:
+                SetFolder(p_dialog, p_folder_item)
+                item_release = get_vtable_func(p_folder_item, 2, c_ulong, [c_void_p])
+                item_release(p_folder_item)
+
+        hwnd_fg = user32.GetForegroundWindow()
+        hr_show = Show(p_dialog, hwnd_fg or 0)
+        if hr_show != 0:
+            return ""
+
+        p_result_item = c_void_p()
+        hr_res = GetResult(p_dialog, byref(p_result_item))
+        if hr_res == 0 and p_result_item:
+            GetDisplayName = get_vtable_func(p_result_item, 5, HRESULT, [c_void_p, wintypes.DWORD, POINTER(c_void_p)])
+            p_str = c_void_p()
+            hr_str = GetDisplayName(p_result_item, wintypes.DWORD(0x80058000), byref(p_str))
+            res_path = ""
+            if hr_str == 0 and p_str:
+                res_path = ctypes.wstring_at(p_str)
+                ole32.CoTaskMemFree(p_str)
+
+            result_release = get_vtable_func(p_result_item, 2, c_ulong, [c_void_p])
+            result_release(p_result_item)
+            return os.path.normpath(res_path) if (res_path and os.path.isdir(res_path)) else ""
+        return ""
+    finally:
+        Release(p_dialog)
+        ole32.CoUninitialize()
+
+
 def pick_folder_dialog(initial_dir: str = "") -> str:
     start_path = initial_dir if (initial_dir and os.path.isdir(initial_dir)) else str(Path.home() / "Downloads")
 
@@ -1837,64 +1942,25 @@ def pick_folder_dialog(initial_dir: str = "") -> str:
         return ""
 
     try:
-        # 1. Native Modern Windows File Explorer dialog via WinForms OpenFolderDialog with TopMost Form
-        # Opens directly in foreground on top of Chrome / active app WITHOUT blinking EggDL in taskbar
-        try:
-            import clr
-            clr.AddReference('System.Windows.Forms')
-            clr.AddReference('System.Threading')
-            from System.Threading import Thread, ThreadStart, ApartmentState
-            from System.Windows.Forms import Form
-            from webview.platforms.winforms import OpenFolderDialog
-
-            result = [None]
-            def _sta_worker():
-                dummy = None
-                try:
-                    dummy = Form()
-                    dummy.TopMost = True
-                    dummy.Width = 0
-                    dummy.Height = 0
-                    dummy.ShowInTaskbar = False
-                    res = OpenFolderDialog.show(dummy, initialDirectory=start_path, title="Select EggDL Download Location")
-                    if res and len(res) > 0:
-                        chosen = res[0]
-                        if chosen and os.path.isdir(str(chosen)):
-                            result[0] = os.path.normpath(str(chosen))
-                except Exception as e:
-                    logger.warning(f"Modern OpenFolderDialog worker error: {e}")
-                finally:
-                    if dummy:
-                        dummy.Dispose()
-
-            t = Thread(ThreadStart(_sta_worker))
-            t.SetApartmentState(ApartmentState.STA)
-            t.Start()
-            t.Join()
-            if result[0]:
-                return result[0]
-        except Exception as e:
-            logger.warning(f"Modern WinForms folder picker error: {e}")
-
-        # 2. Native Windows Modern File Explorer dialog via Tkinter TopMost fallback
-        try:
-            import tkinter as tk
-            from tkinter import filedialog
-            root = tk.Tk()
-            root.withdraw()
-            root.attributes('-topmost', True)
-            folder = filedialog.askdirectory(
-                parent=root,
-                initialdir=start_path,
-                title="Select EggDL Download Location"
-            )
-            root.destroy()
-            if folder and os.path.isdir(folder):
-                return os.path.normpath(folder)
-            return ""
-        except Exception as e:
-            logger.warning(f"Tkinter folder picker error: {e}")
-            return ""
+        if sys.platform == "win32":
+            return _native_windows_folder_picker(start_path, "Select EggDL Download Location")
+        elif sys.platform == "darwin":
+            try:
+                cmd = ['osascript', '-e', 'POSIX path of (choose folder with prompt "Select EggDL Download Location")']
+                res = subprocess.check_output(cmd, text=True, timeout=120).strip()
+                return os.path.normpath(res) if (res and os.path.isdir(res)) else ""
+            except Exception:
+                return ""
+        else:
+            try:
+                cmd = ['zenity', '--file-selection', '--directory', '--title=Select EggDL Download Location']
+                res = subprocess.check_output(cmd, text=True, timeout=120).strip()
+                return os.path.normpath(res) if (res and os.path.isdir(res)) else ""
+            except Exception:
+                return ""
+    except Exception as e:
+        logger.warning(f"Folder picker error: {e}")
+        return ""
     finally:
         _folder_dialog_lock.release()
 
