@@ -1837,21 +1837,46 @@ def pick_folder_dialog(initial_dir: str = "") -> str:
         return ""
 
     try:
-        # 1. Try PyWebView active window if available and visible
+        # 1. Native Modern Windows File Explorer dialog via WinForms OpenFolderDialog with TopMost Form
+        # Opens directly in foreground on top of Chrome / active app WITHOUT blinking EggDL in taskbar
         try:
-            import webview
-            if webview.windows and len(webview.windows) > 0:
-                win = webview.windows[0]
-                res = win.create_file_dialog(webview.FOLDER_DIALOG, directory=start_path)
-                if res:
-                    chosen = res[0] if isinstance(res, (list, tuple)) else str(res)
-                    if chosen and os.path.isdir(chosen):
-                        return os.path.normpath(chosen)
-                return ""
-        except Exception:
-            pass
+            import clr
+            clr.AddReference('System.Windows.Forms')
+            clr.AddReference('System.Threading')
+            from System.Threading import Thread, ThreadStart, ApartmentState
+            from System.Windows.Forms import Form
+            from webview.platforms.winforms import OpenFolderDialog
 
-        # 2. Native Windows Modern File Explorer dialog via Tkinter
+            result = [None]
+            def _sta_worker():
+                dummy = None
+                try:
+                    dummy = Form()
+                    dummy.TopMost = True
+                    dummy.Width = 0
+                    dummy.Height = 0
+                    dummy.ShowInTaskbar = False
+                    res = OpenFolderDialog.show(dummy, initialDirectory=start_path, title="Select EggDL Download Location")
+                    if res and len(res) > 0:
+                        chosen = res[0]
+                        if chosen and os.path.isdir(str(chosen)):
+                            result[0] = os.path.normpath(str(chosen))
+                except Exception as e:
+                    logger.warning(f"Modern OpenFolderDialog worker error: {e}")
+                finally:
+                    if dummy:
+                        dummy.Dispose()
+
+            t = Thread(ThreadStart(_sta_worker))
+            t.SetApartmentState(ApartmentState.STA)
+            t.Start()
+            t.Join()
+            if result[0]:
+                return result[0]
+        except Exception as e:
+            logger.warning(f"Modern WinForms folder picker error: {e}")
+
+        # 2. Native Windows Modern File Explorer dialog via Tkinter TopMost fallback
         try:
             import tkinter as tk
             from tkinter import filedialog
