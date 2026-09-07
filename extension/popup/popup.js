@@ -455,6 +455,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           });
         });
       });
+    });
   }
 
   sniffFullBtn.onclick = () => {
