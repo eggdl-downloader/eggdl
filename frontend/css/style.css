@@ -1605,9 +1605,54 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   padding: 9px 14px;
 }
 
+.downloads-table td.col-progress {
+  padding: 9px 10px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.downloads-table .progress-cell-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 120px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.downloads-table .progress-cell-wrap .progress-bar-bg {
+  flex: 1;
+  min-width: 40px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 0;
+}
+
+.downloads-table .progress-cell-wrap .progress-bar-fill {
+  background: var(--accent-primary, #00FFC2);
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.15s ease;
+}
+
+.downloads-table .progress-cell-wrap .row-progress-pct {
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text-muted);
+  width: 36px;
+  min-width: 36px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
 .downloads-table td.col-status {
   padding: 9px 10px;
   white-space: nowrap;
+  overflow: visible;
 }
 
 .downloads-table td.col-actions {

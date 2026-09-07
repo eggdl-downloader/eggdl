@@ -195,12 +195,14 @@ const UI = {
     }, duration);
   },
 
-  showDownloadCompleteNotification(task) {
+  showDownloadCompleteNotification(task, playSound = true) {
     if (!task) return;
-    // 1. Play the download complete sound effect
-    try {
-      this.playTechyCompletionSound();
-    } catch (_) {}
+    // 1. Play the download complete sound effect (only if requested)
+    if (playSound) {
+      try {
+        this.playTechyCompletionSound();
+      } catch (_) {}
+    }
 
     // 2. Render exclusively in-app completion card popup (zero duplicate Windows OS toast)
     this.renderInAppDownloadCompleteCard(task);
@@ -663,11 +665,11 @@ const UI = {
           </td>
           <td class="col-size">${sizeStr}</td>
           <td class="col-progress">
-            <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
-              <div class="progress-bar-bg" style="width: 70px; margin-bottom: 0; flex-shrink: 0;">
+            <div class="progress-cell-wrap">
+              <div class="progress-bar-bg">
                 <div class="progress-bar-fill" style="width: ${effectiveProgress}%;"></div>
               </div>
-              <span class="row-progress-pct" style="font-size: 0.8rem; font-family: var(--font-mono); font-weight: 600; flex-shrink: 0;">${effectiveProgress}%</span>
+              <span class="row-progress-pct">${effectiveProgress}%</span>
             </div>
           </td>
           <td class="col-status">

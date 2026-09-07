@@ -391,14 +391,57 @@ def _do_show_main_window():
         debug_log("show_main_window: No window available, launching browser fallback")
         threading.Thread(target=launch_browser_fallback, args=(_TARGET_URL,), daemon=True).start()
 
+_LAST_NATIVE_SOUND_TS = 0
+
+def play_native_completion_sound():
+    global _LAST_NATIVE_SOUND_TS
+    now = time.time()
+    if now - _LAST_NATIVE_SOUND_TS < 1.5:
+        return
+    _LAST_NATIVE_SOUND_TS = now
+
+    def _worker():
+        try:
+            candidates = [
+                os.path.join(BUNDLE_DIR, "frontend", "audio", "notification.mp3"),
+                os.path.join(BASE_DIR, "frontend", "audio", "notification.mp3"),
+                os.path.join(os.environ.get("LOCALAPPDATA", ""), "EggDL", "_internal", "frontend", "audio", "notification.mp3"),
+                os.path.join(os.environ.get("LOCALAPPDATA", ""), "EggDL", "frontend", "audio", "notification.mp3"),
+            ]
+            audio_path = None
+            for p in candidates:
+                if p and os.path.exists(p):
+                    audio_path = os.path.abspath(p)
+                    break
+
+            if audio_path and sys.platform == "win32":
+                import ctypes
+                mci = ctypes.windll.winmm.mciSendStringW
+                alias = f"eggdl_snd_{int(time.time()*1000)%10000}"
+                mci(f'close {alias}', None, 0, 0)
+                open_code = mci(f'open "{audio_path}" type mpegvideo alias {alias}', None, 0, 0)
+                if open_code == 0:
+                    mci(f'play {alias} from 0', None, 0, 0)
+                    time.sleep(2.0)
+                    mci(f'close {alias}', None, 0, 0)
+                    return
+            import winsound
+            winsound.MessageBeep(winsound.MB_ICONASTERISK)
+        except Exception as e:
+            debug_log(f"play_native_completion_sound error: {e}")
+
+    threading.Thread(target=_worker, daemon=True).start()
+
 def on_desktop_download_completed(task_dict):
     global _MAIN_WINDOW
-    # Windows OS native tray notification is intentionally disabled to avoid duplicate OS toasts.
-    # The in-app download complete notification card + sound effect is used exclusively.
+    # 1. Play native sound instantly through Windows audio subsystem (100% reliable even if app is in tray/background)
+    play_native_completion_sound()
+
+    # 2. Render in-app download complete card in webview (playSound=false to prevent delayed duplicate audio)
     if _MAIN_WINDOW:
         try:
             task_json = json.dumps(task_dict)
-            _MAIN_WINDOW.evaluate_js(f"if(window.UI && window.UI.showDownloadCompleteNotification){{ window.UI.showDownloadCompleteNotification({task_json}); }}")
+            _MAIN_WINDOW.evaluate_js(f"if(window.UI && window.UI.showDownloadCompleteNotification){{ window.UI.showDownloadCompleteNotification({task_json}, false); }}")
         except Exception:
             pass
 

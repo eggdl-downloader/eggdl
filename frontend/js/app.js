@@ -193,11 +193,16 @@ const App = {
           res.downloads.forEach(d => {
             const taskId = d.id || d.filename;
             if (d && d.status === 'completed' && taskId && !this.notifiedCompletedTaskIds.has(taskId)) {
-              if (this.activeTasks[d.id] || (d.created_at && (Date.now() / 1000 - d.created_at < 300))) {
+              if (this.activeTasks[d.id]) {
                 this.notifiedCompletedTaskIds.add(taskId);
                 delete this.activeTasks[d.id];
                 UI.renderActiveTasks(this.activeTasks);
-                UI.showDownloadCompleteNotification(d);
+                const isDesktopApp = typeof window.pywebview !== 'undefined';
+                UI.showDownloadCompleteNotification(d, !isDesktopApp);
+              } else {
+                // Background download completed while app was not active/viewed
+                // Mark as notified so opening the app later does not trigger delayed audio
+                this.notifiedCompletedTaskIds.add(taskId);
               }
             }
           });
@@ -326,7 +331,8 @@ const App = {
           if (taskName) this.notifiedCompletedTaskIds.add(taskName);
           delete this.activeTasks[task.id];
           UI.renderActiveTasks(this.activeTasks);
-          UI.showDownloadCompleteNotification(task);
+          const isDesktopApp = typeof window.pywebview !== 'undefined';
+          UI.showDownloadCompleteNotification(task, !isDesktopApp);
         }
       } else if (task.status === 'error' && msg.type === 'task_updated') {
         UI.showToast(`Download failed: ${task.error_message || 'Unknown error'}`, 'error');
@@ -341,7 +347,8 @@ const App = {
           if (taskName) this.notifiedCompletedTaskIds.add(taskName);
           delete this.activeTasks[task.id];
           UI.renderActiveTasks(this.activeTasks);
-          UI.showDownloadCompleteNotification(task);
+          const isDesktopApp = typeof window.pywebview !== 'undefined';
+          UI.showDownloadCompleteNotification(task, !isDesktopApp);
         }
       }
       this.loadDownloads();
