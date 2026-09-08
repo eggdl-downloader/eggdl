@@ -1171,7 +1171,7 @@ const UI = {
         pillEl.innerHTML = `${planName} • ${daysLeft} Days Remaining (Unlimited Downloads)`;
       } else if (authData?.is_trial) {
         pillEl.className = 'plan-pill trial';
-        pillEl.innerHTML = `Free Trial • ${authData.trial_days_remaining || 7} Days Remaining (Unlimited Downloads)`;
+        pillEl.innerHTML = `Free Trial • ${authData.trial_days_remaining || 7} Days Left (3 Downloads/Day)`;
       } else {
         pillEl.className = 'plan-pill expired';
         pillEl.innerHTML = 'Free Trial Expired • Enter Product Key Below';

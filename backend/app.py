@@ -45,6 +45,7 @@ try:
         create_user, get_user_by_email, get_user_by_id, get_user_by_google_id,
         update_user_plan, create_license_key, get_license_key, activate_license_key,
         create_payment_record, get_user_payments, get_daily_downloads_count,
+        record_download_in_ledger, get_db_connection, export_devices_to_registry,
         get_device_id, get_machine_info, register_or_update_device,
         get_device_license_status, grant_device_pro, revoke_device_pro,
         reset_device_trial, activate_product_key_for_device, get_all_devices_telemetry,
@@ -67,6 +68,7 @@ except ImportError:
         create_user, get_user_by_email, get_user_by_id, get_user_by_google_id,
         update_user_plan, create_license_key, get_license_key, activate_license_key,
         create_payment_record, get_user_payments, get_daily_downloads_count,
+        record_download_in_ledger, get_db_connection, export_devices_to_registry,
         get_device_id, get_machine_info, register_or_update_device,
         get_device_license_status, grant_device_pro, revoke_device_pro,
         reset_device_trial, activate_product_key_for_device, get_all_devices_telemetry,
@@ -128,6 +130,28 @@ def set_show_window_callback(cb):
 def set_download_completed_callback(cb):
     global _DOWNLOAD_COMPLETED_CALLBACK
     _DOWNLOAD_COMPLETED_CALLBACK = cb
+
+# In-memory queue of completed downloads waiting to be acknowledged by extension UI
+_UNNOTIFIED_COMPLETIONS: Dict[str, Dict[str, Any]] = {}
+
+@app.get("/api/system/unread-notifications")
+async def get_unread_notifications():
+    global _UNNOTIFIED_COMPLETIONS
+    return {
+        "success": True,
+        "notifications": list(_UNNOTIFIED_COMPLETIONS.values())
+    }
+
+@app.post("/api/system/mark-notified")
+async def mark_notifications_read(req: Dict[str, Any]):
+    global _UNNOTIFIED_COMPLETIONS
+    task_ids = req.get("task_ids", [])
+    if isinstance(task_ids, list):
+        for tid in task_ids:
+            _UNNOTIFIED_COMPLETIONS.pop(str(tid), None)
+    elif isinstance(task_ids, str):
+        _UNNOTIFIED_COMPLETIONS.pop(str(task_ids), None)
+    return {"success": True}
 
 @app.get("/api/app/show_window")
 async def api_show_window():
@@ -671,8 +695,21 @@ def sync_license_from_cloud(dev_id: str) -> Optional[Dict[str, Any]]:
                                     "days_remaining": 0,
                                     "license": get_device_license_status(dev_id)
                                 })
-                            if fb_data.get("plan_type") == "trial" and not fb_data.get("trial_expired"):
-                                reset_device_trial(dev_id)
+                            # Synchronize genuine created_at from Firebase so local days left perfectly matches Admin Panel
+                            fb_created = fb_data.get("created_at")
+                            if fb_created:
+                                try:
+                                    conn = get_db_connection()
+                                    cur = conn.cursor()
+                                    cur.execute("SELECT created_at FROM devices WHERE device_id = ?", (dev_id,))
+                                    crow = cur.fetchone()
+                                    if crow and crow[0] != fb_created:
+                                        cur.execute("UPDATE devices SET created_at = ? WHERE device_id = ?", (fb_created, dev_id))
+                                        conn.commit()
+                                        export_devices_to_registry()
+                                    conn.close()
+                                except Exception as e:
+                                    print(f"[CloudSync] Error syncing device created_at: {e}")
                             return fb_data
                     else:
                         # Register new device in Firebase with fresh trial state (clean, pure Firebase licensing)
@@ -1009,11 +1046,11 @@ async def auth_me(request: Request):
         "trial_days_remaining": status.get("trial_days_remaining", 7),
         "days_remaining": status.get("days_remaining", 0),
         "can_download": status.get("can_download", True),
-        "is_unlimited": status.get("is_unlimited", True),
+        "is_unlimited": False if (status.get("is_trial") and not status.get("is_pro")) else bool(status.get("is_unlimited", False)),
         "is_blocked": status.get("is_blocked", False),
         "block_reason": status.get("block_reason"),
         "daily_downloads_used": status.get("daily_downloads_used", 0),
-        "daily_downloads_limit": status.get("daily_downloads_limit"),
+        "daily_downloads_limit": 3 if (status.get("is_trial") and not status.get("is_pro")) else status.get("daily_downloads_limit"),
         "max_concurrent": status.get("max_concurrent", 2),
         "max_resolution": status.get("max_resolution", "4K")
     }
@@ -1382,6 +1419,8 @@ async def save_direct_file(req: SaveFileRequest, user: Optional[Dict[str, Any]] 
         }
 
         save_download_task(task_dict, user_id=user_id)
+        record_download_in_ledger(get_device_id(), user_id=user_id, task_id=task_id)
+        _UNNOTIFIED_COMPLETIONS[task_id] = task_dict
         await broadcast({
             "type": "task_added",
             "task": task_dict
@@ -1390,6 +1429,15 @@ async def save_direct_file(req: SaveFileRequest, user: Optional[Dict[str, Any]] 
             "type": "task_updated",
             "task": task_dict
         })
+        await broadcast({
+            "type": "task_completed",
+            "task": task_dict
+        })
+        if _DOWNLOAD_COMPLETED_CALLBACK:
+            try:
+                _DOWNLOAD_COMPLETED_CALLBACK(task_dict)
+            except Exception:
+                pass
 
         return {"success": True, "task_id": task_id, "task": task_dict}
     except Exception as e:
@@ -1603,6 +1651,7 @@ async def start_download(req: StartDownloadRequest, user: Optional[Dict[str, Any
 
     active_tasks[task_id] = task
     save_download_task(task_data, user_id=user_id)
+    record_download_in_ledger(get_device_id(), user_id=user_id, task_id=task_id)
 
     # Launch download in background
     asyncio.create_task(_run_task(task_id, task))
@@ -1628,6 +1677,16 @@ async def _run_task(task_id: str, task: Any):
             "task": task_dict
         })
         if task_dict.get("status") == "completed":
+            _UNNOTIFIED_COMPLETIONS[task_id] = {
+                "id": task_id,
+                "title": task_dict.get("title") or task_dict.get("filename") or "download",
+                "filename": task_dict.get("filename") or task_dict.get("title") or "download",
+                "file_path": task_dict.get("file_path", ""),
+                "file_size": task_dict.get("file_size", 0),
+                "downloaded_bytes": task_dict.get("downloaded_bytes", 0),
+                "category": task_dict.get("category", "other"),
+                "completed_at": task_dict.get("completed_at") or datetime.now().isoformat()
+            }
             await broadcast({
                 "type": "task_completed",
                 "task": task_dict

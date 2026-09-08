@@ -272,6 +272,18 @@ def init_db():
     )
     """)
 
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS download_ledger (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        device_id TEXT NOT NULL,
+        user_id TEXT,
+        task_id TEXT,
+        created_at TEXT,
+        date_str TEXT
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_ledger_dev_date ON download_ledger(device_id, date_str);")
+
     # Set default settings if not exists
     default_settings = {
         "download_dir": DEFAULT_DOWNLOAD_DIR,
@@ -354,6 +366,16 @@ def save_download_task(task: Dict[str, Any], user_id: Optional[str] = None):
     elif isinstance(created_at_val, str) and "T" in created_at_val:
         created_at_val = created_at_val.replace("T", " ").split(".")[0]
 
+    target_user_id = user_id or task.get("user_id", None)
+    if not target_user_id:
+        try:
+            cursor.execute("SELECT user_id FROM downloads WHERE id = ?", (task["id"],))
+            existing_row = cursor.fetchone()
+            if existing_row and existing_row[0]:
+                target_user_id = existing_row[0]
+        except Exception:
+            pass
+
     cursor.execute("""
     INSERT OR REPLACE INTO downloads (
         id, url, title, filename, file_path, file_size, downloaded_bytes,
@@ -381,27 +403,55 @@ def save_download_task(task: Dict[str, Any], user_id: Optional[str] = None):
         "download_type": task.get("download_type", "direct"),
         "format_id": task.get("format_id", ""),
         "error_message": task.get("error_message", None),
-        "user_id": user_id or task.get("user_id", None),
+        "user_id": target_user_id,
         "created_at": created_at_val,
         "completed_at": task.get("completed_at", None)
     })
     conn.commit()
     conn.close()
 
+def record_download_in_ledger(device_id: str, user_id: Optional[str] = None, task_id: Optional[str] = None):
+    """Permanently records download in an immutable ledger so daily limits survive 'Clear Completed'."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        now_iso = datetime.now().isoformat()
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        cursor.execute("""
+            INSERT INTO download_ledger (device_id, user_id, task_id, created_at, date_str)
+            VALUES (?, ?, ?, ?, ?)
+        """, (device_id, user_id or device_id, task_id or "", now_iso, date_str))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[Ledger] Error recording download: {e}")
+
 def get_daily_downloads_count(user_id: Optional[str] = None) -> int:
     conn = get_db_connection()
     cursor = conn.cursor()
     today_str = datetime.now().strftime("%Y-%m-%d")
     dev_id = user_id or get_device_id()
+
+    # 1. Count from immutable ledger first
+    cursor.execute("""
+        SELECT COUNT(*) FROM download_ledger 
+        WHERE (device_id = ? OR user_id = ? OR device_id = 'guest' OR device_id IS NULL) 
+        AND date_str = ?
+    """, (dev_id, dev_id, today_str))
+    row = cursor.fetchone()
+    ledger_count = row[0] if row else 0
+
+    # 2. Count from downloads table as fallback for any legacy/unledgered rows today
     cursor.execute("""
         SELECT COUNT(*) FROM downloads 
         WHERE (user_id = ? OR user_id IS NULL OR user_id = 'guest' OR user_id = '') 
         AND created_at LIKE ?
     """, (dev_id, f"{today_str}%"))
-    row = cursor.fetchone()
-    count = row[0] if row else 0
+    d_row = cursor.fetchone()
+    dl_count = d_row[0] if d_row else 0
+
     conn.close()
-    return count
+    return max(ledger_count, dl_count)
 
 def update_download_progress(task_id: str, downloaded_bytes: int, progress: float, speed: float, eta: int, status: str, error_message: Optional[str] = None):
     conn = get_db_connection()
@@ -899,12 +949,10 @@ def get_device_license_status(device_id: str) -> Dict[str, Any]:
     except Exception:
         created_dt = now
         
-    trial_end = created_dt + timedelta(days=TRIAL_DAYS)
-    if now < trial_end:
-        seconds_left = (trial_end - now).total_seconds()
-        days_left = max(0, int(seconds_left // 86400))
-        if days_left >= 7:
-            days_left = 6
+    passed_days = max(0, int((now - created_dt).total_seconds() // 86400))
+    if passed_days < TRIAL_DAYS:
+        days_left = max(1, TRIAL_DAYS - passed_days)
+        trial_end = created_dt + timedelta(days=TRIAL_DAYS)
         return {
             "device_id": device_id,
             "desktop_name": dev.get("machine_name") or "DESKTOP-PC",

@@ -375,7 +375,14 @@ function monitorDownloadTask(tabId, taskId) {
       if (res && res.success && res.task) {
         if (res.task.status === 'completed') {
           clearInterval(pollInterval);
-          injectInPageCompleteNotification(tabId, res.task);
+          try {
+            chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
+              const activeTabId = (tabs && tabs.length > 0 && tabs[0].id) ? tabs[0].id : tabId;
+              injectInPageCompleteNotification(activeTabId, res.task);
+            });
+          } catch (_) {
+            injectInPageCompleteNotification(tabId, res.task);
+          }
         } else if (res.task.status === 'error' || res.task.status === 'canceled') {
           clearInterval(pollInterval);
         }

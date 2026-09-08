@@ -112,7 +112,7 @@ const FirebaseLicensing = {
             pillEl.innerHTML = `${planName} • ${daysLeft} Days Remaining (Unlimited Downloads)`;
           } else if (App.authData.is_trial) {
             pillEl.className = 'plan-pill trial';
-            pillEl.innerHTML = `Free Trial • ${data.trial_days_remaining || 7} Days Remaining (Unlimited Downloads)`;
+            pillEl.innerHTML = `Free Trial • ${data.trial_days_remaining || 7} Days Left (3 Downloads/Day)`;
           } else {
             pillEl.className = 'plan-pill expired';
             pillEl.innerHTML = 'Free Trial Expired • Enter Product Key Below';
