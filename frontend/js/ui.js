@@ -1250,17 +1250,21 @@ const UI = {
   },
 
   showTrialExpiredLockout() {
+    this.showToast('⚠️ Free Trial Expired: Your 7-day free trial has ended. Please enter a product key or purchase a plan to continue downloading.', 'warning', 8000);
     const modal = document.getElementById('trial-expired-lockout-modal');
-    if (!modal) return;
-    modal.style.display = 'flex';
-    if (window.lucide) window.lucide.createIcons();
+    if (modal) {
+      modal.style.display = 'flex';
+      if (window.lucide) window.lucide.createIcons();
 
-    const buyBtn = document.getElementById('trial-lockout-buy-btn');
-    if (buyBtn) {
-      buyBtn.onclick = () => {
-        modal.style.display = 'none';
-        UI.openAccountModal(App.authData);
-      };
+      const buyBtn = document.getElementById('trial-lockout-buy-btn');
+      if (buyBtn) {
+        buyBtn.onclick = () => {
+          modal.style.display = 'none';
+          UI.openAccountModal(App.authData);
+        };
+      }
+    } else {
+      UI.openAccountModal(App.authData);
     }
   },
 

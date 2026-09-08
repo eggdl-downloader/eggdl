@@ -867,7 +867,7 @@
     });
   }
 
-  function showFloatingToast(msg, isSuccess = true) {
+  function showFloatingToast(msg, isSuccess = true, durationMs = 2600) {
     document.querySelectorAll('.pro-dl-inpage-toast').forEach(t => t.remove());
 
     const toast = document.createElement('div');
@@ -879,7 +879,10 @@
         <span style="font-weight: 600; font-size: 13px; color: #FFFFFF;">Download started</span>
       `;
     } else {
-      toast.innerHTML = `<span style="font-weight: 600; font-size: 13px; color: #FFFFFF;">${msg}</span>`;
+      toast.innerHTML = `<span style="font-weight: 600; font-size: 13px; color: #FFFFFF; line-height: 1.4;">${msg}</span>`;
+      if (!isSuccess && durationMs === 2600) {
+        durationMs = 6500;
+      }
     }
 
     document.body.appendChild(toast);
@@ -890,7 +893,7 @@
     setTimeout(() => {
       toast.classList.remove('active');
       setTimeout(() => toast.remove(), 250);
-    }, 2600);
+    }, durationMs);
   }
 
   // --- IDM-STYLE DRAGGABLE & MINIMIZABLE DOWNLOAD INTERCEPTION MODAL WITH EXTENSION PRESERVATION & CLEAN SPACING ---
@@ -1350,8 +1353,18 @@
         if (res && res.success) {
           showFloatingToast("Download started⚡", true);
         } else {
-          const errMsg = res?.message || res?.detail || (res?.error === 'trial_daily_limit_reached' ? 'Daily Free Trial limit reached (3/3). Upgrade to continue downloading!' : 'Cannot connect to EggDL app');
-          showFloatingToast(`❌ ${errMsg}`, false);
+          const isExpired = res?.error === 'trial_expired' || res?.trial_expired || (res?.message && (res.message.includes('Trial has ended') || res.message.includes('trial has expired') || res.message.includes('Subscription Expired') || res.message.includes('trial_expired') || res.message.includes('Revoked')));
+          const isDailyLimit = res?.error === 'trial_daily_limit_reached' || (res?.message && res.message.includes('Daily Free Trial Limit'));
+
+          let errMsg = res?.message || res?.detail;
+          if (isExpired) {
+            errMsg = '⚠️ Free Trial Expired: Your 7-day free trial has ended. Please open EggDL or enter a product key to continue downloading.';
+          } else if (isDailyLimit) {
+            errMsg = '⚠️ Daily Limit Reached (3/3): You have reached your 3 daily downloads on the Free Trial. Upgrade to Starter or Pro for unlimited downloads!';
+          } else if (!errMsg || errMsg === 'HTTP 403') {
+            errMsg = '⚠️ Free Trial Expired: Please open EggDL or enter your product key to continue downloading.';
+          }
+          showFloatingToast(errMsg, false, 8500);
         }
       });
     });

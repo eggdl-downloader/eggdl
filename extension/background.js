@@ -823,8 +823,17 @@ async function fetchFromBackend(endpoint, options = {}) {
         ...(options.headers || {})
       }
     });
+    const data = await res.json().catch(() => null);
     if (res.ok) {
-      return await res.json();
+      return data || { success: true };
+    } else {
+      return {
+        success: false,
+        status: res.status,
+        ...(data || {}),
+        message: data?.message || data?.detail || `HTTP ${res.status}`,
+        detail: data?.detail || data?.message || `HTTP ${res.status}`
+      };
     }
   } catch (e) {}
 
@@ -839,11 +848,17 @@ async function fetchFromBackend(endpoint, options = {}) {
         ...(options.headers || {})
       }
     });
+    const data = await res.json().catch(() => null);
     if (res.ok) {
-      return await res.json();
+      return data || { success: true };
     } else {
-      const errJson = await res.json().catch(() => null);
-      return { success: false, detail: errJson?.detail || `HTTP ${res.status}` };
+      return {
+        success: false,
+        status: res.status,
+        ...(data || {}),
+        message: data?.message || data?.detail || `HTTP ${res.status}`,
+        detail: data?.detail || data?.message || `HTTP ${res.status}`
+      };
     }
   } catch (err) {
     console.warn("EggDL backend connection error:", err);

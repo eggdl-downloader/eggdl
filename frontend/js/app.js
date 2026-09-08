@@ -878,7 +878,7 @@ const App = {
         this.loadDownloads();
       }
     } catch (e) {
-      if (e.errorType === 'trial_expired' || (e.message && (e.message.includes('Trial has ended') || e.message.includes('trial has expired') || e.message.includes('Trial Expired') || e.message.includes('trial_expired')))) {
+      if (e.errorType === 'trial_expired' || (e.message && (e.message.includes('Trial has ended') || e.message.includes('trial has expired') || e.message.includes('Trial Expired') || e.message.includes('trial_expired') || e.message.includes('Subscription Expired') || e.message.includes('Revoked') || e.message.includes('revoked')))) {
         UI.showTrialExpiredLockout();
       } else if (e.errorType === 'trial_daily_limit_reached' || (e.message && e.message.includes('Daily Free Trial Limit Reached'))) {
         UI.showUpgradePrompt(
@@ -1563,7 +1563,11 @@ const App = {
     } catch (e) {
       if (feedbackMsg) {
         feedbackMsg.className = 'license-feedback error';
-        feedbackMsg.innerText = `✕ ${e.message || 'Invalid product key'}`;
+        let rawMsg = e.message || 'You entered a wrong key, please check again.';
+        if (rawMsg.includes('wrong key') || rawMsg.includes('Invalid product key') || rawMsg.includes('not defined') || rawMsg.includes('check again')) {
+          rawMsg = 'You entered a wrong key, please check again.';
+        }
+        feedbackMsg.innerText = `✕ ${rawMsg.replace(/^✕\s*/, '')}`;
         feedbackMsg.style.display = 'block';
       }
     } finally {

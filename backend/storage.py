@@ -1005,7 +1005,7 @@ def get_active_simultaneous_downloads_count() -> int:
     return count
 
 def get_trial_and_subscription_status(user_id: Optional[str] = None, device_id: Optional[str] = None) -> Dict[str, Any]:
-    dev_id = device_id or get_device_id()
+    dev_id = device_id or user_id or get_device_id()
     return get_device_license_status(dev_id)
 
 def grant_device_pro(device_id: str, plan_type: str = "lifetime", duration_days: Optional[int] = None, expires_at: Optional[str] = None) -> Dict[str, Any]:
@@ -1115,7 +1115,7 @@ def activate_product_key_for_device(device_id: str, license_key: str) -> Dict[st
     
     if not row:
         conn.close()
-        raise ValueError("Invalid product key. Please check and try again.")
+        raise ValueError("You entered a wrong key, please check again.")
         
     key_data = dict(row)
     if key_data.get("is_used") and key_data.get("used_by_user_id") != device_id:
