@@ -168,12 +168,24 @@ const UI = {
     }
   },
 
+  _recentToasts: {},
+
   showToast(message, type = 'info', duration = 5000) {
     const container = document.getElementById('toast-container');
     if (!container) return;
     
     // Strip redundant leading emoji icons so native SVG Lucide icon displays cleanly
     const cleanMsg = (message || '').replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\u{1F600}-\u{1F64F}\s]+/u, '').trim();
+    const finalMsg = cleanMsg || message;
+
+    // Suppress duplicate toasts within 3.5 seconds to prevent spam
+    const now = Date.now();
+    const toastKey = `${type}:${finalMsg}`;
+    if (!this._recentToasts) this._recentToasts = {};
+    if (this._recentToasts[toastKey] && (now - this._recentToasts[toastKey] < 3500)) {
+      return;
+    }
+    this._recentToasts[toastKey] = now;
 
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
@@ -185,7 +197,7 @@ const UI = {
 
     toast.innerHTML = `
       <i data-lucide="${iconName}"></i>
-      <span>${cleanMsg || message}</span>
+      <span>${finalMsg}</span>
     `;
     container.appendChild(toast);
     if (window.lucide) window.lucide.createIcons();

@@ -242,6 +242,7 @@ def run_firebase_license_watcher():
                                             updated_st = get_device_license_status(dev_id)
                                             broadcast_sync({
                                                 "type": "license_updated",
+                                                "by_admin": False,
                                                 "is_pro": True,
                                                 "plan_type": plan_type,
                                                 "days_remaining": days_rem,
@@ -255,6 +256,7 @@ def run_firebase_license_watcher():
                                             updated_st = get_device_license_status(dev_id)
                                             broadcast_sync({
                                                 "type": "license_updated",
+                                                "by_admin": False,
                                                 "is_pro": False,
                                                 "plan_type": plan_type,
                                                 "days_remaining": 0,
@@ -678,6 +680,7 @@ def sync_license_from_cloud(dev_id: str) -> Optional[Dict[str, Any]]:
                             grant_device_pro(dev_id, plan_type=plan_t, duration_days=days_left, expires_at=exp_at)
                             broadcast_sync({
                                 "type": "license_updated",
+                                "by_admin": False,
                                 "is_pro": True,
                                 "plan_type": plan_t,
                                 "days_remaining": days_left,
@@ -690,6 +693,7 @@ def sync_license_from_cloud(dev_id: str) -> Optional[Dict[str, Any]]:
                                 revoke_device_pro(dev_id)
                                 broadcast_sync({
                                     "type": "license_updated",
+                                    "by_admin": False,
                                     "is_pro": False,
                                     "plan_type": "expired",
                                     "days_remaining": 0,
@@ -933,6 +937,7 @@ async def activate_machine_key(req: MachineKeyActivateRequest):
 
         broadcast_sync({
             "type": "license_updated",
+            "by_admin": False,
             "is_pro": True,
             "plan_type": plan_t,
             "days_remaining": updated_status.get("days_remaining", duration),
@@ -3072,6 +3077,7 @@ async def admin_device_action(req: DeviceActionRequest):
         if device_id == get_device_id():
             broadcast_sync({
                 "type": "license_updated",
+                "by_admin": True,
                 "is_pro": True,
                 "plan_type": plan_type,
                 "days_remaining": duration_days,
@@ -3084,6 +3090,7 @@ async def admin_device_action(req: DeviceActionRequest):
         if device_id == get_device_id():
             broadcast_sync({
                 "type": "license_updated",
+                "by_admin": True,
                 "is_pro": False,
                 "plan_type": "expired",
                 "days_remaining": 0,
@@ -3096,6 +3103,7 @@ async def admin_device_action(req: DeviceActionRequest):
         if device_id == get_device_id():
             broadcast_sync({
                 "type": "license_updated",
+                "by_admin": True,
                 "is_pro": False,
                 "plan_type": "trial",
                 "days_remaining": 7,

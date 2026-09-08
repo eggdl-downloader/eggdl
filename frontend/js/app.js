@@ -384,15 +384,16 @@ const App = {
       if (accModal && accModal.style.display !== 'none') {
         UI.openAccountModal(this.authData, true);
       }
-      if (msg.is_pro) {
-        if (!this._isActivatingKey) {
+      // ONLY show Administrator notification if this action was explicitly performed by the Administrator!
+      if (msg.by_admin && !this._isActivatingKey) {
+        if (msg.is_pro) {
           const planLabel = (msg.plan_type || 'Pro').toUpperCase();
-          UI.showToast(`👑 Pro Plan Activated by Administrator (${planLabel})`, 'success', 8000);
+          UI.showToast(`Pro Plan Activated by Administrator (${planLabel})`, 'success', 8000);
+        } else if (msg.plan_type === 'trial') {
+          UI.showToast('Free Trial updated by Administrator', 'info', 7000);
+        } else {
+          UI.showToast('Pro License revoked by Administrator', 'warning', 7000);
         }
-      } else if (msg.plan_type === 'trial') {
-        UI.showToast('⏳ 7-Day Free Trial updated by Administrator', 'info', 7000);
-      } else {
-        UI.showToast('⚠️ Pro License revoked by Administrator', 'warning', 7000);
       }
     } else if (msg.type === 'device_blocked') {
       if (!this.authData) this.authData = {};
@@ -1549,7 +1550,7 @@ const App = {
           feedbackMsg.innerText = `✓ ${res.message}`;
           feedbackMsg.style.display = 'block';
         }
-        UI.showToast(`🎉 Upgraded this PC to ${res.plan?.name || 'Pro'}! All features unlocked.`, 'success');
+        UI.showToast(`Product key activated! Upgraded to ${res.plan?.name || 'Pro'}. All features unlocked.`, 'success');
         
         // Refresh authentication & hardware state immediately
         await this.initAuth();
@@ -1574,7 +1575,7 @@ const App = {
       if (btn) btn.disabled = false;
       setTimeout(() => {
         this._isActivatingKey = false;
-      }, 2000);
+      }, 3500);
     }
   },
 
