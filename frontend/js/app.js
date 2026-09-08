@@ -1545,12 +1545,14 @@ const App = {
       const machineId = this.authData?.machine?.machine_id || this.authData?.user?.id || (typeof API !== 'undefined' ? API.getOrCreateDeviceId() : '');
       const res = await API.activateMachineKey(key, machineId);
       if (res.success) {
+        const devName = res.license?.desktop_name || res.license?.machine_name || this.authData?.desktop_name || this.authData?.machine?.desktop_name || 'your device';
+        const successMsg = res.message || `Product key activated for your device: ${devName}. Thank you!`;
         if (feedbackMsg) {
           feedbackMsg.className = 'license-feedback success';
-          feedbackMsg.innerText = `✓ ${res.message}`;
+          feedbackMsg.innerText = `✓ ${successMsg.replace(/^[✓✨\s]+/, '')}`;
           feedbackMsg.style.display = 'block';
         }
-        UI.showToast(`Product key activated! Upgraded to ${res.plan?.name || 'Pro'}. All features unlocked.`, 'success');
+        UI.showToast(`Product key activated for your device: ${devName}. Thank you!`, 'success');
         
         // Refresh authentication & hardware state immediately
         await this.initAuth();

@@ -944,9 +944,10 @@ async def activate_machine_key(req: MachineKeyActivateRequest):
             "license": updated_status
         })
 
+        dev_name = updated_status.get('desktop_name') or updated_status.get('machine_name') or get_desktop_name() or "your device"
         return {
             "success": True,
-            "message": f"✨ Product key verified with Cloud & activated successfully for this PC ({updated_status.get('desktop_name')})!",
+            "message": f"Product key activated for your device: {dev_name}. Thank you!",
             "license": updated_status,
             "plan": plan_info,
             "plan_type": plan_t
@@ -966,9 +967,10 @@ async def activate_machine_key(req: MachineKeyActivateRequest):
             updated_status = activate_product_key_for_device(dev_id, key)
             plan_type = updated_status.get("plan_type", "lifetime")
             plan_info = PLAN_CONFIGS.get(plan_type, PLAN_CONFIGS["lifetime"])
+            dev_name = updated_status.get('desktop_name') or updated_status.get('machine_name') or get_desktop_name() or "your device"
             return {
                 "success": True,
-                "message": f"✨ Product key reactivated successfully for this PC!",
+                "message": f"Product key activated for your device: {dev_name}. Thank you!",
                 "license": updated_status,
                 "plan": plan_info,
                 "plan_type": plan_type
@@ -982,9 +984,10 @@ async def activate_machine_key(req: MachineKeyActivateRequest):
         updated_status = activate_product_key_for_device(dev_id, key)
         plan_type = updated_status.get("plan_type", "lifetime")
         plan_info = PLAN_CONFIGS.get(plan_type, PLAN_CONFIGS["lifetime"])
+        dev_name = updated_status.get('desktop_name') or updated_status.get('machine_name') or get_desktop_name() or "your device"
         return {
             "success": True,
-            "message": f"✨ Product key activated successfully!",
+            "message": f"Product key activated for your device: {dev_name}. Thank you!",
             "license": updated_status,
             "plan": plan_info,
             "plan_type": plan_type
