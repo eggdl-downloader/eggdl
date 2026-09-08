@@ -1295,24 +1295,31 @@ const UI = {
     }
   },
 
-  showUpgradePrompt(title = 'Upgrade Required', message = 'Please upgrade your plan to continue.', highlightPlan = 'Pro') {
+  showUpgradePrompt(title = 'Daily Free Limit Reached', message = 'Daily free limit reached (3/3). Upgrade your plan for unlimited downloads.', highlightPlan = 'Pro') {
+    this.showToast(message, 'warning', 8000);
     const modal = document.getElementById('upgrade-prompt-modal');
     if (!modal) return;
     const titleEl = document.getElementById('upgrade-prompt-title');
+    const headerTitleEl = document.getElementById('upgrade-prompt-header-title');
     const descEl = document.getElementById('upgrade-prompt-desc');
     const btnText = document.getElementById('upgrade-prompt-btn-text');
     const actionBtn = document.getElementById('upgrade-prompt-action-btn');
     const cancelBtn = document.getElementById('upgrade-prompt-cancel-btn');
+    const closeBtn = document.getElementById('upgrade-prompt-close-btn');
 
     if (titleEl) titleEl.innerText = title;
+    if (headerTitleEl) headerTitleEl.innerText = title;
     if (descEl) descEl.innerText = message;
-    if (btnText) btnText.innerText = `Upgrade to ${highlightPlan}`;
+    if (btnText) btnText.innerText = 'Buy Plan / Enter Product Key';
 
     modal.style.display = 'flex';
     if (window.lucide) window.lucide.createIcons();
 
     if (cancelBtn) {
       cancelBtn.onclick = () => { modal.style.display = 'none'; };
+    }
+    if (closeBtn) {
+      closeBtn.onclick = () => { modal.style.display = 'none'; };
     }
     if (actionBtn) {
       actionBtn.onclick = () => {

@@ -1347,7 +1347,7 @@ async def save_direct_file(req: SaveFileRequest, user: Optional[Dict[str, Any]] 
             }
         )
 
-    if not status.get("can_download") or status.get("trial_expired") or status.get("plan_type") in ["expired", "revoked", "free"]:
+    if status.get("trial_expired") or status.get("plan_type") in ["expired", "revoked"]:
         return JSONResponse(
             status_code=403,
             content={
@@ -1369,7 +1369,8 @@ async def save_direct_file(req: SaveFileRequest, user: Optional[Dict[str, Any]] 
                 content={
                     "success": False,
                     "error": "trial_daily_limit_reached",
-                    "message": "⚠️ Daily Free Trial Limit Reached (3/3): You can download 3 files per day on the Free Trial. Upgrade to Starter or Pro for unlimited downloads!",
+                    "message": "Daily free limit reached (3/3). Upgrade your plan for unlimited downloads.",
+                    "detail": "Daily free limit reached (3/3). Upgrade your plan for unlimited downloads.",
                     "daily_downloads_limit": 3,
                     "daily_downloads_used": daily_count,
                     "limit_reached": True
@@ -1510,7 +1511,7 @@ async def start_download(req: StartDownloadRequest, user: Optional[Dict[str, Any
             }
         )
 
-    if not status.get("can_download") or status.get("trial_expired") or status.get("plan_type") in ["expired", "revoked", "free"]:
+    if status.get("trial_expired") or status.get("plan_type") in ["expired", "revoked"]:
         return JSONResponse(
             status_code=403,
             content={
@@ -1535,7 +1536,8 @@ async def start_download(req: StartDownloadRequest, user: Optional[Dict[str, Any
                 content={
                     "success": False,
                     "error": "trial_daily_limit_reached",
-                    "message": "⚠️ Daily Free Trial Limit Reached (3/3): You can download 3 files per day on the Free Trial. Upgrade to Starter or Pro for unlimited downloads!",
+                    "message": "Daily free limit reached (3/3). Upgrade your plan for unlimited downloads.",
+                    "detail": "Daily free limit reached (3/3). Upgrade your plan for unlimited downloads.",
                     "daily_downloads_limit": 3,
                     "daily_downloads_used": daily_count,
                     "limit_reached": True

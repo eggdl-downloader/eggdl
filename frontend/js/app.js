@@ -879,14 +879,17 @@ const App = {
         this.loadDownloads();
       }
     } catch (e) {
-      if (e.errorType === 'trial_expired' || (e.message && (e.message.includes('Trial has ended') || e.message.includes('trial has expired') || e.message.includes('Trial Expired') || e.message.includes('trial_expired') || e.message.includes('Subscription Expired') || e.message.includes('Revoked') || e.message.includes('revoked')))) {
-        UI.showTrialExpiredLockout();
-      } else if (e.errorType === 'trial_daily_limit_reached' || (e.message && e.message.includes('Daily Free Trial Limit Reached'))) {
+      const isDailyLimit = e.errorType === 'trial_daily_limit_reached' || (e.message && (e.message.includes('Daily Free Trial Limit') || e.message.includes('Daily free limit reached') || e.message.includes('limit reached (3/3)')));
+      const isExpired = e.errorType === 'trial_expired' || (e.message && (e.message.includes('Trial has ended') || e.message.includes('trial has expired') || e.message.includes('Trial Expired') || e.message.includes('trial_expired') || e.message.includes('Subscription Expired') || e.message.includes('Revoked') || e.message.includes('revoked')));
+
+      if (isDailyLimit) {
         UI.showUpgradePrompt(
-          'Daily Trial Limit Reached',
-          '⚠️ You have used your 3 free downloads for today on the Free Trial. Upgrade to Starter or Pro for unlimited downloads!',
-          'Starter'
+          'Daily Free Limit Reached',
+          'Daily free limit reached (3/3). Upgrade your plan for unlimited downloads.',
+          'Pro'
         );
+      } else if (isExpired) {
+        UI.showTrialExpiredLockout();
       } else if (e.errorType === 'resolution_upgrade_required' || (e.message && e.message.includes('upgrade your plan to Pro to download seamlessly in 8K'))) {
         UI.showUpgradePrompt(
           '8K Ultra HD Support',
