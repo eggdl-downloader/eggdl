@@ -1115,7 +1115,7 @@ def activate_product_key_for_device(device_id: str, license_key: str) -> Dict[st
     
     if not row:
         conn.close()
-        raise ValueError("You entered a wrong key, please check again.")
+        raise ValueError("Invalid product key. Please check and try again.")
         
     key_data = dict(row)
     if key_data.get("is_used") and key_data.get("used_by_user_id") != device_id:

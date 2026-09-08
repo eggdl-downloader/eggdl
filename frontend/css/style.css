@@ -2581,44 +2581,66 @@ button *, .btn *, .user-pill-btn *, .btn-plan-buy * {
   pointer-events: auto;
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: #0F172A;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  gap: 12px;
+  background: var(--bg-surface-elevated, #1C2128);
+  border: 1px solid var(--border-default, #2E3540);
+  border-left: 3px solid var(--accent-primary, #3B82F6);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  padding: 10px 16px;
-  border-radius: var(--radius-sm);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
-  color: var(--text-main);
+  padding: 12px 18px;
+  border-radius: var(--radius-sm, 6px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  color: var(--text-main, #F1F5F9);
   font-size: 0.85rem;
   font-weight: 500;
+  line-height: 1.45;
+  max-width: 480px;
   animation: toastSlideIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .toast.success {
-  border-color: rgba(16, 185, 129, 0.5);
-  background: #064E3B;
-  color: #ECFDF5;
+  border-color: var(--border-default, #2E3540);
+  border-left-color: #10B981;
+  background: #141A17;
+  color: #F8FAFC;
 }
+.toast.success i {
+  color: #10B981;
+}
+
 .toast.error {
-  border-color: rgba(239, 68, 68, 0.5);
-  background: #7F1D1D;
-  color: #FEF2F2;
+  border-color: var(--border-default, #2E3540);
+  border-left-color: #EF4444;
+  background: #1C1618;
+  color: #F8FAFC;
 }
+.toast.error i {
+  color: #EF4444;
+}
+
 .toast.info {
-  border-color: rgba(59, 130, 246, 0.5);
-  background: #1E3A8A;
-  color: #EFF6FF;
+  border-color: var(--border-default, #2E3540);
+  border-left-color: #3B82F6;
+  background: #141822;
+  color: #F8FAFC;
 }
+.toast.info i {
+  color: #3B82F6;
+}
+
 .toast.warning {
-  border-color: rgba(245, 158, 11, 0.5);
-  background: #78350F;
-  color: #FFFBEB;
+  border-color: var(--border-default, #2E3540);
+  border-left-color: #F59E0B;
+  background: #1A1916;
+  color: #F8FAFC;
+}
+.toast.warning i {
+  color: #F59E0B;
 }
 
 .toast i {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
 }
 

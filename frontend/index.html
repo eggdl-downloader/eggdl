@@ -1145,20 +1145,35 @@
     </div>
   </div>
 
-  <!-- Dedicated Trial Expired Lockout Modal -->
-  <div class="modal-backdrop" id="trial-expired-lockout-modal" style="display: none; z-index: 10005; background: rgba(5, 8, 15, 0.90); backdrop-filter: blur(14px);">
-    <div class="modal-card modal-sm" style="max-width: 440px; text-align: center; padding: 32px 26px; border: 1px solid rgba(239, 68, 68, 0.35); box-shadow: 0 0 35px rgba(239, 68, 68, 0.20);">
-      <div style="width: 58px; height: 58px; border-radius: 50%; background: rgba(239, 68, 68, 0.12); color: #F87171; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto; border: 1px solid rgba(239, 68, 68, 0.35);">
-        <i data-lucide="lock" style="width: 28px; height: 28px;"></i>
+  <!-- Dedicated Trial Expired Lockout Modal (Native App Theme) -->
+  <div class="modal-backdrop" id="trial-expired-lockout-modal" style="display: none; z-index: 10005;" onclick="if(event.target === this) this.style.display = 'none'">
+    <div class="modal-card modal-sm" style="max-width: 440px;">
+      <div class="modal-header">
+        <div class="modal-title" style="display: flex; align-items: center; gap: 8px;">
+          <i data-lucide="alert-circle" style="color: var(--accent-amber, #F59E0B);"></i>
+          <span>Free Trial Expired</span>
+        </div>
+        <button class="modal-close" id="trial-lockout-close-btn" onclick="document.getElementById('trial-expired-lockout-modal').style.display='none'" title="Close">
+          <i data-lucide="x"></i>
+        </button>
       </div>
-      <h3 style="font-size: 1.25rem; font-weight: 800; color: #FFFFFF; margin-bottom: 8px;">Free Trial Expired</h3>
-      <p style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.55; margin-bottom: 24px;">
-        Your 7-day free trial has ended. Please purchase a plan or enter your product key to unlock unlimited downloads and full features.
-      </p>
-      <button class="btn btn-primary btn-glow" id="trial-lockout-buy-btn" style="width: 100%; padding: 12px 18px; font-size: 0.92rem; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; background: linear-gradient(135deg, #10B981 0%, #059669 100%);">
-        <i data-lucide="sparkles"></i>
-        <span>Buy Plan / Enter Product Key</span>
-      </button>
+      <div class="modal-body" style="padding: 24px 22px; text-align: center;">
+        <div style="width: 52px; height: 52px; border-radius: 12px; background: rgba(245, 158, 11, 0.10); color: #F59E0B; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto; border: 1px solid rgba(245, 158, 11, 0.25);">
+          <i data-lucide="lock" style="width: 26px; height: 26px;"></i>
+        </div>
+        <h3 style="font-size: 1.18rem; font-weight: 700; color: var(--text-main); margin-bottom: 8px;">Free Trial Expired</h3>
+        <p style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.55; margin-bottom: 22px;">
+          Your 7-day free trial has ended. Please purchase a plan or enter your product key to unlock unlimited downloads and full features.
+        </p>
+        <div style="display: flex; gap: 10px; justify-content: center;">
+          <button class="btn btn-secondary" id="trial-lockout-cancel-btn" style="flex: 1; padding: 10px 14px;" onclick="document.getElementById('trial-expired-lockout-modal').style.display='none'">
+            Cancel
+          </button>
+          <button class="btn btn-primary" id="trial-lockout-buy-btn" style="flex: 1.6; padding: 10px 16px; font-weight: 600;">
+            Buy Plan / Enter Product Key
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 

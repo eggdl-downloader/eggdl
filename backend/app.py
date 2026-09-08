@@ -969,7 +969,7 @@ async def activate_machine_key(req: MachineKeyActivateRequest):
                 "plan_type": plan_type
             }
 
-        raise HTTPException(status_code=400, detail="You entered a wrong key, please check again.")
+        raise HTTPException(status_code=400, detail="Invalid product key. Please check and try again.")
 
     # Case C: Offline or Cloud unreachable
     try:
@@ -987,7 +987,7 @@ async def activate_machine_key(req: MachineKeyActivateRequest):
     except Exception as e:
         if cloud_err_msg:
             raise HTTPException(status_code=400, detail="Internet connection required to verify product key with license server.")
-        raise HTTPException(status_code=400, detail="You entered a wrong key, please check again.")
+        raise HTTPException(status_code=400, detail="Invalid product key. Please check and try again.")
 
 @app.get("/api/auth/me")
 async def auth_me(request: Request):
@@ -1067,7 +1067,7 @@ async def license_activate(req: LicenseActivateRequest, user: Dict[str, Any] = D
         
     result = activate_license_key(key, user["id"])
     if not result:
-        raise HTTPException(status_code=400, detail="You entered a wrong key, please check again.")
+        raise HTTPException(status_code=400, detail="Invalid product key. Please check and try again.")
     if result.get("error"):
         raise HTTPException(status_code=400, detail=result["error"])
         

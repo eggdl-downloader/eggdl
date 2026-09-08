@@ -172,26 +172,29 @@ const UI = {
     const container = document.getElementById('toast-container');
     if (!container) return;
     
+    // Strip redundant leading emoji icons so native SVG Lucide icon displays cleanly
+    const cleanMsg = (message || '').replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\u{1F600}-\u{1F64F}\s]+/u, '').trim();
+
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
     
     let iconName = 'info';
-    if (type === 'success') iconName = 'check-circle';
+    if (type === 'success') iconName = 'check-circle-2';
     if (type === 'error') iconName = 'alert-triangle';
     if (type === 'warning') iconName = 'alert-circle';
 
     toast.innerHTML = `
       <i data-lucide="${iconName}"></i>
-      <span>${message}</span>
+      <span>${cleanMsg || message}</span>
     `;
     container.appendChild(toast);
     if (window.lucide) window.lucide.createIcons();
 
     setTimeout(() => {
       toast.style.opacity = '0';
-      toast.style.transform = 'translateX(100%)';
-      toast.style.transition = 'all 0.3s ease';
-      setTimeout(() => toast.remove(), 300);
+      toast.style.transform = 'translateY(10px)';
+      toast.style.transition = 'all 0.25s ease';
+      setTimeout(() => toast.remove(), 250);
     }, duration);
   },
 
@@ -1250,7 +1253,7 @@ const UI = {
   },
 
   showTrialExpiredLockout() {
-    this.showToast('⚠️ Free Trial Expired: Your 7-day free trial has ended. Please enter a product key or purchase a plan to continue downloading.', 'warning', 8000);
+    this.showToast('Free Trial Expired: Your 7-day free trial has ended. Please enter a product key or purchase a plan to continue downloading.', 'warning', 8000);
     const modal = document.getElementById('trial-expired-lockout-modal');
     if (modal) {
       modal.style.display = 'flex';
@@ -1261,6 +1264,18 @@ const UI = {
         buyBtn.onclick = () => {
           modal.style.display = 'none';
           UI.openAccountModal(App.authData);
+        };
+      }
+      const closeBtn = document.getElementById('trial-lockout-close-btn');
+      if (closeBtn) {
+        closeBtn.onclick = () => {
+          modal.style.display = 'none';
+        };
+      }
+      const cancelBtn = document.getElementById('trial-lockout-cancel-btn');
+      if (cancelBtn) {
+        cancelBtn.onclick = () => {
+          modal.style.display = 'none';
         };
       }
     } else {

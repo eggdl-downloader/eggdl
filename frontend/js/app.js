@@ -1563,9 +1563,9 @@ const App = {
     } catch (e) {
       if (feedbackMsg) {
         feedbackMsg.className = 'license-feedback error';
-        let rawMsg = e.message || 'You entered a wrong key, please check again.';
+        let rawMsg = e.message || 'Invalid product key. Please check and try again.';
         if (rawMsg.includes('wrong key') || rawMsg.includes('Invalid product key') || rawMsg.includes('not defined') || rawMsg.includes('check again')) {
-          rawMsg = 'You entered a wrong key, please check again.';
+          rawMsg = 'Invalid product key. Please check and try again.';
         }
         feedbackMsg.innerText = `✕ ${rawMsg.replace(/^✕\s*/, '')}`;
         feedbackMsg.style.display = 'block';
