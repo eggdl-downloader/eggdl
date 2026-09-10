@@ -84,6 +84,9 @@ def find_eggdl_hwnd():
     try:
         import ctypes
         user32 = ctypes.windll.user32
+        hwnd = user32.FindWindowW(None, "EggDL - High Performance Universal Downloader")
+        if hwnd:
+            return hwnd
         hwnd = user32.FindWindowW(None, "EggDL - Ultra Turbo Downloader")
         if hwnd:
             return hwnd
@@ -94,7 +97,7 @@ def find_eggdl_hwnd():
             if length > 0:
                 buff = ctypes.create_unicode_buffer(length + 1)
                 user32.GetWindowTextW(h, buff, length + 1)
-                if "EggDL" in buff.value:
+                if buff.value.startswith("EggDL"):
                     found.append(h)
             return True
 
@@ -354,18 +357,17 @@ def _do_show_main_window():
                         # Reposition back onto screen if started off-screen
                         if form.Location.X < -1000 or form.Location.Y < -1000:
                             form.CenterToScreen()
-                        setattr(form, "ShowInTaskbar", True)
                         form.Opacity = 1.0
                         try:
                             from System.Windows.Forms import FormWindowState
-                            form.WindowState = FormWindowState.Normal
+                            if form.WindowState == FormWindowState.Minimized:
+                                form.WindowState = FormWindowState.Normal
                         except Exception:
                             pass
                         form.Show()
-                        _MAIN_WINDOW.show()
-                        _MAIN_WINDOW.restore()
                         form.BringToFront()
                         form.Activate()
+                        debug_log(f"_show_action completed, Visible={getattr(form, 'Visible', None)}")
                     except Exception as act_err:
                         debug_log(f"_show_action error: {act_err}")
 
@@ -382,8 +384,15 @@ def _do_show_main_window():
         except Exception as e:
             debug_log(f"_MAIN_WINDOW.show error: {e}")
 
-    # Win32 bring to front
-    hwnd = find_eggdl_hwnd()
+    # Win32 bring to front using native handle if available
+    hwnd = None
+    if _MAIN_WINDOW and getattr(_MAIN_WINDOW, "native", None):
+        try:
+            hwnd = _MAIN_WINDOW.native.Handle.ToInt32()
+        except Exception:
+            hwnd = None
+    if not hwnd:
+        hwnd = find_eggdl_hwnd()
     if hwnd:
         force_foreground_window(hwnd)
         shown = True
@@ -461,20 +470,26 @@ elif "app" in sys.modules:
 
 def on_closing():
     global _MAIN_WINDOW, _IS_EXITING
+    debug_log(f"on_closing called, _IS_EXITING={_IS_EXITING}")
     if _IS_EXITING:
         return True
     if _MAIN_WINDOW:
         try:
-            _MAIN_WINDOW.hide()
-            if hasattr(_MAIN_WINDOW, "native") and _MAIN_WINDOW.native:
-                form = _MAIN_WINDOW.native
-                if hasattr(form, "InvokeRequired") and form.InvokeRequired:
-                    import System
-                    form.BeginInvoke(System.Action(lambda: setattr(form, "ShowInTaskbar", False)))
-                else:
-                    form.ShowInTaskbar = False
-        except Exception:
-            pass
+            form = getattr(_MAIN_WINDOW, "native", None)
+            if form:
+                def _hide_action():
+                    try:
+                        form.Hide()
+                        debug_log(f"_hide_action completed, Visible={getattr(form, 'Visible', None)}")
+                    except Exception as act_err:
+                        debug_log(f"_hide_action error: {act_err}")
+
+                import System
+                form.BeginInvoke(System.Action(_hide_action))
+            else:
+                _MAIN_WINDOW.hide()
+        except Exception as e:
+            debug_log(f"on_closing hide error: {e}")
         return False
     return True
 
@@ -819,10 +834,7 @@ def main():
                     form = getattr(_MAIN_WINDOW, "native", None)
                     if form:
                         import System
-                        form.BeginInvoke(System.Action(lambda: (
-                            form.Hide(),
-                            setattr(form, "ShowInTaskbar", False)
-                        )))
+                        form.BeginInvoke(System.Action(lambda: form.Hide()))
                 except Exception as e:
                     debug_log(f"Safe hide after loaded error: {e}")
 
