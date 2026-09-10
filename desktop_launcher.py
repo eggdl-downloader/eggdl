@@ -444,17 +444,8 @@ def play_native_completion_sound():
     threading.Thread(target=_worker, daemon=True).start()
 
 def on_desktop_download_completed(task_dict):
-    global _MAIN_WINDOW
-    # 1. Play native sound instantly through Windows audio subsystem (100% reliable even if app is in tray/background)
+    # Play native sound instantly through Windows audio subsystem (100% reliable even if app is in tray/background)
     play_native_completion_sound()
-
-    # 2. Render in-app download complete card in webview (playSound=false to prevent delayed duplicate audio)
-    if _MAIN_WINDOW:
-        try:
-            task_json = json.dumps(task_dict)
-            _MAIN_WINDOW.evaluate_js(f"if(window.UI && window.UI.showDownloadCompleteNotification){{ window.UI.showDownloadCompleteNotification({task_json}, false); }}")
-        except Exception:
-            pass
 
 # Connect show window callback and download completed callback for FastAPI backend
 if "backend.app" in sys.modules:

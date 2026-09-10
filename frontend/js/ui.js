@@ -219,8 +219,7 @@ const UI = {
       } catch (_) {}
     }
 
-    // 2. Render exclusively in-app completion card popup (zero duplicate Windows OS toast)
-    this.renderInAppDownloadCompleteCard(task);
+    // In-app download complete popup disabled per user request (kept exclusively outside via browser extension)
   },
 
   showSettingsSavedNotification(folderPath) {
