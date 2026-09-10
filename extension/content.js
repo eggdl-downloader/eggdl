@@ -1346,6 +1346,8 @@
           custom_title: finalFilename,
           download_dir: dirToSend,
           referer: downloadInfo.referrer || window.location.href,
+          cookies: (downloadInfo && downloadInfo.cookies) || "",
+          segments_count: 32,
           expected_size: rawBytes > 0 ? rawBytes : null
         }
       }, (res) => {

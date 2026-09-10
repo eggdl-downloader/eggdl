@@ -131,7 +131,7 @@ class Segment:
         }
 
 
-def get_smart_headers(url: str, custom_referer: Optional[str] = None) -> Dict[str, str]:
+def get_smart_headers(url: str, custom_referer: Optional[str] = None, cookies: Optional[str] = None) -> Dict[str, str]:
     parsed = urllib.parse.urlparse(url)
     netloc = parsed.netloc.lower()
     
@@ -170,20 +170,22 @@ def get_smart_headers(url: str, custom_referer: Optional[str] = None) -> Dict[st
             ref = "https://www.terabox.com/"
             origin = "https://www.terabox.com"
         else:
-            ref = f"{parsed.scheme}://{parsed.netloc}/"
+            ref = custom_referer or f"{parsed.scheme}://{parsed.netloc}/"
             origin = f"{parsed.scheme}://{parsed.netloc}"
 
-    return {
+    headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
         "Accept": "*/*",
         "Accept-Language": "en-US,en;q=0.9",
         "Accept-Encoding": "identity",
         "Referer": ref,
-        "Origin": origin or f"{parsed.scheme}://{parsed.netloc}",
-        "Sec-Fetch-Dest": "empty",
-        "Sec-Fetch-Mode": "cors",
-        "Sec-Fetch-Site": "cross-site"
+        "Sec-Ch-Ua": '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
+        "Sec-Ch-Ua-Mobile": "?0",
+        "Sec-Ch-Ua-Platform": '"Windows"'
     }
+    if cookies:
+        headers["Cookie"] = cookies
+    return headers
 
 
 class DownloadTask:
@@ -191,13 +193,14 @@ class DownloadTask:
     MIN_SPLIT_SIZE = 2 * 1024 * 1024
 
     def __init__(self, task_id: str, url: str, target_dir: str, filename: Optional[str] = None,
-                 segments_count: int = 16, referer: Optional[str] = None, on_progress: Optional[Callable] = None):
+                 segments_count: int = 16, referer: Optional[str] = None, cookies: Optional[str] = None, on_progress: Optional[Callable] = None):
         self.id = task_id
         self.url = url
         self.target_dir = target_dir
         self.custom_filename = filename
         self.segments_count = segments_count or 16
         self.referer = referer
+        self.cookies = cookies
         self.on_progress = on_progress
 
         self.filename = filename or ""
@@ -234,7 +237,7 @@ class DownloadTask:
         return f"{self.file_path}.eggdl_state"
 
     async def inspect(self) -> Dict[str, Any]:
-        headers = get_smart_headers(self.url, self.referer)
+        headers = get_smart_headers(self.url, self.referer, self.cookies)
         connector = aiohttp.TCPConnector(family=socket.AF_INET)
         async with aiohttp.ClientSession(headers=headers, connector=connector, auto_decompress=False) as session:
             try:
@@ -253,7 +256,7 @@ class DownloadTask:
     def _inspect_via_curl_cffi(self) -> Dict[str, Any]:
         try:
             from curl_cffi import requests
-            headers = get_smart_headers(self.url, self.referer)
+            headers = get_smart_headers(self.url, self.referer, self.cookies)
             r = requests.head(self.url, impersonate="chrome124", headers=headers, timeout=15)
             if r.status_code >= 400:
                 r = requests.get(self.url, impersonate="chrome124", headers={"Range": "bytes=0-0", **headers}, timeout=15)
@@ -505,6 +508,9 @@ class DownloadTask:
             if not self.filename or self.file_size == -1:
                 await self.inspect()
 
+            if not self.file_path:
+                self.file_path = os.path.join(self.target_dir, self.filename)
+
             # Ensure unique filename if not resuming an existing partial download
             if not os.path.exists(self._part_path):
                 base, ext = os.path.splitext(self.filename)
@@ -517,15 +523,10 @@ class DownloadTask:
             if not self.segments:
                 self._init_segments()
 
-            # Pre-allocate sparse file if size is known and ranges are supported
+            # Touch partial file if it does not exist yet (instant zero-delay file creation)
             if not os.path.exists(self._part_path):
                 with open(self._part_path, "wb") as f:
-                    if self.supports_ranges and self.file_size > 0:
-                        f.truncate(self.file_size)
-            elif self.supports_ranges and self.file_size > 0:
-                if os.path.getsize(self._part_path) != self.file_size:
-                    with open(self._part_path, "r+b") as f:
-                        f.truncate(self.file_size)
+                    pass
 
             # Open persistent write handle
             open_mode = "r+b" if (self.supports_ranges and self.file_size > 0) else "ab"
@@ -537,7 +538,7 @@ class DownloadTask:
             self._last_bytes = self.downloaded_bytes
 
             timeout = aiohttp.ClientTimeout(total=None, connect=30, sock_read=60)
-            headers = get_smart_headers(self.url, self.referer)
+            headers = get_smart_headers(self.url, self.referer, self.cookies)
             
             # High-performance non-limiting connector with DNS caching
             connector = aiohttp.TCPConnector(
@@ -580,6 +581,16 @@ class DownloadTask:
 
             # Check if all completed
             if all(s.status == "completed" for s in self.segments):
+                # Ensure correct file size metadata upon completion if needed
+                if self.file_size > 0 and os.path.exists(self._part_path):
+                    try:
+                        actual_sz = os.path.getsize(self._part_path)
+                        if actual_sz < self.file_size:
+                            with open(self._part_path, "a+b") as f:
+                                f.truncate(self.file_size)
+                    except Exception:
+                        pass
+
                 # Instant atomic zero-copy completion!
                 if os.path.exists(self._part_path):
                     os.replace(self._part_path, self.file_path)
@@ -736,6 +747,8 @@ class DownloadTask:
             "category": self.category,
             "supports_ranges": self.supports_ranges,
             "download_type": "direct",
+            "referer": self.referer,
+            "cookies": self.cookies,
             "segments": [s.to_dict() for s in self.segments],
             "created_at": getattr(self, "created_at", time.time()),
             "error_message": self.error_message

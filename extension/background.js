@@ -991,6 +991,16 @@ async function sendDownload(payload) {
   if (payload && payload.url) {
     eggdlInitiatedUrls.add(payload.url);
     setTimeout(() => eggdlInitiatedUrls.delete(payload.url), 30000);
+
+    // Auto-extract session cookies from Chrome if not already provided
+    if (!payload.cookies && typeof chrome !== 'undefined' && chrome.cookies && chrome.cookies.getAll) {
+      try {
+        const cks = await chrome.cookies.getAll({ url: payload.url });
+        if (cks && cks.length > 0) {
+          payload.cookies = cks.map(c => `${c.name}=${c.value}`).join('; ');
+        }
+      } catch (_) {}
+    }
   }
   return await fetchFromBackend("/api/download/start", {
     method: "POST",
@@ -1076,12 +1086,23 @@ if (typeof chrome !== 'undefined' && chrome.downloads && chrome.downloads.onCrea
         } catch (_) {}
       }
 
+      let cookiesStr = '';
+      try {
+        if (chrome.cookies && chrome.cookies.getAll) {
+          const cks = await chrome.cookies.getAll({ url: url });
+          if (cks && cks.length > 0) {
+            cookiesStr = cks.map(c => `${c.name}=${c.value}`).join('; ');
+          }
+        }
+      } catch (_) {}
+
       const downloadInfo = {
         url: url,
         filename: filename,
         file_size: fileSize,
         mime: mime,
         referrer: downloadItem.referrer || '',
+        cookies: cookiesStr,
         download_dir: configuredDir
       };
 

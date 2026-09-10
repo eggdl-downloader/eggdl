@@ -295,6 +295,8 @@ async def handle_progress_update(task_dict: Dict[str, Any]):
 # Request Models
 class InspectRequest(BaseModel):
     url: str
+    referer: Optional[str] = None
+    cookies: Optional[str] = None
 
 class SniffRequest(BaseModel):
     url: str
@@ -310,8 +312,9 @@ class StartDownloadRequest(BaseModel):
     thumbnail: Optional[str] = None
     category: Optional[str] = None
     expected_size: Optional[int] = None
-    segments_count: Optional[int] = 8
+    segments_count: Optional[int] = None
     referer: Optional[str] = None
+    cookies: Optional[str] = None
     download_dir: Optional[str] = None
     video_encoder_enabled: Optional[bool] = None
     video_codec: Optional[str] = None
@@ -1272,7 +1275,7 @@ async def inspect_url(req: InspectRequest):
     # 2. Try inspecting as direct file
     settings = get_settings()
     target_dir = settings.get("download_dir", str(Path.home() / "Downloads" / "Eggdl Downloads"))
-    temp_task = DownloadTask(task_id="inspect", url=url, target_dir=target_dir)
+    temp_task = DownloadTask(task_id="inspect", url=url, target_dir=target_dir, referer=req.referer, cookies=req.cookies)
     
     try:
         direct_info = await asyncio.wait_for(temp_task.inspect(), timeout=12.0)
@@ -1652,6 +1655,7 @@ async def start_download(req: StartDownloadRequest, user: Optional[Dict[str, Any
             filename=custom_fn,
             segments_count=segments,
             referer=req.referer,
+            cookies=req.cookies,
             on_progress=handle_progress_update
         )
         if req.custom_title:
@@ -1792,6 +1796,8 @@ async def resume_download(task_id: str):
             target_dir=target_dir,
             filename=task_record.get("filename"),
             segments_count=segments,
+            referer=task_record.get("referer"),
+            cookies=task_record.get("cookies"),
             on_progress=handle_progress_update
         )
         task.thumbnail = task_record.get("thumbnail") or ""
