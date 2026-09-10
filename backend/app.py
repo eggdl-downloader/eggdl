@@ -1590,8 +1590,9 @@ async def start_download(req: StartDownloadRequest, user: Optional[Dict[str, Any
     task_id = str(uuid.uuid4())[:8]
     settings = get_settings()
     target_dir = resolve_target_dir(req.download_dir)
-    max_threads = plan_info.get("max_threads", 16)
-    segments = min(req.segments_count or settings.get("max_segments_per_download", 8), max_threads)
+    max_threads = plan_info.get("max_threads", 32)
+    default_segs = int(settings.get("max_segments_per_download", 16))
+    segments = min(req.segments_count or default_segs, max_threads)
 
     download_type = req.download_type
     # If format_id is a direct URL from fallback video scraper
@@ -1761,7 +1762,7 @@ async def resume_download(task_id: str):
 
     settings = get_settings()
     target_dir = settings.get("download_dir", str(Path.home() / "Downloads" / "Eggdl Downloads"))
-    segments = settings.get("max_segments_per_download", 8)
+    segments = int(settings.get("max_segments_per_download", 16))
 
     if task_record["download_type"] == "stream":
         enc_enabled = task_record.get("video_encoder_enabled")

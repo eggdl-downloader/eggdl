@@ -1051,7 +1051,7 @@ const App = {
   async saveSettings() {
     const saveBtn = document.getElementById('save-settings-btn');
     const dlDir = document.getElementById('setting-dl-dir')?.value.trim();
-    const segments = parseInt(document.getElementById('setting-segments')?.value || 8);
+    const segments = parseInt(document.getElementById('setting-segments')?.value || 16);
     const maxActive = parseInt(document.getElementById('setting-max-active')?.value || 3);
 
     // Instant premium tactile feedback - locked size, clean text only (NO tick icon)

@@ -884,9 +884,10 @@ const UI = {
           <select id="direct-segments-count" class="form-control" ${!data.supports_ranges ? 'disabled' : ''}>
             <option value="1">1 Connection (Single stream)</option>
             <option value="4">4 Connections</option>
-            <option value="8" selected>8 Connections (Recommended)</option>
-            <option value="16">16 Connections (Maximum Speed)</option>
-            <option value="32">32 Connections (Turbo)</option>
+            <option value="8">8 Connections</option>
+            <option value="16" selected>16 Connections (Recommended - IDM Speed)</option>
+            <option value="24">24 Connections (High-Speed Turbo)</option>
+            <option value="32">32 Connections (Maximum Turbo)</option>
           </select>
           ${!data.supports_ranges ? '<small class="form-hint" style="color: var(--accent-amber);">Server does not support Range headers; downloading in 1 stream.</small>' : ''}
         </div>
@@ -897,7 +898,7 @@ const UI = {
 
       startBtn.onclick = () => {
         const customName = document.getElementById('direct-custom-name')?.value || data.filename;
-        const segCount = parseInt(document.getElementById('direct-segments-count')?.value || 8);
+        const segCount = parseInt(document.getElementById('direct-segments-count')?.value || 16);
 
         App.startDownloadTask({
           url: currentUrl,

@@ -2,6 +2,7 @@ import os
 import sys
 import time
 import math
+import json
 import asyncio
 import aiohttp
 import mimetypes
@@ -9,6 +10,7 @@ import re
 import urllib.parse
 import tempfile
 import shutil
+import socket
 from pathlib import Path
 from typing import Dict, List, Optional, Callable, Any
 
@@ -102,8 +104,6 @@ def extract_filename_from_headers(url: str, headers: Dict[str, str]) -> str:
     return sanitize_filename(f"file_{int(time.time())}{ext}")
 
 
-import socket
-
 class Segment:
     def __init__(self, index: int, start: int, end: int, downloaded: int = 0):
         self.index = index
@@ -130,38 +130,6 @@ class Segment:
             "status": self.status
         }
 
-
-class DownloadTask:
-    def __init__(self, task_id: str, url: str, target_dir: str, filename: Optional[str] = None,
-                 segments_count: int = 8, referer: Optional[str] = None, on_progress: Optional[Callable] = None):
-        self.id = task_id
-        self.url = url
-        self.target_dir = target_dir
-        self.custom_filename = filename
-        self.segments_count = segments_count
-        self.referer = referer
-        self.on_progress = on_progress
-
-        self.filename = filename or ""
-        self.file_path = ""
-        self.file_size = -1
-        self.downloaded_bytes = 0
-        self.progress = 0.0
-        self.speed = 0.0
-        self.eta = 0
-        self.status = "queued"  # queued, downloading, paused, completed, error, canceled
-        self.category = "other"
-        self.supports_ranges = False
-        self.error_message = None
-        self.created_at = time.time()
-
-        self.segments: List[Segment] = []
-        self._is_paused = False
-        self._is_canceled = False
-        self._temp_dir = os.path.join(target_dir, f".pro_dl_{task_id}")
-        self._last_time = 0.0
-        self._last_bytes = 0
-        self._speed_samples = []
 
 def get_smart_headers(url: str, custom_referer: Optional[str] = None) -> Dict[str, str]:
     parsed = urllib.parse.urlparse(url)
@@ -219,13 +187,16 @@ def get_smart_headers(url: str, custom_referer: Optional[str] = None) -> Dict[st
 
 
 class DownloadTask:
+    # IDM minimum split size: minimum 2MB remaining to justify splitting an active segment
+    MIN_SPLIT_SIZE = 2 * 1024 * 1024
+
     def __init__(self, task_id: str, url: str, target_dir: str, filename: Optional[str] = None,
-                 segments_count: int = 8, referer: Optional[str] = None, on_progress: Optional[Callable] = None):
+                 segments_count: int = 16, referer: Optional[str] = None, on_progress: Optional[Callable] = None):
         self.id = task_id
         self.url = url
         self.target_dir = target_dir
         self.custom_filename = filename
-        self.segments_count = segments_count
+        self.segments_count = segments_count or 16
         self.referer = referer
         self.on_progress = on_progress
 
@@ -245,10 +216,22 @@ class DownloadTask:
         self.segments: List[Segment] = []
         self._is_paused = False
         self._is_canceled = False
-        self._temp_dir = os.path.join(tempfile.gettempdir(), "EggDL_Chunks", f".eggdl_chunk_{task_id}")
         self._last_time = 0.0
         self._last_bytes = 0
         self._speed_samples = []
+
+        # Zero-copy file write lock & dynamic work stealing synchronization
+        self._write_lock = asyncio.Lock()
+        self._split_lock = asyncio.Lock()
+        self._file_handle = None
+
+    @property
+    def _part_path(self) -> str:
+        return f"{self.file_path}.eggdl_part"
+
+    @property
+    def _state_path(self) -> str:
+        return f"{self.file_path}.eggdl_state"
 
     async def inspect(self) -> Dict[str, Any]:
         headers = get_smart_headers(self.url, self.referer)
@@ -257,17 +240,14 @@ class DownloadTask:
             try:
                 async with session.head(self.url, allow_redirects=True, timeout=aiohttp.ClientTimeout(total=15)) as resp:
                     if resp.status >= 400:
-                        # Some servers reject HEAD, try GET with range
                         async with session.get(self.url, headers={"Range": "bytes=0-0"}, allow_redirects=True, timeout=aiohttp.ClientTimeout(total=15)) as get_resp:
                             return self._parse_headers(get_resp.headers, get_resp.status, str(get_resp.url))
                     return self._parse_headers(resp.headers, resp.status, str(resp.url))
             except Exception:
                 try:
-                    # Fallback to GET
                     async with session.get(self.url, headers={"Range": "bytes=0-0"}, allow_redirects=True, timeout=aiohttp.ClientTimeout(total=15)) as get_resp:
                         return self._parse_headers(get_resp.headers, get_resp.status, str(get_resp.url))
                 except Exception:
-                    # Final fallback with curl_cffi
                     return self._inspect_via_curl_cffi()
 
     def _inspect_via_curl_cffi(self) -> Dict[str, Any]:
@@ -278,25 +258,33 @@ class DownloadTask:
             if r.status_code >= 400:
                 r = requests.get(self.url, impersonate="chrome124", headers={"Range": "bytes=0-0", **headers}, timeout=15)
             return self._parse_headers(r.headers, r.status_code, r.url)
-        except Exception as err:
-            raise Exception(f"Could not inspect link: {err}")
+        except Exception:
+            return {
+                "filename": self.filename or f"download_{int(time.time())}",
+                "file_size": -1,
+                "supports_ranges": False,
+                "content_type": "",
+                "category": "other"
+            }
 
     def _parse_headers(self, headers: Any, status_code: int, final_url: str) -> Dict[str, Any]:
-        if "/login/" in final_url.lower() or ("/auth/" in final_url.lower() and not self.url.lower().endswith(".html")):
-            raise Exception("This quality (1080p/4K) requires logging into a free account on the website. Please choose 720p or lower for instant free download.")
+        content_len = headers.get("content-length") or headers.get("Content-Length")
+        if content_len:
+            try:
+                self.file_size = int(content_len)
+            except ValueError:
+                self.file_size = -1
+        else:
+            content_range = headers.get("content-range") or headers.get("Content-Range")
+            if content_range:
+                match = re.search(r"/(\d+)", content_range)
+                if match:
+                    try:
+                        self.file_size = int(match.group(1))
+                    except ValueError:
+                        self.file_size = -1
 
-        content_type = headers.get("content-type") or headers.get("Content-Type") or ""
-        ct_lower = content_type.lower()
-
-        # Reject error JSON payloads on direct media links to avoid creating .json files
-        if ("application/json" in ct_lower or "text/json" in ct_lower) and not self.url.lower().split("?")[0].endswith(".json"):
-            raise Exception("This download link has expired or requires browser session authentication. Please play or download the media directly in your browser using the EggDL extension.")
-
-        if "text/html" in ct_lower and (self.url.endswith(".mp4") or "dload" in self.url.lower() or "download" in self.url.lower()):
-            raise Exception("Server returned a web page instead of the video stream. Please click 'Download Egg' directly on the video player.")
-
-        content_length = headers.get("content-length") or headers.get("Content-Length")
-        self.file_size = int(content_length) if content_length and content_length.isdigit() else -1
+        content_type = headers.get("content-type", "") or headers.get("Content-Type", "")
         
         accept_ranges = headers.get("accept-ranges") or headers.get("Accept-Ranges")
         content_range = headers.get("content-range") or headers.get("Content-Range")
@@ -337,29 +325,111 @@ class DownloadTask:
             "category": self.category
         }
 
+    def _load_state(self) -> bool:
+        """Loads existing multipart resume state if valid."""
+        try:
+            if os.path.exists(self._state_path) and os.path.exists(self._part_path):
+                with open(self._state_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if data.get("file_size") == self.file_size and data.get("url") == self.url:
+                    self.segments = []
+                    for s in data.get("segments", []):
+                        seg = Segment(s["index"], s["start"], s["end"], downloaded=s.get("downloaded", 0))
+                        if s.get("status") == "completed":
+                            seg.status = "completed"
+                        self.segments.append(seg)
+                    if self.segments:
+                        return True
+        except Exception:
+            pass
+        return False
+
+    def _save_state(self):
+        """Flushes current segment state to disk for pause/resume."""
+        try:
+            if not self.file_path or not self.supports_ranges or self.file_size <= 0:
+                return
+            data = {
+                "url": self.url,
+                "file_size": self.file_size,
+                "segments": [s.to_dict() for s in self.segments]
+            }
+            tmp_state = f"{self._state_path}.tmp"
+            with open(tmp_state, "w", encoding="utf-8") as f:
+                json.dump(data, f)
+            os.replace(tmp_state, self._state_path)
+        except Exception:
+            pass
+
     def _init_segments(self):
-        self.segments = []
-        if not self.supports_ranges or self.file_size <= 0 or self.segments_count <= 1:
-            # Single segment
-            part_path = os.path.join(self._temp_dir, "part_0.tmp")
-            downloaded = os.path.getsize(part_path) if (self.supports_ranges and os.path.exists(part_path)) else 0
-            self.segments.append(Segment(0, 0, self.file_size - 1 if self.file_size > 0 else -1, downloaded=downloaded))
+        # 1. Attempt to resume from existing state
+        if self._load_state():
             return
 
-        chunk_size = math.ceil(self.file_size / self.segments_count)
-        for i in range(self.segments_count):
+        self.segments = []
+        if not self.supports_ranges or self.file_size <= 0 or self.segments_count <= 1:
+            self.segments.append(Segment(0, 0, self.file_size - 1 if self.file_size > 0 else -1, downloaded=0))
+            return
+
+        # IDM Turbo connection scaling based on file size
+        active_count = self.segments_count
+        if active_count < 16 and self.file_size >= 10 * 1024 * 1024:
+            active_count = 16
+        if active_count < 24 and self.file_size >= 50 * 1024 * 1024:
+            active_count = 24
+        if active_count < 32 and self.file_size >= 150 * 1024 * 1024:
+            active_count = 32
+
+        chunk_size = math.ceil(self.file_size / active_count)
+        for i in range(active_count):
             start = i * chunk_size
             end = min(start + chunk_size - 1, self.file_size - 1)
             if start <= self.file_size - 1:
-                # Check if existing partial file exists
-                part_path = os.path.join(self._temp_dir, f"part_{i}.tmp")
-                downloaded = os.path.getsize(part_path) if os.path.exists(part_path) else 0
-                self.segments.append(Segment(i, start, end, downloaded=downloaded))
+                self.segments.append(Segment(i, start, end, downloaded=0))
+
+    async def _steal_work(self) -> Optional[Segment]:
+        """IDM Dynamic Work-Stealing: Splits the largest remaining active segment in half."""
+        async with self._split_lock:
+            best_seg = None
+            max_remaining = 0
+            for s in self.segments:
+                if s.status == "downloading" and s.end > 0:
+                    curr_pos = s.start + s.downloaded
+                    rem = s.end - curr_pos + 1
+                    if rem > max_remaining and rem >= (self.MIN_SPLIT_SIZE * 2):
+                        max_remaining = rem
+                        best_seg = s
+
+            if not best_seg:
+                return None
+
+            curr_pos = best_seg.start + best_seg.downloaded
+            rem_bytes = best_seg.end - curr_pos + 1
+            half = rem_bytes // 2
+            split_start = curr_pos + half
+            old_end = best_seg.end
+
+            # Resize original segment boundary
+            best_seg.end = split_start - 1
+            best_seg.total = best_seg.end - best_seg.start + 1
+
+            # Allocate new segment for the second half
+            new_index = len(self.segments)
+            new_seg = Segment(index=new_index, start=split_start, end=old_end, downloaded=0)
+            self.segments.append(new_seg)
+            return new_seg
+
+    async def _worker_loop(self, session: aiohttp.ClientSession, initial_segment: Segment):
+        """Worker that downloads a segment, then steals work dynamically from slower segments until 100% done."""
+        curr_segment = initial_segment
+        while curr_segment and not self._is_paused and not self._is_canceled:
+            await self._download_segment(session, curr_segment)
+            if curr_segment.status == "completed" and self.supports_ranges and self.file_size > 0:
+                curr_segment = await self._steal_work()
+            else:
+                break
 
     async def _download_segment(self, session: aiohttp.ClientSession, segment: Segment):
-        part_path = os.path.join(self._temp_dir, f"part_{segment.index}.tmp")
-        
-        # Resume position if exists
         start_byte = segment.start + segment.downloaded
         if segment.end > 0 and start_byte > segment.end:
             segment.status = "completed"
@@ -372,42 +442,51 @@ class DownloadTask:
             headers["Range"] = f"bytes={start_byte}-"
 
         segment.status = "downloading"
+        chunk_read_size = 256 * 1024  # 256 KB high-performance chunk buffer
+
         try:
             async with session.get(self.url, headers=headers, timeout=aiohttp.ClientTimeout(total=None, sock_read=60)) as resp:
                 if resp.status == 416:
-                    # Requested range not satisfiable - file already completed or offset overflow
-                    if os.path.exists(part_path) and segment.end > 0 and os.path.getsize(part_path) >= (segment.end - segment.start):
-                        segment.status = "completed"
-                        return
-                    # Fallback: re-request without stale range offset
-                    headers_retry = {k: v for k, v in headers.items() if k.lower() != "range"}
-                    async with session.get(self.url, headers=headers_retry, timeout=aiohttp.ClientTimeout(total=None, sock_read=60)) as r_resp:
-                        if r_resp.status in (200, 206):
-                            with open(part_path, "wb") as f:
-                                async for chunk in r_resp.content.iter_chunked(64 * 1024):
-                                    if self._is_paused or self._is_canceled:
-                                        segment.status = "paused" if self._is_paused else "canceled"
-                                        return
-                                    f.write(chunk)
-                                    chunk_len = len(chunk)
-                                    segment.downloaded += chunk_len
-                                    self.downloaded_bytes += chunk_len
-                            segment.status = "completed"
-                            return
-                elif resp.status not in (200, 206):
+                    # Satisfied / file offset reached
+                    segment.status = "completed"
+                    return
+
+                if resp.status not in (200, 206):
                     raise Exception(f"HTTP Status {resp.status}")
 
-                mode = "ab" if segment.downloaded > 0 else "wb"
-                with open(part_path, mode) as f:
-                    async for chunk in resp.content.iter_chunked(64 * 1024):
-                        if self._is_paused or self._is_canceled:
-                            segment.status = "paused" if self._is_paused else "canceled"
-                            return
+                # If server sent 200 on range request for non-zero offset, server doesn't support ranges
+                if resp.status == 200 and segment.start > 0:
+                    segment.status = "error"
+                    return
 
-                        f.write(chunk)
-                        chunk_len = len(chunk)
-                        segment.downloaded += chunk_len
-                        self.downloaded_bytes += chunk_len
+                async for chunk in resp.content.iter_chunked(chunk_read_size):
+                    if self._is_paused or self._is_canceled:
+                        segment.status = "paused" if self._is_paused else "canceled"
+                        return
+
+                    chunk_len = len(chunk)
+                    write_pos = segment.start + segment.downloaded
+
+                    if segment.end > 0:
+                        remaining_seg = segment.end - write_pos + 1
+                        if remaining_seg <= 0:
+                            segment.status = "completed"
+                            return
+                        if chunk_len > remaining_seg:
+                            chunk = chunk[:remaining_seg]
+                            chunk_len = len(chunk)
+
+                    async with self._write_lock:
+                        if self._file_handle and not self._file_handle.closed:
+                            if self.supports_ranges and self.file_size > 0:
+                                self._file_handle.seek(write_pos)
+                            self._file_handle.write(chunk)
+
+                    segment.downloaded += chunk_len
+                    self.downloaded_bytes += chunk_len
+
+                    if segment.end > 0 and (segment.start + segment.downloaded) > segment.end:
+                        break
 
             segment.status = "completed"
         except Exception as e:
@@ -422,13 +501,12 @@ class DownloadTask:
             self._is_canceled = False
             
             os.makedirs(self.target_dir, exist_ok=True)
-            os.makedirs(self._temp_dir, exist_ok=True)
 
             if not self.filename or self.file_size == -1:
                 await self.inspect()
 
-            # Ensure unique filename if already exists and not resuming
-            if not os.path.exists(self._temp_dir):
+            # Ensure unique filename if not resuming an existing partial download
+            if not os.path.exists(self._part_path):
                 base, ext = os.path.splitext(self.filename)
                 counter = 1
                 while os.path.exists(os.path.join(self.target_dir, self.filename)):
@@ -439,6 +517,20 @@ class DownloadTask:
             if not self.segments:
                 self._init_segments()
 
+            # Pre-allocate sparse file if size is known and ranges are supported
+            if not os.path.exists(self._part_path):
+                with open(self._part_path, "wb") as f:
+                    if self.supports_ranges and self.file_size > 0:
+                        f.truncate(self.file_size)
+            elif self.supports_ranges and self.file_size > 0:
+                if os.path.getsize(self._part_path) != self.file_size:
+                    with open(self._part_path, "r+b") as f:
+                        f.truncate(self.file_size)
+
+            # Open persistent write handle
+            open_mode = "r+b" if (self.supports_ranges and self.file_size > 0) else "ab"
+            self._file_handle = open(self._part_path, open_mode)
+
             # Recalculate downloaded bytes from segments
             self.downloaded_bytes = sum(s.downloaded for s in self.segments)
             self._last_time = time.time()
@@ -446,37 +538,59 @@ class DownloadTask:
 
             timeout = aiohttp.ClientTimeout(total=None, connect=30, sock_read=60)
             headers = get_smart_headers(self.url, self.referer)
-            connector = aiohttp.TCPConnector(family=socket.AF_INET)
+            
+            # High-performance non-limiting connector with DNS caching
+            connector = aiohttp.TCPConnector(
+                family=socket.AF_INET,
+                limit=0,
+                limit_per_host=0,
+                ttl_dns_cache=300,
+                enable_cleanup_closed=True,
+                force_close=False
+            )
 
             async with aiohttp.ClientSession(headers=headers, connector=connector, timeout=timeout, auto_decompress=False) as session:
-                # Launch progress reporter task
                 reporter_task = asyncio.create_task(self._progress_loop())
                 
-                # Launch parallel segment downloads
-                tasks = [self._download_segment(session, seg) for seg in self.segments if seg.status != "completed"]
-                await asyncio.gather(*tasks)
+                # Launch workers for all segments currently pending
+                active_segs = [s for s in self.segments if s.status != "completed"]
+                tasks = [self._worker_loop(session, seg) for seg in active_segs]
+                if tasks:
+                    await asyncio.gather(*tasks)
 
                 reporter_task.cancel()
 
+            # Close file handle
+            if self._file_handle and not self._file_handle.closed:
+                self._file_handle.flush()
+                self._file_handle.close()
+                self._file_handle = None
+
             if self._is_paused:
                 self.status = "paused"
+                self._save_state()
                 self._report_progress()
                 return
 
             if self._is_canceled:
                 self.status = "canceled"
-                self._cleanup_temp()
+                self._cleanup_files()
                 self._report_progress()
                 return
 
             # Check if all completed
             if all(s.status == "completed" for s in self.segments):
-                self._assemble_file()
+                # Instant atomic zero-copy completion!
+                if os.path.exists(self._part_path):
+                    os.replace(self._part_path, self.file_path)
+                if os.path.exists(self._state_path):
+                    try: os.remove(self._state_path)
+                    except Exception: pass
+
                 self.status = "completed"
                 self.progress = 100.0
                 self.speed = 0.0
                 self.eta = 0
-                self._cleanup_temp()
                 self._report_progress()
             else:
                 # Try curl_cffi fallback before failing
@@ -487,6 +601,13 @@ class DownloadTask:
                 self._report_progress()
 
         except Exception as e:
+            if self._file_handle and not self._file_handle.closed:
+                try:
+                    self._file_handle.flush()
+                    self._file_handle.close()
+                except Exception: pass
+                self._file_handle = None
+
             if not self._is_paused and not self._is_canceled:
                 if self._download_via_curl_cffi():
                     return
@@ -515,37 +636,37 @@ class DownloadTask:
                 self.speed = 0.0
                 self.eta = 0
                 self.status = "completed"
-                self._cleanup_temp()
+                self._cleanup_files()
                 self._report_progress()
                 return True
         except Exception:
             pass
         return False
 
-    def _assemble_file(self):
-        with open(self.file_path, "wb") as outfile:
-            for seg in self.segments:
-                part_path = os.path.join(self._temp_dir, f"part_{seg.index}.tmp")
-                if os.path.exists(part_path):
-                    with open(part_path, "rb") as infile:
-                        while True:
-                            buf = infile.read(1024 * 1024)
-                            if not buf:
-                                break
-                            outfile.write(buf)
-
-    def _cleanup_temp(self):
+    def _cleanup_files(self):
         try:
-            if hasattr(self, "_temp_dir") and self._temp_dir and os.path.exists(self._temp_dir):
-                shutil.rmtree(self._temp_dir, ignore_errors=True)
+            if os.path.exists(self._part_path):
+                os.remove(self._part_path)
+        except Exception:
+            pass
+        try:
+            if os.path.exists(self._state_path):
+                os.remove(self._state_path)
         except Exception:
             pass
 
     async def _progress_loop(self):
+        state_save_counter = 0
         while self.status == "downloading":
             await asyncio.sleep(0.5)
             self._calculate_speed_and_eta()
             self._report_progress()
+            
+            # Periodically persist state every ~3 seconds
+            state_save_counter += 1
+            if state_save_counter >= 6:
+                state_save_counter = 0
+                self._save_state()
 
     def _calculate_speed_and_eta(self):
         now = time.time()
@@ -581,11 +702,23 @@ class DownloadTask:
     def pause(self):
         self._is_paused = True
         self.status = "paused"
+        self._save_state()
+        if self._file_handle and not self._file_handle.closed:
+            try:
+                self._file_handle.flush()
+                self._file_handle.close()
+                self._file_handle = None
+            except Exception: pass
 
     def cancel(self):
         self._is_canceled = True
         self.status = "canceled"
-        self._cleanup_temp()
+        if self._file_handle and not self._file_handle.closed:
+            try:
+                self._file_handle.close()
+                self._file_handle = None
+            except Exception: pass
+        self._cleanup_files()
 
     def to_dict(self) -> Dict[str, Any]:
         return {

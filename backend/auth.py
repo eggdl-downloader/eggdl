@@ -20,12 +20,12 @@ PLAN_CONFIGS = {
         "duration_days": 7,
         "badge": "Trial",
         "max_downloads_per_day": 3,
-        "max_threads": 16,
+        "max_threads": 32,
         "max_concurrent": 1,
         "max_resolution": "4K",
         "features": [
             "3 Downloads Per Day",
-            "16 Turbo Acceleration Threads",
+            "32 Turbo Acceleration Threads",
             "Up to 4K Ultra HD Support",
             "1 Simultaneous Download",
             "7 Days Validity"
@@ -54,14 +54,14 @@ PLAN_CONFIGS = {
         "duration_days": 30,
         "badge": "Starter",
         "max_downloads_per_day": None,
-        "max_threads": 16,
+        "max_threads": 32,
         "max_concurrent": 2,
         "max_resolution": "4K",
         "features": [
-            "16 Turbo Threads",
+            "32 Turbo Threads",
             "Up to 4K Ultra HD Support",
             "2 Simultaneous Downloads",
-            "Standard Download Engine"
+            "Turbo Download Engine"
         ]
     },
     "3month": {

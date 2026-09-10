@@ -288,7 +288,7 @@ def init_db():
     default_settings = {
         "download_dir": DEFAULT_DOWNLOAD_DIR,
         "max_concurrent_downloads": "3",
-        "max_segments_per_download": "8",
+        "max_segments_per_download": "16",
         "speed_limit": "0",
         "auto_start": "true",
         "theme": "dark",
@@ -298,6 +298,9 @@ def init_db():
 
     for key, val in default_settings.items():
         cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (key, val))
+
+    # Upgrade existing default of 8 to 16 for high-speed performance
+    cursor.execute("UPDATE settings SET value = '16' WHERE key = 'max_segments_per_download' AND value = '8'")
 
     # Initialize default app release if not present
     cursor.execute("""
