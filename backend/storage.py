@@ -40,10 +40,11 @@ def export_devices_to_registry():
             d = dict(r)
             devices.append(d)
         if devices:
+            os.makedirs(os.path.dirname(REGISTRY_FILE), exist_ok=True)
             with open(REGISTRY_FILE, "w", encoding="utf-8") as f:
                 json.dump(devices, f, indent=2, default=str)
     except Exception as e:
-        print(f"[DevicesRegistry] Warning exporting registry: {e}")
+        pass
 
 def import_devices_from_registry(cursor):
     """Imports devices from backend/devices_registry.json into SQLite on container boot/init."""
@@ -107,10 +108,11 @@ def export_keys_to_registry():
         conn.close()
         keys = [dict(r) for r in rows]
         if keys:
+            os.makedirs(os.path.dirname(KEYS_REGISTRY_FILE), exist_ok=True)
             with open(KEYS_REGISTRY_FILE, "w", encoding="utf-8") as f:
                 json.dump(keys, f, indent=2, default=str)
     except Exception as e:
-        print(f"[KeysRegistry] Warning exporting keys: {e}")
+        pass
 
 def import_keys_from_registry(cursor):
     """Imports license keys from backend/keys_registry.json into SQLite on container boot/init."""
@@ -166,11 +168,17 @@ def init_db():
     )
     """)
 
-    # Ensure user_id column exists if table was created previously
-    try:
-        cursor.execute("ALTER TABLE downloads ADD COLUMN user_id TEXT;")
-    except Exception:
-        pass
+    # Ensure modern columns exist if table was created previously
+    for col, col_type in [
+        ("user_id", "TEXT"),
+        ("supports_ranges", "INTEGER DEFAULT 0"),
+        ("referer", "TEXT"),
+        ("cookies", "TEXT")
+    ]:
+        try:
+            cursor.execute(f"ALTER TABLE downloads ADD COLUMN {col} {col_type};")
+        except Exception:
+            pass
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS settings (
@@ -383,11 +391,11 @@ def save_download_task(task: Dict[str, Any], user_id: Optional[str] = None):
     INSERT OR REPLACE INTO downloads (
         id, url, title, filename, file_path, file_size, downloaded_bytes,
         progress, speed, eta, status, category, thumbnail, download_type,
-        format_id, error_message, user_id, created_at, completed_at
+        format_id, error_message, user_id, supports_ranges, referer, cookies, created_at, completed_at
     ) VALUES (
         :id, :url, :title, :filename, :file_path, :file_size, :downloaded_bytes,
         :progress, :speed, :eta, :status, :category, :thumbnail, :download_type,
-        :format_id, :error_message, :user_id, :created_at, :completed_at
+        :format_id, :error_message, :user_id, :supports_ranges, :referer, :cookies, :created_at, :completed_at
     )
     """, {
         "id": task["id"],
@@ -407,6 +415,9 @@ def save_download_task(task: Dict[str, Any], user_id: Optional[str] = None):
         "format_id": task.get("format_id", ""),
         "error_message": task.get("error_message", None),
         "user_id": target_user_id,
+        "supports_ranges": int(bool(task.get("supports_ranges", False))),
+        "referer": task.get("referer", None),
+        "cookies": task.get("cookies", None),
         "created_at": created_at_val,
         "completed_at": task.get("completed_at", None)
     })

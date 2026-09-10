@@ -1804,6 +1804,7 @@ async def resume_download(task_id: str):
         task.downloaded_bytes = task_record.get("downloaded_bytes", 0)
         task.file_size = task_record.get("file_size", -1)
         task.progress = task_record.get("progress", 0.0)
+        task.supports_ranges = bool(task_record.get("supports_ranges", False))
 
     task.status = "downloading"
     active_tasks[task_id] = task

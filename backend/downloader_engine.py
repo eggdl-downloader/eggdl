@@ -242,7 +242,16 @@ class DownloadTask:
         async with aiohttp.ClientSession(headers=headers, connector=connector, auto_decompress=False) as session:
             try:
                 async with session.head(self.url, allow_redirects=True, timeout=aiohttp.ClientTimeout(total=15)) as resp:
-                    if resp.status >= 400:
+                    if resp.status == 200:
+                        accept_ranges = (resp.headers.get("accept-ranges") or "").lower()
+                        if accept_ranges != "bytes":
+                            try:
+                                async with session.get(self.url, headers={"Range": "bytes=0-0"}, allow_redirects=True, timeout=aiohttp.ClientTimeout(total=15)) as probe_resp:
+                                    return self._parse_headers(probe_resp.headers, probe_resp.status, str(probe_resp.url))
+                            except Exception:
+                                pass
+                        return self._parse_headers(resp.headers, resp.status, str(resp.url))
+                    elif resp.status in (206, 400, 403, 405, 416):
                         async with session.get(self.url, headers={"Range": "bytes=0-0"}, allow_redirects=True, timeout=aiohttp.ClientTimeout(total=15)) as get_resp:
                             return self._parse_headers(get_resp.headers, get_resp.status, str(get_resp.url))
                     return self._parse_headers(resp.headers, resp.status, str(resp.url))
@@ -271,6 +280,9 @@ class DownloadTask:
             }
 
     def _parse_headers(self, headers: Any, status_code: int, final_url: str) -> Dict[str, Any]:
+        if final_url and (final_url.startswith("http://") or final_url.startswith("https://")):
+            self.url = final_url
+
         content_len = headers.get("content-length") or headers.get("Content-Length")
         if content_len:
             try:
@@ -289,9 +301,9 @@ class DownloadTask:
 
         content_type = headers.get("content-type", "") or headers.get("Content-Type", "")
         
-        accept_ranges = headers.get("accept-ranges") or headers.get("Accept-Ranges")
-        content_range = headers.get("content-range") or headers.get("Content-Range")
-        self.supports_ranges = (accept_ranges == "bytes" or status_code == 206 or bool(content_range))
+        accept_ranges = headers.get("accept-ranges") or headers.get("Accept-Ranges") or ""
+        content_range = headers.get("content-range") or headers.get("Content-Range") or ""
+        self.supports_ranges = (str(accept_ranges).strip().lower() == "bytes" or status_code == 206 or bool(content_range))
 
         if self.custom_filename:
             self.filename = self.custom_filename
@@ -342,6 +354,7 @@ class DownloadTask:
                             seg.status = "completed"
                         self.segments.append(seg)
                     if self.segments:
+                        self.supports_ranges = True
                         return True
         except Exception:
             pass
@@ -425,8 +438,22 @@ class DownloadTask:
     async def _worker_loop(self, session: aiohttp.ClientSession, initial_segment: Segment):
         """Worker that downloads a segment, then steals work dynamically from slower segments until 100% done."""
         curr_segment = initial_segment
+        retries = 0
         while curr_segment and not self._is_paused and not self._is_canceled:
-            await self._download_segment(session, curr_segment)
+            try:
+                await self._download_segment(session, curr_segment)
+                retries = 0
+            except Exception as seg_err:
+                if self._is_paused or self._is_canceled:
+                    break
+                retries += 1
+                if retries <= 3:
+                    await asyncio.sleep(0.5)
+                    continue
+                else:
+                    curr_segment.status = "error"
+                    break
+
             if curr_segment.status == "completed" and self.supports_ranges and self.file_size > 0:
                 curr_segment = await self._steal_work()
             else:
@@ -505,7 +532,7 @@ class DownloadTask:
             
             os.makedirs(self.target_dir, exist_ok=True)
 
-            if not self.filename or self.file_size == -1:
+            if not self.filename or self.file_size <= 0 or not self.supports_ranges:
                 await self.inspect()
 
             if not self.file_path:
