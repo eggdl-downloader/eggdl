@@ -1509,8 +1509,8 @@
   // Render Premium Classy In-Page Completion Popup on Right Side
   function renderInPageCompleteNotification(taskData) {
     if (!taskData) return;
-    const existing = document.querySelectorAll('.egg-dl-inpage-complete-popup');
-    existing.forEach(e => e.remove());
+    // System-wide floating desktop notification is rendered globally by EggDL on any active window
+    return;
 
     const popup = document.createElement('div');
     popup.className = 'egg-dl-inpage-complete-popup';

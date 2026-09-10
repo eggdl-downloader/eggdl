@@ -443,9 +443,274 @@ def play_native_completion_sound():
 
     threading.Thread(target=_worker, daemon=True).start()
 
+_CURRENT_NOTIFICATION_FORM = None
+
+def show_desktop_notification_popup(task_dict):
+    if sys.platform != "win32" or not task_dict:
+        return
+
+    def _popup_worker():
+        global _CURRENT_NOTIFICATION_FORM
+        try:
+            import clr
+            clr.AddReference('System.Windows.Forms')
+            clr.AddReference('System.Drawing')
+            import System.Windows.Forms as WF
+            import System.Drawing as SD
+            import ctypes
+            import subprocess
+
+            # Close previous popup if still open
+            if _CURRENT_NOTIFICATION_FORM:
+                try:
+                    _CURRENT_NOTIFICATION_FORM.Close()
+                except Exception:
+                    pass
+
+            form = WF.Form()
+            _CURRENT_NOTIFICATION_FORM = form
+            form.FormBorderStyle = getattr(WF.FormBorderStyle, 'None')
+            form.TopMost = True
+            form.ShowInTaskbar = False
+            form.StartPosition = WF.FormStartPosition.Manual
+            form.BackColor = SD.ColorTranslator.FromHtml('#0F172A')
+            form.Size = SD.Size(370, 160)
+
+            # Position at bottom-right of primary display above taskbar
+            wa = WF.Screen.PrimaryScreen.WorkingArea
+            form.Location = SD.Point(wa.Right - 390, wa.Bottom - 180)
+
+            # Outer border panel
+            border_panel = WF.Panel()
+            border_panel.Dock = WF.DockStyle.Fill
+            border_panel.BackColor = SD.ColorTranslator.FromHtml('#334155')
+            border_panel.Padding = WF.Padding(1)
+            form.Controls.Add(border_panel)
+
+            # Main dark container
+            container = WF.Panel()
+            container.Dock = WF.DockStyle.Fill
+            container.BackColor = SD.ColorTranslator.FromHtml('#0D1117')
+            border_panel.Controls.Add(container)
+
+            # 1. Header (Top bar)
+            header = WF.Panel()
+            header.Height = 32
+            header.Dock = WF.DockStyle.Top
+            header.BackColor = SD.ColorTranslator.FromHtml('#161B22')
+            container.Controls.Add(header)
+
+            # Green pulse dot + "Download complete"
+            dot_lbl = WF.Label()
+            dot_lbl.Text = "●"
+            dot_lbl.ForeColor = SD.ColorTranslator.FromHtml('#10B981')
+            dot_lbl.Font = SD.Font("Segoe UI", 10, SD.FontStyle.Bold)
+            dot_lbl.Location = SD.Point(10, 5)
+            dot_lbl.AutoSize = True
+            header.Controls.Add(dot_lbl)
+
+            header_lbl = WF.Label()
+            header_lbl.Text = "Download complete"
+            header_lbl.ForeColor = SD.Color.White
+            header_lbl.Font = SD.Font("Segoe UI", 9, SD.FontStyle.Bold)
+            header_lbl.Location = SD.Point(26, 6)
+            header_lbl.AutoSize = True
+            header.Controls.Add(header_lbl)
+
+            # Close button '✕'
+            close_btn = WF.Button()
+            close_btn.Text = "✕"
+            close_btn.FlatStyle = WF.FlatStyle.Flat
+            close_btn.FlatAppearance.BorderSize = 0
+            close_btn.ForeColor = SD.ColorTranslator.FromHtml('#94A3B8')
+            close_btn.BackColor = SD.Color.Transparent
+            close_btn.Font = SD.Font("Segoe UI", 9)
+            close_btn.Size = SD.Size(28, 26)
+            close_btn.Location = SD.Point(336, 3)
+            close_btn.Cursor = WF.Cursors.Hand
+            close_btn.Click += lambda s, e: form.Close()
+            header.Controls.Add(close_btn)
+
+            # Extract details
+            title = task_dict.get("title") or task_dict.get("filename") or "Download Complete"
+            file_path = task_dict.get("file_path") or task_dict.get("save_path") or ""
+            raw_bytes = task_dict.get("file_size") or task_dict.get("downloaded_bytes") or 0
+
+            # File size formatting
+            if raw_bytes >= 1024 * 1024 * 1024:
+                size_str = f"{raw_bytes / (1024 * 1024 * 1024):.2f} GB"
+            elif raw_bytes >= 1024 * 1024:
+                size_str = f"{raw_bytes / (1024 * 1024):.2f} MB"
+            elif raw_bytes >= 1024:
+                size_str = f"{raw_bytes / 1024:.2f} KB"
+            elif raw_bytes > 0:
+                size_str = f"{raw_bytes} Bytes"
+            else:
+                size_str = "Complete"
+
+            # Extension & category
+            ext = ""
+            if file_path and "." in file_path:
+                ext = file_path.rsplit(".", 1)[-1].upper()
+            elif "." in title:
+                ext = title.rsplit(".", 1)[-1].upper()
+            category = (task_dict.get("category") or "file").lower()
+
+            cat_icon = "📄"
+            if category == "video" or ext in ["MP4", "MKV", "WEBM", "AVI", "MOV"]:
+                cat_icon = "🎬"
+            elif category == "audio" or ext in ["MP3", "M4A", "WAV", "FLAC", "AAC", "OGG"]:
+                cat_icon = "🎵"
+            elif category == "image" or ext in ["JPG", "JPEG", "PNG", "GIF", "WEBP"]:
+                cat_icon = "🖼️"
+            elif category == "compressed" or ext in ["ZIP", "RAR", "7Z", "TAR", "GZ"]:
+                cat_icon = "📦"
+
+            # 2. File Row (Middle)
+            icon_box = WF.Label()
+            icon_box.Text = cat_icon
+            icon_box.Font = SD.Font("Segoe UI Emoji", 14)
+            icon_box.Location = SD.Point(12, 40)
+            icon_box.Size = SD.Size(32, 32)
+            icon_box.TextAlign = SD.ContentAlignment.MiddleCenter
+            container.Controls.Add(icon_box)
+
+            title_lbl = WF.Label()
+            title_lbl.Text = title
+            title_lbl.ForeColor = SD.Color.White
+            title_lbl.Font = SD.Font("Segoe UI", 9, SD.FontStyle.Bold)
+            title_lbl.Location = SD.Point(48, 38)
+            title_lbl.Size = SD.Size(306, 18)
+            title_lbl.AutoEllipsis = True
+            container.Controls.Add(title_lbl)
+
+            meta_lbl = WF.Label()
+            meta_lbl.Text = f"{size_str} • {ext}" if ext else f"{size_str}"
+            meta_lbl.ForeColor = SD.ColorTranslator.FromHtml('#94A3B8')
+            meta_lbl.Font = SD.Font("Segoe UI", 8)
+            meta_lbl.Location = SD.Point(48, 56)
+            meta_lbl.Size = SD.Size(306, 15)
+            container.Controls.Add(meta_lbl)
+
+            # Folder directory path
+            dir_path = os.path.dirname(file_path) if file_path else ""
+            path_lbl = WF.Label()
+            path_lbl.Text = f"📁 {dir_path}" if dir_path else "📁 Downloads"
+            path_lbl.ForeColor = SD.ColorTranslator.FromHtml('#64748B')
+            path_lbl.Font = SD.Font("Consolas", 8)
+            path_lbl.Location = SD.Point(14, 78)
+            path_lbl.Size = SD.Size(340, 16)
+            path_lbl.AutoEllipsis = True
+            container.Controls.Add(path_lbl)
+
+            # 3. Action Buttons (Bottom)
+            btn_panel = WF.Panel()
+            btn_panel.Height = 46
+            btn_panel.Dock = WF.DockStyle.Bottom
+            btn_panel.BackColor = SD.Color.Transparent
+            container.Controls.Add(btn_panel)
+
+            open_btn = WF.Button()
+            open_btn.Text = "▷  Open"
+            open_btn.FlatStyle = WF.FlatStyle.Flat
+            open_btn.FlatAppearance.BorderSize = 0
+            open_btn.BackColor = SD.ColorTranslator.FromHtml('#2563EB')
+            open_btn.ForeColor = SD.Color.White
+            open_btn.Font = SD.Font("Segoe UI", 9, SD.FontStyle.Bold)
+            open_btn.Size = SD.Size(166, 32)
+            open_btn.Location = SD.Point(12, 6)
+            open_btn.Cursor = WF.Cursors.Hand
+            def on_open(s, e):
+                form.Close()
+                if file_path and os.path.exists(file_path):
+                    try:
+                        os.startfile(file_path)
+                    except Exception:
+                        pass
+            open_btn.Click += on_open
+            btn_panel.Controls.Add(open_btn)
+
+            folder_btn = WF.Button()
+            folder_btn.Text = "📁  Folder"
+            folder_btn.FlatStyle = WF.FlatStyle.Flat
+            folder_btn.FlatAppearance.BorderColor = SD.ColorTranslator.FromHtml('#334155')
+            folder_btn.FlatAppearance.BorderSize = 1
+            folder_btn.BackColor = SD.ColorTranslator.FromHtml('#1E293B')
+            folder_btn.ForeColor = SD.ColorTranslator.FromHtml('#E2E8F0')
+            folder_btn.Font = SD.Font("Segoe UI", 9, SD.FontStyle.Bold)
+            folder_btn.Size = SD.Size(166, 32)
+            folder_btn.Location = SD.Point(188, 6)
+            folder_btn.Cursor = WF.Cursors.Hand
+            def on_folder(s, e):
+                form.Close()
+                if file_path and os.path.exists(file_path):
+                    try:
+                        subprocess.Popen(f'explorer /select,"{os.path.abspath(file_path)}"')
+                    except Exception:
+                        pass
+                elif dir_path and os.path.exists(dir_path):
+                    try:
+                        os.startfile(dir_path)
+                    except Exception:
+                        pass
+            folder_btn.Click += on_folder
+            btn_panel.Controls.Add(folder_btn)
+
+            # Auto-dismiss timer (8 seconds)
+            auto_timer = WF.Timer()
+            auto_timer.Interval = 8000
+            auto_timer.Tick += lambda s, e: form.Close()
+            auto_timer.Start()
+
+            # Pause timer on mouse hover, resume on mouse leave
+            def on_mouse_enter(s, e):
+                auto_timer.Stop()
+            def on_mouse_leave(s, e):
+                auto_timer.Interval = 4000
+                auto_timer.Start()
+
+            for ctrl in [form, border_panel, container, header, btn_panel]:
+                ctrl.MouseEnter += on_mouse_enter
+                ctrl.MouseLeave += on_mouse_leave
+
+            # Windows 11 rounded corners & drop shadow
+            hwnd = form.Handle.ToInt32()
+            try:
+                val = ctypes.c_int(2)  # DWMWCP_ROUND
+                ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 33, ctypes.byref(val), 4)
+                dark = ctypes.c_int(1)
+                ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 20, ctypes.byref(dark), 4)
+            except Exception:
+                pass
+
+            # Show topmost without stealing keyboard focus
+            SW_SHOWNOACTIVATE = 4
+            ctypes.windll.user32.ShowWindow(hwnd, SW_SHOWNOACTIVATE)
+            form.BringToFront()
+
+            # Message loop for the popup
+            start_ts = time.time()
+            while form.Visible and (time.time() - start_ts < 15):
+                WF.Application.DoEvents()
+                time.sleep(0.02)
+            try:
+                form.Close()
+                form.Dispose()
+            except Exception:
+                pass
+            if _CURRENT_NOTIFICATION_FORM == form:
+                _CURRENT_NOTIFICATION_FORM = None
+        except Exception as err:
+            import traceback
+            debug_log(f"show_desktop_notification_popup error: {err}\n{traceback.format_exc()}")
+
+    threading.Thread(target=_popup_worker, daemon=True).start()
+
 def on_desktop_download_completed(task_dict):
-    # Play native sound instantly through Windows audio subsystem (100% reliable even if app is in tray/background)
+    # 1. Play native sound instantly through Windows audio subsystem
     play_native_completion_sound()
+    # 2. Show floating desktop notification card over ANY window (browser, other apps, desktop)
+    show_desktop_notification_popup(task_dict)
 
 # Connect show window callback and download completed callback for FastAPI backend
 if "backend.app" in sys.modules:
