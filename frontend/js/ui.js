@@ -712,9 +712,6 @@ const UI = {
                 <button class="action-icon-btn" onclick="App.openFolder('${item.id}')" title="Show in Folder">
                   <i data-lucide="folder"></i>
                 </button>
-                <a class="action-icon-btn" href="/api/media/${item.id}" download="${(item.filename || item.title || 'download').replace(/"/g, '')}" title="Save / Download to PC">
-                  <i data-lucide="download"></i>
-                </a>
                 <button class="action-icon-btn" onclick="App.copyLink('${item.url}')" title="Copy Link">
                   <i data-lucide="copy"></i>
                 </button>
