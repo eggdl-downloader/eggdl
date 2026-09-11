@@ -11,6 +11,12 @@ from typing import Dict, List, Optional, Callable, Any
 from pathlib import Path
 
 # Check if yt_dlp is installed, or import gracefully
+import threading
+import gc
+
+_TRACKED_STREAMS_LOCK = threading.Lock()
+_TRACKED_OPEN_STREAMS: Dict[str, List[Any]] = {}
+
 try:
     import yt_dlp
     import yt_dlp.postprocessor.ffmpeg as yt_ffmpeg
@@ -18,8 +24,66 @@ try:
     import yt_dlp.postprocessor.common as yt_common
     if hasattr(yt_common, 'os'):
         yt_common.os.rename = os.replace
+
+    import yt_dlp.utils as yt_utils
+    import yt_dlp.downloader.common as yt_dl_common
+
+    _orig_sanitize_open = yt_utils.sanitize_open
+
+    def _hooked_sanitize_open(filename, open_mode):
+        stream, definitive_name = _orig_sanitize_open(filename, open_mode)
+        try:
+            abs_p = os.path.normcase(os.path.abspath(definitive_name))
+            with _TRACKED_STREAMS_LOCK:
+                if abs_p not in _TRACKED_OPEN_STREAMS:
+                    _TRACKED_OPEN_STREAMS[abs_p] = []
+                _TRACKED_OPEN_STREAMS[abs_p].append(stream)
+        except Exception:
+            pass
+        return stream, definitive_name
+
+    yt_utils.sanitize_open = _hooked_sanitize_open
+    yt_dl_common.sanitize_open = _hooked_sanitize_open
 except Exception:
     yt_dlp = None
+
+def close_tracked_streams(target_dir: str = "", file_path: str = "", prefixes: Optional[set] = None):
+    """
+    Closes any active file streams opened by yt-dlp that match the target path, prefix, or directory.
+    This releases Windows file locks so files can be deleted without PermissionError.
+    """
+    norm_target_dir = os.path.normcase(os.path.abspath(target_dir)) if target_dir else ""
+    norm_file_path = os.path.normcase(os.path.abspath(file_path)) if file_path else ""
+
+    with _TRACKED_STREAMS_LOCK:
+        matched_paths = []
+        for p, streams in list(_TRACKED_OPEN_STREAMS.items()):
+            should_close = False
+            if norm_file_path and p == norm_file_path:
+                should_close = True
+            elif norm_target_dir and (p.startswith(norm_target_dir + os.sep) or os.path.dirname(p) == norm_target_dir):
+                if not prefixes:
+                    should_close = True
+                else:
+                    base_l = os.path.basename(p).lower()
+                    if any(base_l.startswith(pref) for pref in prefixes):
+                        should_close = True
+            
+            if should_close:
+                matched_paths.append(p)
+                for st in streams:
+                    try:
+                        if hasattr(st, "closed") and not st.closed:
+                            try:
+                                st.flush()
+                            except Exception:
+                                pass
+                            st.close()
+                    except Exception:
+                        pass
+        
+        for p in matched_paths:
+            _TRACKED_OPEN_STREAMS.pop(p, None)
 
 def format_duration(seconds: Optional[float]) -> str:
     if not seconds:
@@ -57,18 +121,27 @@ def cleanup_stream_artifacts(target_dir: str, title: str = "", filename: str = "
         return
 
     try:
+        # First close any tracked open streams for this target directory/file path
+        close_tracked_streams(target_dir=target_dir, file_path=file_path)
+
         # 1. Directly remove explicit file_path if requested
         if file_path and os.path.isfile(file_path) and delete_all:
-            for _ in range(8):
+            close_tracked_streams(target_dir=target_dir, file_path=file_path)
+            for _ in range(15):
                 try:
                     os.remove(file_path)
                     break
+                except PermissionError:
+                    close_tracked_streams(target_dir=target_dir, file_path=file_path)
+                    gc.collect()
+                    time.sleep(0.08)
                 except Exception:
                     time.sleep(0.05)
 
         # 2. Build candidate prefix and word sets
         prefixes = set()
         word_tokens = set()
+        individual_words = set()
         for item in [filename, title, os.path.basename(file_path) if file_path else ""]:
             if not item:
                 continue
@@ -87,6 +160,9 @@ def cleanup_stream_artifacts(target_dir: str, title: str = "", filename: str = "
 
             # Extract words for fuzzy token matching
             words = [w for w in re.findall(r'[a-zA-Z0-9]+', base.lower()) if len(w) >= 3]
+            for w in words:
+                if len(w) >= 4:
+                    individual_words.add(w)
             if len(words) >= 2:
                 word_tokens.add(" ".join(words[:2]))
             if len(words) >= 3:
@@ -95,6 +171,9 @@ def cleanup_stream_artifacts(target_dir: str, title: str = "", filename: str = "
         prefixes = {p for p in prefixes if len(p) >= 3}
         if not prefixes and not word_tokens:
             return
+
+        # Close any tracked open streams that match these prefixes
+        close_tracked_streams(target_dir=target_dir, file_path=file_path, prefixes=prefixes)
 
         for entry in os.listdir(target_dir):
             entry_lower = entry.lower()
@@ -107,11 +186,18 @@ def cleanup_stream_artifacts(target_dir: str, title: str = "", filename: str = "
             
             # Check normalized word match
             matches_words = False
-            if not matches_prefix and word_tokens:
-                entry_norm = " ".join(re.findall(r'[a-zA-Z0-9]+', entry_lower))
+            entry_norm = " ".join(re.findall(r'[a-zA-Z0-9]+', entry_lower))
+            if word_tokens:
                 matches_words = any(wt in entry_norm for wt in word_tokens)
+            
+            # Check individual high-confidence words for artifact files (e.g. .part or .f\d+)
+            matches_indiv = False
+            if not matches_prefix and not matches_words and individual_words and len(individual_words) >= 2:
+                matched_cnt = sum(1 for iw in individual_words if iw in entry_norm)
+                if matched_cnt >= 2:
+                    matches_indiv = True
 
-            if not matches_prefix and not matches_words:
+            if not matches_prefix and not matches_words and not matches_indiv:
                 continue
 
             # Is it a fragment, temp, or stream artifact?
@@ -128,10 +214,15 @@ def cleanup_stream_artifacts(target_dir: str, title: str = "", filename: str = "
 
             # If it's an artifact OR if delete_all is True (task canceled), delete it!
             if is_artifact or delete_all:
-                for _ in range(8):
+                close_tracked_streams(target_dir=target_dir, file_path=entry_path)
+                for _ in range(15):
                     try:
                         os.remove(entry_path)
                         break
+                    except PermissionError:
+                        close_tracked_streams(target_dir=target_dir, file_path=entry_path)
+                        gc.collect()
+                        time.sleep(0.08)
                     except Exception:
                         time.sleep(0.05)
     except Exception as err:
@@ -772,9 +863,11 @@ class StreamDownloadTask:
         self.status = "canceled"
         self.speed = 0.0
         self.eta = 0
+        close_tracked_streams(target_dir=self.target_dir, file_path=self.file_path)
         self._cleanup_files()
 
     def _cleanup_files(self):
+        close_tracked_streams(target_dir=self.target_dir, file_path=self.file_path)
         cleanup_stream_artifacts(
             target_dir=self.target_dir,
             title=self.title,
@@ -785,8 +878,9 @@ class StreamDownloadTask:
 
     def _postprocessor_hook(self, d: Dict[str, Any]):
         if self._is_canceled:
+            close_tracked_streams(target_dir=self.target_dir, file_path=self.file_path)
             self._cleanup_files()
-            raise Exception("Download canceled by user")
+            raise KeyboardInterrupt("Download canceled by user")
         status = d.get("status")
         if status in ("started", "processing"):
             self.status = "processing"
@@ -797,8 +891,9 @@ class StreamDownloadTask:
 
     def _progress_hook(self, d: Dict[str, Any]):
         if self._is_canceled:
+            close_tracked_streams(target_dir=self.target_dir, file_path=self.file_path)
             self._cleanup_files()
-            raise Exception("Download canceled by user")
+            raise KeyboardInterrupt("Download canceled by user")
         if self._is_paused:
             raise Exception("Download paused by user")
 
@@ -1133,16 +1228,17 @@ class StreamDownloadTask:
             self.speed = 0.0
             self.eta = 0
             self._report_progress()
-        except Exception as e:
+        except (Exception, KeyboardInterrupt) as e:
             if self._is_paused or "paused by user" in str(e):
                 self.status = "paused"
                 self.speed = 0.0
                 self._report_progress()
                 return
-            if self._is_canceled or "canceled by user" in str(e):
+            if self._is_canceled or "canceled by user" in str(e) or isinstance(e, KeyboardInterrupt):
                 self.status = "canceled"
                 self.speed = 0.0
                 self.eta = 0
+                close_tracked_streams(target_dir=self.target_dir, file_path=self.file_path)
                 self._cleanup_files()
                 self._report_progress()
                 return

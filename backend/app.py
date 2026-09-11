@@ -1722,11 +1722,17 @@ def cleanup_task_files(task_record: Dict[str, Any], delete_final: bool = True):
                 candidates.append(file_path)
 
             for p in candidates:
-                try:
-                    if os.path.exists(p):
-                        os.remove(p)
-                except Exception:
-                    pass
+                for _ in range(15):
+                    try:
+                        if os.path.exists(p):
+                            os.remove(p)
+                        break
+                    except PermissionError:
+                        import gc
+                        gc.collect()
+                        time.sleep(0.08)
+                    except Exception:
+                        break
 
         # 2. Clean stream download artifacts and fragments
         title = task_record.get("title") or ""
@@ -1738,6 +1744,18 @@ def cleanup_task_files(task_record: Dict[str, Any], delete_final: bool = True):
             file_path=file_path,
             delete_all=delete_final
         )
+
+        # Also check default download directory if different
+        settings = get_settings()
+        default_dir = settings.get("download_dir", str(Path.home() / "Downloads" / "Eggdl Downloads"))
+        if default_dir and os.path.isdir(default_dir) and os.path.normcase(os.path.abspath(default_dir)) != os.path.normcase(os.path.abspath(target_dir)):
+            cleanup_stream_artifacts(
+                target_dir=default_dir,
+                title=title,
+                filename=filename,
+                file_path=file_path,
+                delete_all=delete_final
+            )
     except Exception as err:
         print(f"[Cleanup Error] Failed cleaning files for task {task_record.get('id')}: {err}")
 
@@ -1980,6 +1998,13 @@ async def cancel_download(task_id: str):
     # Clean up all disk files (fragments, partials, stubs, etc.)
     cleanup_task_files(task_record, delete_final=True)
 
+    # Schedule background delayed cleanup rounds to guarantee no leftover locked files remain
+    async def _delayed_cancel_cleanup_worker(rec):
+        for delay in [0.4, 1.2, 2.5]:
+            await asyncio.sleep(delay)
+            cleanup_task_files(rec, delete_final=True)
+    asyncio.create_task(_delayed_cancel_cleanup_worker(dict(task_record)))
+
     await broadcast({"type": "task_canceled", "task_id": task_id})
     await broadcast({"type": "task_updated", "task": task_record})
     return {"success": True, "message": "Download canceled"}
@@ -1997,7 +2022,13 @@ async def delete_download(task_id: str, delete_file: bool = Query(False)):
     # If user explicitly requested file deletion OR if the task was incomplete/canceled/error
     is_incomplete = task_record.get("status") in ("canceled", "error", "paused", "downloading", "queued")
     if delete_file or is_incomplete:
-        cleanup_task_files(task_record, delete_final=(delete_file or task_record.get("status") == "canceled"))
+        del_final = delete_file or (task_record.get("status") == "canceled")
+        cleanup_task_files(task_record, delete_final=del_final)
+        async def _delayed_delete_cleanup_worker(rec, df):
+            for delay in [0.4, 1.2, 2.5]:
+                await asyncio.sleep(delay)
+                cleanup_task_files(rec, delete_final=df)
+        asyncio.create_task(_delayed_delete_cleanup_worker(dict(task_record), del_final))
 
     delete_download_task(task_id)
     await broadcast({"type": "task_deleted", "task_id": task_id})
