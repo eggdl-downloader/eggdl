@@ -521,7 +521,7 @@ const UI = {
         if (!card) return;
 
         const isPaused = task.status === 'paused';
-        const isFinalizing = !isPaused && task.progress >= 99.0;
+        const isFinalizing = !isPaused && (task.status === 'processing' || task.status === 'finalizing' || (task.progress >= 99.5 && (!task.speed || task.speed <= 0)));
         const speedStr = isPaused ? 'Paused' : (isFinalizing ? 'Finalizing...' : UI.formatSpeed(task.speed));
         const etaStr = isPaused ? '--:--' : (isFinalizing ? '--:--' : UI.formatEta(task.eta));
         const sizeStr = task.file_size > 0 
@@ -571,7 +571,7 @@ const UI = {
 
     container.innerHTML = activeList.map(task => {
       const isPaused = task.status === 'paused';
-      const isFinalizing = !isPaused && task.progress >= 99.0;
+      const isFinalizing = !isPaused && (task.status === 'processing' || task.status === 'finalizing' || (task.progress >= 99.5 && (!task.speed || task.speed <= 0)));
       const speedStr = isPaused ? 'Paused' : (isFinalizing ? 'Finalizing...' : UI.formatSpeed(task.speed));
       const etaStr = isPaused ? '--:--' : (isFinalizing ? '--:--' : UI.formatEta(task.eta));
       const sizeStr = task.file_size > 0 

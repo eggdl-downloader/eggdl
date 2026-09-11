@@ -48,6 +48,95 @@ def sanitize_filename(name: str) -> str:
         name = f"video_{int(time.time())}"
     return name
 
+def cleanup_stream_artifacts(target_dir: str, title: str = "", filename: str = "", file_path: str = "", delete_all: bool = False):
+    """
+    Cleans up all intermediate files, fragments, .part, .ytdl, and partial audio/video stream files.
+    If delete_all is True (e.g. download was canceled), also deletes any matching final/partial media file.
+    """
+    if not target_dir or not os.path.isdir(target_dir):
+        return
+
+    try:
+        # 1. Directly remove explicit file_path if requested
+        if file_path and os.path.isfile(file_path) and delete_all:
+            for _ in range(8):
+                try:
+                    os.remove(file_path)
+                    break
+                except Exception:
+                    time.sleep(0.05)
+
+        # 2. Build candidate prefix and word sets
+        prefixes = set()
+        word_tokens = set()
+        for item in [filename, title, os.path.basename(file_path) if file_path else ""]:
+            if not item:
+                continue
+            clean = sanitize_filename(item).strip()
+            # Strip trailing .f\d+ or extensions
+            clean = re.sub(r'\.f\d+$', '', clean)
+            base = os.path.splitext(clean)[0].strip()
+            base = re.sub(r'\.f\d+$', '', base).strip()
+            if len(base) >= 3:
+                base_l = base.lower()
+                prefixes.add(base_l)
+                # Add trimmed versions (yt-dlp trim_file_name=80 or spaces)
+                prefixes.add(base_l[:40].strip())
+                prefixes.add(base_l[:25].strip())
+                prefixes.add(base_l[:15].strip())
+
+            # Extract words for fuzzy token matching
+            words = [w for w in re.findall(r'[a-zA-Z0-9]+', base.lower()) if len(w) >= 3]
+            if len(words) >= 2:
+                word_tokens.add(" ".join(words[:2]))
+            if len(words) >= 3:
+                word_tokens.add(" ".join(words[:3]))
+
+        prefixes = {p for p in prefixes if len(p) >= 3}
+        if not prefixes and not word_tokens:
+            return
+
+        for entry in os.listdir(target_dir):
+            entry_lower = entry.lower()
+            entry_path = os.path.join(target_dir, entry)
+            if not os.path.isfile(entry_path):
+                continue
+
+            # Check prefix match
+            matches_prefix = any(entry_lower.startswith(p) for p in prefixes)
+            
+            # Check normalized word match
+            matches_words = False
+            if not matches_prefix and word_tokens:
+                entry_norm = " ".join(re.findall(r'[a-zA-Z0-9]+', entry_lower))
+                matches_words = any(wt in entry_norm for wt in word_tokens)
+
+            if not matches_prefix and not matches_words:
+                continue
+
+            # Is it a fragment, temp, or stream artifact?
+            is_artifact = (
+                "-frag" in entry_lower or
+                ".frag" in entry_lower or
+                entry_lower.endswith(".ytdl") or
+                entry_lower.endswith(".part") or
+                ".temp." in entry_lower or
+                "_temp" in entry_lower or
+                bool(re.search(r'\.f\d+\.', entry_lower)) or
+                bool(re.search(r'\.f\d+$', entry_lower))
+            )
+
+            # If it's an artifact OR if delete_all is True (task canceled), delete it!
+            if is_artifact or delete_all:
+                for _ in range(8):
+                    try:
+                        os.remove(entry_path)
+                        break
+                    except Exception:
+                        time.sleep(0.05)
+    except Exception as err:
+        sys.stderr.write(f"[Cleanup Artifacts Error] {err}\n")
+
 import glob
 import shutil
 
@@ -652,7 +741,8 @@ class StreamDownloadTask:
         self.title = custom_title or custom_filename or "Media Download"
         self.filename = custom_filename or ""
         self.file_path = os.path.join(target_dir, custom_filename) if custom_filename else ""
-        self.file_size = expected_size if (expected_size and expected_size > 0) else -1
+        self.expected_size = int(expected_size) if (expected_size and int(expected_size) > 0) else -1
+        self.file_size = self.expected_size
         self.downloaded_bytes = downloaded_bytes or 0
         self.progress = progress or 0.0
         self.speed = 0.0
@@ -679,9 +769,33 @@ class StreamDownloadTask:
         self._is_canceled = True
         self.status = "canceled"
         self.speed = 0.0
+        self.eta = 0
+        self._cleanup_files()
+
+    def _cleanup_files(self):
+        cleanup_stream_artifacts(
+            target_dir=self.target_dir,
+            title=self.title,
+            filename=self.filename or self.custom_filename,
+            file_path=self.file_path,
+            delete_all=self._is_canceled
+        )
+
+    def _postprocessor_hook(self, d: Dict[str, Any]):
+        if self._is_canceled:
+            self._cleanup_files()
+            raise Exception("Download canceled by user")
+        status = d.get("status")
+        if status in ("started", "processing"):
+            self.status = "processing"
+            self.progress = 99.0
+            self.speed = 0.0
+            self.eta = 0
+            self._report_progress()
 
     def _progress_hook(self, d: Dict[str, Any]):
         if self._is_canceled:
+            self._cleanup_files()
             raise Exception("Download canceled by user")
         if self._is_paused:
             raise Exception("Download paused by user")
@@ -691,48 +805,60 @@ class StreamDownloadTask:
             self.status = "downloading"
             curr_fname = d.get("filename", "stream")
             curr_dl = d.get("downloaded_bytes", 0)
-            self._stream_history[curr_fname] = curr_dl
+            if curr_dl > 0:
+                self._stream_history[curr_fname] = curr_dl
 
             # Total downloaded across all streams (video + audio)
-            self.downloaded_bytes = sum(self._stream_history.values())
+            total_dl = sum(self._stream_history.values())
+            if total_dl > 0:
+                self.downloaded_bytes = total_dl
 
-            # Track real media stream total (ignore tiny manifest chunks < 50KB)
-            stream_total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
-            if stream_total > 50000:
-                self._stream_totals[curr_fname] = stream_total
+            # Keep expected_size consistent and rock-solid without fluctuating every second
+            if self.expected_size > 0:
+                self.file_size = self.expected_size
+            else:
+                stream_total = d.get("total_bytes") or 0
+                if stream_total > 50000:
+                    self._stream_totals[curr_fname] = stream_total
 
-            tot_streams = sum(self._stream_totals.values())
-            if tot_streams > 50000:
-                self.file_size = tot_streams
+                tot_streams = sum(self._stream_totals.values())
+                if tot_streams > 50000:
+                    self.file_size = tot_streams
+                elif self.file_size <= 0:
+                    stream_est = d.get("total_bytes_estimate") or 0
+                    if stream_est > 50000:
+                        self.file_size = stream_est
+                    else:
+                        frag_cnt = d.get("fragment_count")
+                        frag_idx = d.get("fragment_index")
+                        if frag_cnt and frag_idx and frag_idx > 0 and curr_dl > 0:
+                            est = int((curr_dl / frag_idx) * frag_cnt)
+                            if est > 50000:
+                                self.file_size = est
 
-            # Fragment-based estimation fallback if total is still unknown
-            if self.file_size <= 0:
-                frag_cnt = d.get("fragment_count")
-                frag_idx = d.get("fragment_index")
-                if frag_cnt and frag_idx and frag_idx > 0:
-                    est = int((curr_dl / frag_idx) * frag_cnt)
-                    if est > 50000:
-                        self.file_size = est
-
-            # Parse yt-dlp native percent string
-            pct_str = d.get("_percent_str", "0%").replace("%", "").strip()
-            try:
-                native_prog = float(pct_str)
-            except Exception:
-                native_prog = 0.0
-
-            # Calculate true total progress across all streams and never drop progress on resume
+            # Calculate true total progress across all streams
             calculated_prog = 0.0
             if self.file_size > 0 and self.downloaded_bytes > 0:
                 calculated_prog = (self.downloaded_bytes / self.file_size) * 100.0
-            elif native_prog > 0:
-                calculated_prog = native_prog
+            elif self.file_size <= 0:
+                frag_cnt = d.get("fragment_count")
+                frag_idx = d.get("fragment_index")
+                if frag_cnt and frag_idx and frag_idx > 0:
+                    calculated_prog = (frag_idx / frag_cnt) * 100.0
 
-            self._max_progress = max(self._max_progress, calculated_prog)
-            self.progress = round(min(99.0, max(self.progress, self._max_progress)), 1)
+            # Cap progress while still actively downloading to max 99.0%
+            calculated_prog = max(0.0, min(99.0, calculated_prog))
 
-            self.speed = d.get("speed") or 0.0
-            self.eta = d.get("eta") or 0
+            # Progress strictly grows with downloaded bytes, never prematurely jumping to 99%
+            if calculated_prog > self._max_progress:
+                self._max_progress = calculated_prog
+
+            self.progress = round(self._max_progress, 1)
+
+            self.speed = float(d.get("speed") or 0.0)
+            self.eta = int(d.get("eta") or 0)
+            if self.eta <= 0 and self.speed > 0 and self.file_size > self.downloaded_bytes:
+                self.eta = int((self.file_size - self.downloaded_bytes) / self.speed)
             
             if curr_fname and os.path.exists(curr_fname):
                 self.filename = os.path.basename(curr_fname)
@@ -752,9 +878,10 @@ class StreamDownloadTask:
                             self._stream_totals[curr_fname] = f_size
                             self._stream_history[curr_fname] = f_size
                             self.downloaded_bytes = sum(self._stream_history.values())
-                            tot_streams = sum(self._stream_totals.values())
-                            if tot_streams > 50000 and self.file_size <= 0:
-                                self.file_size = tot_streams
+                            if self.expected_size <= 0 and self.file_size <= 0:
+                                tot_streams = sum(self._stream_totals.values())
+                                if tot_streams > 50000:
+                                    self.file_size = tot_streams
                     except Exception:
                         pass
                 else:
@@ -764,7 +891,9 @@ class StreamDownloadTask:
                         self.downloaded_bytes = sum(self._stream_history.values())
 
             if self.file_size > 0 and self.downloaded_bytes > 0:
-                self.progress = round(min(99.0, (self.downloaded_bytes / self.file_size) * 100.0), 1)
+                prog = (self.downloaded_bytes / self.file_size) * 100.0
+                self._max_progress = max(self._max_progress, min(99.0, prog))
+                self.progress = round(self._max_progress, 1)
             self._report_progress()
 
     def _report_progress(self):
@@ -776,6 +905,13 @@ class StreamDownloadTask:
                 pass
 
     def run_sync(self):
+        if self._is_canceled:
+            self.status = "canceled"
+            self.speed = 0.0
+            self.eta = 0
+            self._cleanup_files()
+            return
+
         os.makedirs(self.target_dir, exist_ok=True)
         custom_name = self.custom_filename or self.custom_title
         clean_base = sanitize_filename(os.path.splitext(custom_name)[0]).strip() if custom_name else ""
@@ -793,6 +929,7 @@ class StreamDownloadTask:
             "windowsfilenames": True,
             "restrictfilenames": False,
             "progress_hooks": [self._progress_hook],
+            "postprocessor_hooks": [self._postprocessor_hook],
             "quiet": True,
             "no_warnings": True,
             "noplaylist": True,
@@ -975,6 +1112,14 @@ class StreamDownloadTask:
                         except Exception:
                             pass
 
+            if self._is_canceled:
+                self.status = "canceled"
+                self.speed = 0.0
+                self.eta = 0
+                self._cleanup_files()
+                self._report_progress()
+                return
+
             self.status = "completed"
             self.progress = 100.0
             self.speed = 0.0
@@ -989,6 +1134,8 @@ class StreamDownloadTask:
             if self._is_canceled or "canceled by user" in str(e):
                 self.status = "canceled"
                 self.speed = 0.0
+                self.eta = 0
+                self._cleanup_files()
                 self._report_progress()
                 return
 
@@ -1018,29 +1165,22 @@ class StreamDownloadTask:
                     target_file = os.path.join(self.target_dir, fname)
 
                     r = s.get(direct_url, headers=headers, stream=True, timeout=30)
-                    if r.status_code in (200, 206):
-                        total_len = int(r.headers.get('content-length', 0))
-                        if total_len > 0:
-                            self.file_size = total_len
+                    if r.status_code == 200:
+                        cl = r.headers.get('content-length')
+                        if cl and cl.isdigit():
+                            self.file_size = int(cl)
 
                         dl = 0
-                        start_t = time.time()
-                        with open(target_file, 'wb') as f:
+                        with open(target_file, "wb") as f:
                             for chunk in r.iter_content(chunk_size=128 * 1024):
-                                if self._is_canceled:
-                                    self.status = "canceled"
-                                    self._report_progress()
-                                    return
+                                if self._is_paused or self._is_canceled:
+                                    break
                                 if chunk:
                                     f.write(chunk)
                                     dl += len(chunk)
                                     self.downloaded_bytes = dl
                                     if self.file_size > 0:
                                         self.progress = round(min(99.0, (dl / self.file_size) * 100.0), 1)
-                                    now = time.time()
-                                    elapsed = now - start_t
-                                    if elapsed > 0.5:
-                                        self.speed = round(dl / elapsed, 1)
                                         if self.file_size > 0 and self.speed > 0:
                                             self.eta = int((self.file_size - dl) / self.speed)
                                     self._report_progress()
@@ -1049,6 +1189,14 @@ class StreamDownloadTask:
                         self.filename = os.path.basename(target_file)
                         self.file_size = os.path.getsize(target_file)
                         self.downloaded_bytes = self.file_size
+                        if self._is_canceled:
+                            self.status = "canceled"
+                            self.speed = 0.0
+                            self.eta = 0
+                            self._cleanup_files()
+                            self._report_progress()
+                            return
+
                         self.status = "completed"
                         self.progress = 100.0
                         self.speed = 0.0
@@ -1058,18 +1206,28 @@ class StreamDownloadTask:
             except Exception:
                 pass
 
+            if self._is_canceled:
+                self.status = "canceled"
+                self.speed = 0.0
+                self.eta = 0
+                self._cleanup_files()
+                self._report_progress()
+                return
+
             self.status = "error"
             self.error_message = str(e)
             self._report_progress()
             raise e
 
     async def start(self):
+        if self._is_canceled:
+            self.status = "canceled"
+            self.speed = 0.0
+            self.eta = 0
+            self._cleanup_files()
+            return
         self._loop = asyncio.get_running_loop()
         await self._loop.run_in_executor(None, self.run_sync)
-
-    def cancel(self):
-        self._is_canceled = True
-        self.status = "canceled"
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -1079,6 +1237,7 @@ class StreamDownloadTask:
             "filename": self.filename or f"{self.title}.{self.audio_format if self.is_audio_only else 'mp4'}",
             "file_path": self.file_path,
             "file_size": self.file_size,
+            "expected_size": self.expected_size,
             "downloaded_bytes": self.downloaded_bytes,
             "progress": round(self.progress, 1),
             "speed": round(self.speed, 1),

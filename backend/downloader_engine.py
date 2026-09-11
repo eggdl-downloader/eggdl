@@ -549,6 +549,10 @@ class DownloadTask:
                 raise e
 
     async def start(self):
+        if self._is_canceled:
+            self.status = "canceled"
+            self._cleanup_files()
+            return
         try:
             self.status = "downloading"
             self._is_paused = False
@@ -695,6 +699,8 @@ class DownloadTask:
             raise e
 
     def _download_via_curl_cffi(self) -> bool:
+        if self._is_canceled or self._is_paused:
+            return False
         try:
             from curl_cffi import requests
             parsed_origin = f"{urllib.parse.urlparse(self.url).scheme}://{urllib.parse.urlparse(self.url).netloc}"
@@ -705,9 +711,15 @@ class DownloadTask:
                 "Accept": "*/*"
             }
             r = requests.get(self.url, impersonate="chrome124", headers=headers, timeout=40)
+            if self._is_canceled:
+                self._cleanup_files()
+                return False
             if r.status_code == 200 and len(r.content) > 0:
                 with open(self.file_path, "wb") as f:
                     f.write(r.content)
+                if self._is_canceled:
+                    self._cleanup_files()
+                    return False
                 self.file_size = len(r.content)
                 self.downloaded_bytes = self.file_size
                 self.progress = 100.0
@@ -732,6 +744,12 @@ class DownloadTask:
                 os.remove(self._state_path)
         except Exception:
             pass
+        if getattr(self, "_is_canceled", False) and self.file_path:
+            try:
+                if os.path.exists(self.file_path):
+                    os.remove(self.file_path)
+            except Exception:
+                pass
 
     async def _progress_loop(self):
         state_save_counter = 0

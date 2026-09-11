@@ -58,7 +58,7 @@ try:
         generate_product_key, mask_license_key, PLAN_CONFIGS
     )
     from downloader_engine import DownloadTask, detect_category, sanitize_filename
-    from media_extractor import MediaExtractor, StreamDownloadTask, clean_stream_url, get_ffmpeg_exe, ensure_premiere_compatibility, _INSPECT_CACHE
+    from media_extractor import MediaExtractor, StreamDownloadTask, clean_stream_url, get_ffmpeg_exe, ensure_premiere_compatibility, _INSPECT_CACHE, cleanup_stream_artifacts
     from page_sniffer import sniff_webpage
 except ImportError:
     from backend.storage import (
@@ -81,7 +81,7 @@ except ImportError:
         generate_product_key, mask_license_key, PLAN_CONFIGS
     )
     from backend.downloader_engine import DownloadTask, detect_category, sanitize_filename
-    from backend.media_extractor import MediaExtractor, StreamDownloadTask, clean_stream_url, get_ffmpeg_exe, ensure_premiere_compatibility, _INSPECT_CACHE
+    from backend.media_extractor import MediaExtractor, StreamDownloadTask, clean_stream_url, get_ffmpeg_exe, ensure_premiere_compatibility, _INSPECT_CACHE, cleanup_stream_artifacts
     from backend.page_sniffer import sniff_webpage
 
 app = FastAPI(title="EggDL API", version="2.0.0")
@@ -1694,19 +1694,93 @@ async def start_download(req: StartDownloadRequest, user: Optional[Dict[str, Any
     return {"success": True, "task_id": task_id, "task": task_data}
 
 
+def cleanup_task_files(task_record: Dict[str, Any], delete_final: bool = True):
+    """
+    Deletes all temporary files, fragments, .part, .eggdl_part, .eggdl_state, and
+    if delete_final is True, also deletes the incomplete or target media file.
+    """
+    if not task_record:
+        return
+    try:
+        file_path = task_record.get("file_path") or ""
+        target_dir = ""
+        if file_path:
+            target_dir = os.path.dirname(file_path)
+        if not target_dir or not os.path.isdir(target_dir):
+            settings = get_settings()
+            target_dir = settings.get("download_dir", str(Path.home() / "Downloads" / "Eggdl Downloads"))
+
+        # 1. Clean direct download files (.eggdl_part, .eggdl_state, .part, .crdownload, and file_path)
+        if file_path:
+            candidates = [
+                file_path + ".eggdl_part",
+                file_path + ".eggdl_state",
+                file_path + ".part",
+                file_path + ".crdownload",
+            ]
+            if delete_final:
+                candidates.append(file_path)
+
+            for p in candidates:
+                try:
+                    if os.path.exists(p):
+                        os.remove(p)
+                except Exception:
+                    pass
+
+        # 2. Clean stream download artifacts and fragments
+        title = task_record.get("title") or ""
+        filename = task_record.get("filename") or ""
+        cleanup_stream_artifacts(
+            target_dir=target_dir,
+            title=title,
+            filename=filename,
+            file_path=file_path,
+            delete_all=delete_final
+        )
+    except Exception as err:
+        print(f"[Cleanup Error] Failed cleaning files for task {task_record.get('id')}: {err}")
+
+
 async def _run_task(task_id: str, task: Any):
     try:
         await task.start()
     except Exception as e:
         print(f"Task {task_id} failed: {e}")
     finally:
+        # Check if task was canceled (on task object or in DB)
+        is_canceled = getattr(task, "_is_canceled", False) or getattr(task, "status", "") == "canceled"
+        if not is_canceled:
+            task_record = get_download_task(task_id)
+            if task_record and task_record.get("status") == "canceled":
+                is_canceled = True
+
+        if is_canceled:
+            task.status = "canceled"
+            if hasattr(task, "_cleanup_files"):
+                try:
+                    task._cleanup_files()
+                except Exception:
+                    pass
+            elif hasattr(task, "cancel"):
+                try:
+                    task.cancel()
+                except Exception:
+                    pass
+
         task_dict = task.to_dict()
+        if is_canceled:
+            task_dict["status"] = "canceled"
+            task_dict["speed"] = 0.0
+            task_dict["eta"] = 0
+            cleanup_task_files(task_dict, delete_final=True)
+
         save_download_task(task_dict)
         await broadcast({
             "type": "task_updated",
             "task": task_dict
         })
-        if task_dict.get("status") == "completed":
+        if not is_canceled and task_dict.get("status") == "completed":
             _UNNOTIFIED_COMPLETIONS[task_id] = {
                 "id": task_id,
                 "title": task_dict.get("title") or task_dict.get("filename") or "download",
@@ -1830,7 +1904,7 @@ async def resume_download(task_id: str):
             format_id=task_record.get("format_id") or "bestvideo+bestaudio/best",
             is_audio_only=(task_record.get("category") == "audio"),
             custom_title=task_record.get("title"),
-            expected_size=task_record.get("file_size", -1),
+            expected_size=task_record.get("expected_size") or task_record.get("file_size", -1),
             downloaded_bytes=task_record.get("downloaded_bytes", 0),
             progress=task_record.get("progress", 0.0),
             video_encoder_enabled=bool(enc_enabled),
@@ -1888,8 +1962,20 @@ async def cancel_download(task_id: str):
         task.cancel()
         active_tasks.pop(task_id, None)
     
+    task_record = get_download_task(task_id) or {}
+    if task and hasattr(task, "to_dict"):
+        task_record.update(task.to_dict())
+    task_record["status"] = "canceled"
+    task_record["speed"] = 0.0
+    task_record["eta"] = 0
+    save_download_task(task_record)
     update_download_progress(task_id, 0, 0, 0, 0, "canceled")
+
+    # Clean up all disk files (fragments, partials, stubs, etc.)
+    cleanup_task_files(task_record, delete_final=True)
+
     await broadcast({"type": "task_canceled", "task_id": task_id})
+    await broadcast({"type": "task_updated", "task": task_record})
     return {"success": True, "message": "Download canceled"}
 
 
@@ -1900,13 +1986,12 @@ async def delete_download(task_id: str, delete_file: bool = Query(False)):
         task.cancel()
         active_tasks.pop(task_id, None)
 
-    task_record = get_download_task(task_id)
-    if task_record and delete_file and task_record.get("file_path"):
-        try:
-            if os.path.exists(task_record["file_path"]):
-                os.remove(task_record["file_path"])
-        except Exception:
-            pass
+    task_record = get_download_task(task_id) or {}
+    
+    # If user explicitly requested file deletion OR if the task was incomplete/canceled/error
+    is_incomplete = task_record.get("status") in ("canceled", "error", "paused", "downloading", "queued")
+    if delete_file or is_incomplete:
+        cleanup_task_files(task_record, delete_final=(delete_file or task_record.get("status") == "canceled"))
 
     delete_download_task(task_id)
     await broadcast({"type": "task_deleted", "task_id": task_id})

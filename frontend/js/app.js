@@ -102,7 +102,8 @@ const App = {
     setInterval(() => {
       if (!this.activeTasks) return;
       Object.values(this.activeTasks).forEach(task => {
-        if (task && task.status === 'downloading' && task.progress >= 99.0 && task.progress < 99.9) {
+        const isProc = task && (task.status === 'processing' || task.status === 'finalizing' || (task.progress >= 99.5 && (!task.speed || task.speed <= 0)));
+        if (isProc && task.progress >= 99.0 && task.progress < 99.9) {
           task.progress = Math.round((task.progress + 0.05) * 100) / 100;
           const card = document.getElementById(`card-${task.id}`);
           if (card) {
