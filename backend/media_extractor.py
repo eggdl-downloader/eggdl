@@ -1049,7 +1049,7 @@ class StreamDownloadTask:
             "nocheckcertificate": True,
             "retries": 10,
             "fragment_retries": 10,
-            "buffersize": 1024 * 1024,
+            "buffersize": 4 * 1024 * 1024,
             "http_chunk_size": 10485760,
             "socket_timeout": 30,
             "cachedir": False,

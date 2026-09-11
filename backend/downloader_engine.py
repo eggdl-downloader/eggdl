@@ -178,6 +178,8 @@ def get_smart_headers(url: str, custom_referer: Optional[str] = None, cookies: O
         "Accept": "*/*",
         "Accept-Language": "en-US,en;q=0.9",
         "Accept-Encoding": "identity",
+        "Connection": "keep-alive",
+        "Keep-Alive": "timeout=60, max=1000",
         "Referer": ref,
         "Sec-Ch-Ua": '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
         "Sec-Ch-Ua-Mobile": "?0",
@@ -188,8 +190,23 @@ def get_smart_headers(url: str, custom_referer: Optional[str] = None, cookies: O
     return headers
 
 
+class UltraTCPConnector(aiohttp.TCPConnector):
+    """Turbo Socket Connector with 4MB TCP receive buffers and TCP_NODELAY for wire-speed downloads."""
+    async def _create_connection(self, req, traces, timeout):
+        conn = await super()._create_connection(req, traces, timeout)
+        sock = conn.transport.get_extra_info("socket")
+        if sock:
+            try:
+                # 4MB TCP receive window allows full pipe saturation even over 150ms+ cross-continental links
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4 * 1024 * 1024)
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            except Exception:
+                pass
+        return conn
+
+
 class DownloadTask:
-    # IDM minimum split size: minimum 2MB remaining to justify splitting an active segment
+    # Minimum split size: minimum 2MB remaining to justify splitting an active segment
     MIN_SPLIT_SIZE = 2 * 1024 * 1024
 
     def __init__(self, task_id: str, url: str, target_dir: str, filename: Optional[str] = None,
@@ -225,8 +242,11 @@ class DownloadTask:
         self._last_bytes = 0
         self._speed_samples = []
 
-        # Zero-copy file write lock & dynamic work stealing synchronization
-        self._write_lock = asyncio.Lock()
+        # Zero-contention async write queue & dynamic work stealing synchronization
+        self._write_queue: Optional[asyncio.Queue] = None
+        self._writer_task: Optional[asyncio.Task] = None
+        self._writer_done_event: Optional[asyncio.Event] = None
+        self._disk_error: Optional[Exception] = None
         self._split_lock = asyncio.Lock()
         self._file_handle = None
 
@@ -240,7 +260,7 @@ class DownloadTask:
 
     async def inspect(self) -> Dict[str, Any]:
         headers = get_smart_headers(self.url, self.referer, self.cookies)
-        connector = aiohttp.TCPConnector(family=socket.AF_INET)
+        connector = UltraTCPConnector(family=socket.AF_INET, ttl_dns_cache=600)
         async with aiohttp.ClientSession(headers=headers, connector=connector, auto_decompress=False) as session:
             try:
                 async with session.head(self.url, allow_redirects=True, timeout=aiohttp.ClientTimeout(total=15)) as resp:
@@ -411,13 +431,13 @@ class DownloadTask:
             self.segments.append(Segment(0, 0, self.file_size - 1 if self.file_size > 0 else -1, downloaded=0))
             return
 
-        # IDM Turbo connection scaling based on file size
+        # Ultra-speed turbo connection scaling based on file size
         active_count = self.segments_count
         if active_count < 16 and self.file_size >= 10 * 1024 * 1024:
             active_count = 16
         if active_count < 24 and self.file_size >= 50 * 1024 * 1024:
             active_count = 24
-        if active_count < 32 and self.file_size >= 150 * 1024 * 1024:
+        if active_count < 32 and self.file_size >= 100 * 1024 * 1024:
             active_count = 32
 
         chunk_size = math.ceil(self.file_size / active_count)
@@ -428,8 +448,17 @@ class DownloadTask:
                 self.segments.append(Segment(i, start, end, downloaded=0))
 
     async def _steal_work(self) -> Optional[Segment]:
-        """IDM Dynamic Work-Stealing: Splits the largest remaining active segment in half."""
+        """Dynamic Work-Stealing: Rescues failed/pending segments first, then splits largest active segment."""
         async with self._split_lock:
+            # 1. First priority: Rescue any orphaned 'error' or 'pending' segments with un-downloaded bytes
+            for s in self.segments:
+                if s.status in ("error", "pending"):
+                    curr_pos = s.start + s.downloaded
+                    if s.end <= 0 or curr_pos <= s.end:
+                        s.status = "downloading"
+                        return s
+
+            # 2. Second priority: Split largest active downloading segment in half
             best_seg = None
             max_remaining = 0
             for s in self.segments:
@@ -456,11 +485,12 @@ class DownloadTask:
             # Allocate new segment for the second half
             new_index = len(self.segments)
             new_seg = Segment(index=new_index, start=split_start, end=old_end, downloaded=0)
+            new_seg.status = "downloading"
             self.segments.append(new_seg)
             return new_seg
 
     async def _worker_loop(self, session: aiohttp.ClientSession, initial_segment: Segment):
-        """Worker that downloads a segment, then steals work dynamically from slower segments until 100% done."""
+        """Worker that downloads a segment, then steals work dynamically until 100% done."""
         curr_segment = initial_segment
         retries = 0
         while curr_segment and not self._is_paused and not self._is_canceled:
@@ -472,13 +502,12 @@ class DownloadTask:
                     break
                 retries += 1
                 if retries <= 3:
-                    await asyncio.sleep(0.5)
+                    await asyncio.sleep(0.3)
                     continue
                 else:
                     curr_segment.status = "error"
-                    break
 
-            if curr_segment.status == "completed" and self.supports_ranges and self.file_size > 0:
+            if self.supports_ranges and self.file_size > 0 and not self._is_paused and not self._is_canceled:
                 curr_segment = await self._steal_work()
             else:
                 break
@@ -496,7 +525,6 @@ class DownloadTask:
             headers["Range"] = f"bytes={start_byte}-"
 
         segment.status = "downloading"
-        chunk_read_size = 256 * 1024  # 256 KB high-performance chunk buffer
 
         try:
             async with session.get(self.url, headers=headers, timeout=aiohttp.ClientTimeout(total=None, sock_read=60)) as resp:
@@ -513,12 +541,16 @@ class DownloadTask:
                     segment.status = "error"
                     return
 
-                async for chunk in resp.content.iter_chunked(chunk_read_size):
-                    if self._is_paused or self._is_canceled:
+                # Zero-latency immediate packet streaming directly from TCP socket buffer
+                async for chunk in resp.content.iter_any():
+                    if self._is_paused or self._is_canceled or self._disk_error:
                         segment.status = "paused" if self._is_paused else "canceled"
                         return
 
                     chunk_len = len(chunk)
+                    if chunk_len == 0:
+                        continue
+
                     write_pos = segment.start + segment.downloaded
 
                     if segment.end > 0:
@@ -530,11 +562,13 @@ class DownloadTask:
                             chunk = chunk[:remaining_seg]
                             chunk_len = len(chunk)
 
-                    async with self._write_lock:
-                        if self._file_handle and not self._file_handle.closed:
-                            if self.supports_ranges and self.file_size > 0:
-                                self._file_handle.seek(write_pos)
-                            self._file_handle.write(chunk)
+                    # Zero-lock async queue handoff to dedicated writer
+                    if self._write_queue:
+                        await self._write_queue.put((write_pos, chunk))
+                    elif self._file_handle and not self._file_handle.closed:
+                        if self.supports_ranges and self.file_size > 0:
+                            self._file_handle.seek(write_pos)
+                        self._file_handle.write(chunk)
 
                     segment.downloaded += chunk_len
                     self.downloaded_bytes += chunk_len
@@ -547,6 +581,37 @@ class DownloadTask:
             if not self._is_paused and not self._is_canceled:
                 segment.status = "error"
                 raise e
+
+    async def _disk_writer_loop(self):
+        """Dedicated high-throughput disk writer that drains the write queue without stalling network workers."""
+        try:
+            while True:
+                if self._writer_done_event and self._writer_done_event.is_set():
+                    if not self._write_queue or self._write_queue.empty():
+                        break
+                try:
+                    item = await asyncio.wait_for(self._write_queue.get(), timeout=0.1)
+                except asyncio.TimeoutError:
+                    continue
+
+                if item is None:
+                    self._write_queue.task_done()
+                    break
+
+                write_pos, chunk = item
+                try:
+                    if self._file_handle and not self._file_handle.closed:
+                        if self.supports_ranges and self.file_size > 0:
+                            self._file_handle.seek(write_pos)
+                        self._file_handle.write(chunk)
+                except Exception as io_err:
+                    self._disk_error = io_err
+                finally:
+                    self._write_queue.task_done()
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            self._disk_error = e
 
     async def start(self):
         if self._is_canceled:
@@ -578,9 +643,9 @@ class DownloadTask:
             if not self.segments:
                 self._init_segments()
             else:
-                # Reset any paused/downloading segments to pending so workers pick them up
+                # Reset any paused/downloading/error segments to pending so workers pick them up
                 for seg in self.segments:
-                    if seg.status in ("paused", "downloading"):
+                    if seg.status in ("paused", "downloading", "error"):
                         seg.status = "pending"
 
             # Touch partial file if it does not exist yet (instant zero-delay file creation)
@@ -592,6 +657,12 @@ class DownloadTask:
             open_mode = "r+b" if (self.supports_ranges and self.file_size > 0) else "ab"
             self._file_handle = open(self._part_path, open_mode)
 
+            # Initialize dedicated async disk writer queue
+            self._write_queue = asyncio.Queue(maxsize=2000)
+            self._writer_done_event = asyncio.Event()
+            self._disk_error = None
+            self._writer_task = asyncio.create_task(self._disk_writer_loop())
+
             # Recalculate downloaded bytes from segments
             self.downloaded_bytes = sum(s.downloaded for s in self.segments)
             self._last_time = time.time()
@@ -600,17 +671,18 @@ class DownloadTask:
             timeout = aiohttp.ClientTimeout(total=None, connect=30, sock_read=60)
             headers = get_smart_headers(self.url, self.referer, self.cookies)
             
-            # High-performance non-limiting connector with DNS caching
-            connector = aiohttp.TCPConnector(
+            # Turbo connector with 4MB TCP receive buffers and TCP_NODELAY
+            connector = UltraTCPConnector(
                 family=socket.AF_INET,
                 limit=0,
                 limit_per_host=0,
-                ttl_dns_cache=300,
+                ttl_dns_cache=600,
                 enable_cleanup_closed=True,
-                force_close=False
+                force_close=False,
+                keepalive_timeout=60
             )
 
-            async with aiohttp.ClientSession(headers=headers, connector=connector, timeout=timeout, auto_decompress=False) as session:
+            async with aiohttp.ClientSession(headers=headers, connector=connector, timeout=timeout, auto_decompress=False, read_bufsize=2 * 1024 * 1024) as session:
                 reporter_task = asyncio.create_task(self._progress_loop())
                 
                 # Launch workers for all segments currently pending
@@ -620,6 +692,14 @@ class DownloadTask:
                     await asyncio.gather(*tasks)
 
                 reporter_task.cancel()
+
+            # Signal disk writer to complete draining remaining chunks
+            if self._writer_done_event:
+                self._writer_done_event.set()
+            if self._write_queue:
+                await self._write_queue.join()
+            if self._writer_task:
+                await self._writer_task
 
             # Close file handle
             if self._file_handle and not self._file_handle.closed:
@@ -794,11 +874,17 @@ class DownloadTask:
     def pause(self):
         self._is_paused = True
         self.status = "paused"
+        if self._writer_done_event:
+            self._writer_done_event.set()
         self._save_state()
 
     def cancel(self):
         self._is_canceled = True
         self.status = "canceled"
+        if self._writer_done_event:
+            self._writer_done_event.set()
+        if self._writer_task and not self._writer_task.done():
+            self._writer_task.cancel()
         if self._file_handle and not self._file_handle.closed:
             try:
                 self._file_handle.close()
