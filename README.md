@@ -5,7 +5,7 @@ A modern, high-speed multi-threaded download manager with a **Glassmorphic UI**,
 ---
 
 ## ✨ Features
-- **Multi-Threaded Turbo Engine**: IDM-style multi-segment chunk acceleration with pause & resume.
+- **Multi-Threaded Turbo Engine**: High-speed multi-segment chunk acceleration with robust pause & resume.
 - **Glassmorphism UI**: Frosted acrylic theme with `Outfit` + `Plus Jakarta Sans` typography.
 - **Video & Audio Extractor**: 4K UHD, 1080p FHD, 720p HD, and Studio MP3 (320kbps) audio extraction.
 - **Anti-Bot TLS Bypass**: Browser TLS impersonation for protected video hosting sites.

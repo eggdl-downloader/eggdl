@@ -889,7 +889,7 @@ const UI = {
             <option value="1">1 Connection (Single stream)</option>
             <option value="4">4 Connections</option>
             <option value="8">8 Connections</option>
-            <option value="16" selected>16 Connections (Recommended - IDM Speed)</option>
+            <option value="16" selected>16 Connections (Recommended - Optimal Speed)</option>
             <option value="24">24 Connections (High-Speed Turbo)</option>
             <option value="32">32 Connections (Maximum Turbo)</option>
           </select>
