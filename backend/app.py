@@ -1754,12 +1754,25 @@ async def pause_download(task_id: str):
     
     if hasattr(task, "pause"):
         task.pause()
+        # Allow running workers a moment to finish current chunk loop and flush
+        for _ in range(8):
+            if getattr(task, "_file_handle", None) is None:
+                break
+            await asyncio.sleep(0.05)
+
         task_dict = task.to_dict()
         task_dict["status"] = "paused"
         task_dict["speed"] = 0.0
         task_dict["eta"] = 0
         save_download_task(task_dict)
-        update_download_progress(task_id, task.downloaded_bytes, task.progress, 0, 0, "paused")
+        update_download_progress(
+            task_id,
+            task.downloaded_bytes,
+            task.progress,
+            0, 0,
+            "paused",
+            segments_data=json.dumps(task_dict.get("segments", [])) if task_dict.get("segments") else None
+        )
         await broadcast({"type": "task_updated", "task": task_dict})
         return {"success": True, "message": "Download paused"}
     else:
@@ -1772,16 +1785,40 @@ async def resume_download(task_id: str):
     if not task_record:
         raise HTTPException(status_code=404, detail="Task not found")
 
+    settings = get_settings()
+
+    # 1. Reuse existing in-memory task if present
     if task_id in active_tasks:
         task = active_tasks[task_id]
         if task.status == "downloading":
             return {"success": True, "message": "Already running"}
+        
+        # Resume active task seamlessly
+        task._is_paused = False
+        task.status = "downloading"
+        update_download_progress(
+            task_id,
+            task.downloaded_bytes,
+            task.progress,
+            0, 0,
+            "downloading"
+        )
+        await broadcast({"type": "task_updated", "task": task.to_dict()})
+        asyncio.create_task(_run_task(task_id, task))
+        return {"success": True, "message": "Download resumed"}
 
-    settings = get_settings()
-    target_dir = settings.get("download_dir", str(Path.home() / "Downloads" / "Eggdl Downloads"))
+    # 2. Re-create task (app was restarted or task was evicted)
+    task_file_path = task_record.get("file_path")
+    if task_file_path:
+        target_dir = os.path.dirname(task_file_path)
+        filename = os.path.basename(task_file_path)
+    else:
+        target_dir = settings.get("download_dir", str(Path.home() / "Downloads" / "Eggdl Downloads"))
+        filename = task_record.get("filename")
+
     segments = int(settings.get("max_segments_per_download", 16))
 
-    if task_record["download_type"] == "stream":
+    if task_record.get("download_type") == "stream":
         enc_enabled = task_record.get("video_encoder_enabled")
         if enc_enabled is None:
             enc_enabled = settings.get("video_encoder_enabled", False)
@@ -1801,16 +1838,19 @@ async def resume_download(task_id: str):
             on_progress=handle_progress_update
         )
         task.thumbnail = task_record.get("thumbnail") or ""
-        task.filename = task_record.get("filename") or ""
+        task.filename = filename or task_record.get("filename") or ""
+        if task_file_path:
+            task.file_path = task_file_path
     else:
         task = DownloadTask(
             task_id=task_id,
             url=task_record["url"],
             target_dir=target_dir,
-            filename=task_record.get("filename"),
+            filename=filename,
             segments_count=segments,
             referer=task_record.get("referer"),
             cookies=task_record.get("cookies"),
+            file_path=task_file_path,
             on_progress=handle_progress_update
         )
         task.thumbnail = task_record.get("thumbnail") or ""
@@ -1818,6 +1858,14 @@ async def resume_download(task_id: str):
         task.file_size = task_record.get("file_size", -1)
         task.progress = task_record.get("progress", 0.0)
         task.supports_ranges = bool(task_record.get("supports_ranges", False))
+
+        # Restore database segments cache if available
+        db_segments = task_record.get("segments_data")
+        if db_segments:
+            try:
+                task._cached_db_segments = json.loads(db_segments)
+            except Exception:
+                task._cached_db_segments = None
 
     task.status = "downloading"
     active_tasks[task_id] = task

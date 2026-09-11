@@ -193,7 +193,8 @@ class DownloadTask:
     MIN_SPLIT_SIZE = 2 * 1024 * 1024
 
     def __init__(self, task_id: str, url: str, target_dir: str, filename: Optional[str] = None,
-                 segments_count: int = 16, referer: Optional[str] = None, cookies: Optional[str] = None, on_progress: Optional[Callable] = None):
+                 segments_count: int = 16, referer: Optional[str] = None, cookies: Optional[str] = None,
+                 file_path: Optional[str] = None, on_progress: Optional[Callable] = None):
         self.id = task_id
         self.url = url
         self.target_dir = target_dir
@@ -204,7 +205,7 @@ class DownloadTask:
         self.on_progress = on_progress
 
         self.filename = filename or ""
-        self.file_path = ""
+        self.file_path = file_path or (os.path.join(self.target_dir, self.filename) if self.filename else "")
         self.file_size = -1
         self.downloaded_bytes = 0
         self.progress = 0.0
@@ -217,6 +218,7 @@ class DownloadTask:
         self.created_at = time.time()
 
         self.segments: List[Segment] = []
+        self._cached_db_segments = None
         self._is_paused = False
         self._is_canceled = False
         self._last_time = 0.0
@@ -343,21 +345,41 @@ class DownloadTask:
     def _load_state(self) -> bool:
         """Loads existing multipart resume state if valid."""
         try:
+            loaded_data = None
             if os.path.exists(self._state_path) and os.path.exists(self._part_path):
                 with open(self._state_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                if data.get("file_size") == self.file_size and data.get("url") == self.url:
-                    self.segments = []
-                    for s in data.get("segments", []):
-                        seg = Segment(s["index"], s["start"], s["end"], downloaded=s.get("downloaded", 0))
-                        if s.get("status") == "completed":
-                            seg.status = "completed"
-                        self.segments.append(seg)
-                    if self.segments:
-                        self.supports_ranges = True
-                        return True
-        except Exception:
-            pass
+                    loaded_data = json.load(f)
+            elif getattr(self, "_cached_db_segments", None) and os.path.exists(self._part_path):
+                loaded_data = {"segments": self._cached_db_segments, "file_size": self.file_size}
+
+            if loaded_data:
+                saved_segments = loaded_data.get("segments", [])
+                saved_size = loaded_data.get("file_size", -1)
+
+                if saved_segments:
+                    # Adopt saved size if current size was unknown
+                    if self.file_size <= 0 and saved_size > 0:
+                        self.file_size = saved_size
+
+                    # Accept if sizes match or either is not strictly defined
+                    if self.file_size <= 0 or saved_size <= 0 or saved_size == self.file_size:
+                        self.segments = []
+                        for s in saved_segments:
+                            seg = Segment(s["index"], s["start"], s["end"], downloaded=s.get("downloaded", 0))
+                            if s.get("status") == "completed":
+                                seg.status = "completed"
+                            else:
+                                seg.status = "pending"
+                            self.segments.append(seg)
+
+                        if self.segments:
+                            self.supports_ranges = True
+                            self.downloaded_bytes = sum(s.downloaded for s in self.segments)
+                            if self.file_size > 0:
+                                self.progress = min(100.0, (self.downloaded_bytes / self.file_size) * 100.0)
+                            return True
+        except Exception as e:
+            print(f"Error loading state for {self.filename}: {e}")
         return False
 
     def _save_state(self):
@@ -366,8 +388,10 @@ class DownloadTask:
             if not self.file_path or not self.supports_ranges or self.file_size <= 0:
                 return
             data = {
+                "task_id": self.id,
                 "url": self.url,
                 "file_size": self.file_size,
+                "downloaded_bytes": self.downloaded_bytes,
                 "segments": [s.to_dict() for s in self.segments]
             }
             tmp_state = f"{self._state_path}.tmp"
@@ -539,7 +563,7 @@ class DownloadTask:
                 self.file_path = os.path.join(self.target_dir, self.filename)
 
             # Ensure unique filename if not resuming an existing partial download
-            if not os.path.exists(self._part_path):
+            if not os.path.exists(self._part_path) and not os.path.exists(self._state_path):
                 base, ext = os.path.splitext(self.filename)
                 counter = 1
                 while os.path.exists(os.path.join(self.target_dir, self.filename)):
@@ -549,6 +573,11 @@ class DownloadTask:
 
             if not self.segments:
                 self._init_segments()
+            else:
+                # Reset any paused/downloading segments to pending so workers pick them up
+                for seg in self.segments:
+                    if seg.status in ("paused", "downloading"):
+                        seg.status = "pending"
 
             # Touch partial file if it does not exist yet (instant zero-delay file creation)
             if not os.path.exists(self._part_path):
@@ -646,9 +675,20 @@ class DownloadTask:
                 except Exception: pass
                 self._file_handle = None
 
-            if not self._is_paused and not self._is_canceled:
-                if self._download_via_curl_cffi():
-                    return
+            if self._is_paused:
+                self.status = "paused"
+                self._save_state()
+                self._report_progress()
+                return
+
+            if self._is_canceled:
+                self.status = "canceled"
+                self._cleanup_files()
+                self._report_progress()
+                return
+
+            if self._download_via_curl_cffi():
+                return
             self.status = "error"
             self.error_message = str(e)
             self._report_progress()
@@ -695,32 +735,28 @@ class DownloadTask:
 
     async def _progress_loop(self):
         state_save_counter = 0
-        while self.status == "downloading":
+        while not self._is_paused and not self._is_canceled and self.status == "downloading":
             await asyncio.sleep(0.5)
-            self._calculate_speed_and_eta()
+            self._update_speed()
             self._report_progress()
-            
-            # Periodically persist state every ~3 seconds
             state_save_counter += 1
             if state_save_counter >= 6:
                 state_save_counter = 0
                 self._save_state()
 
-    def _calculate_speed_and_eta(self):
+    def _update_speed(self):
         now = time.time()
         dt = now - self._last_time
         if dt >= 0.5:
-            current_bytes = sum(s.downloaded for s in self.segments)
-            bytes_delta = max(0, current_bytes - self._last_bytes)
-            inst_speed = bytes_delta / dt
-            
-            # Smooth speed
+            current_bytes = self.downloaded_bytes
+            delta_bytes = current_bytes - self._last_bytes
+            inst_speed = delta_bytes / dt if dt > 0 else 0
+
             self._speed_samples.append(inst_speed)
             if len(self._speed_samples) > 5:
                 self._speed_samples.pop(0)
             self.speed = sum(self._speed_samples) / len(self._speed_samples)
 
-            self.downloaded_bytes = current_bytes
             self._last_time = now
             self._last_bytes = current_bytes
 
@@ -741,12 +777,6 @@ class DownloadTask:
         self._is_paused = True
         self.status = "paused"
         self._save_state()
-        if self._file_handle and not self._file_handle.closed:
-            try:
-                self._file_handle.flush()
-                self._file_handle.close()
-                self._file_handle = None
-            except Exception: pass
 
     def cancel(self):
         self._is_canceled = True

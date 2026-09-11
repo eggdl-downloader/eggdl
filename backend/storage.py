@@ -173,7 +173,8 @@ def init_db():
         ("user_id", "TEXT"),
         ("supports_ranges", "INTEGER DEFAULT 0"),
         ("referer", "TEXT"),
-        ("cookies", "TEXT")
+        ("cookies", "TEXT"),
+        ("segments_data", "TEXT")
     ]:
         try:
             cursor.execute(f"ALTER TABLE downloads ADD COLUMN {col} {col_type};")
@@ -387,15 +388,24 @@ def save_download_task(task: Dict[str, Any], user_id: Optional[str] = None):
         except Exception:
             pass
 
+    segments_json = None
+    if task.get("segments"):
+        try:
+            segments_json = json.dumps(task["segments"])
+        except Exception:
+            pass
+    elif task.get("segments_data"):
+        segments_json = task["segments_data"]
+
     cursor.execute("""
     INSERT OR REPLACE INTO downloads (
         id, url, title, filename, file_path, file_size, downloaded_bytes,
         progress, speed, eta, status, category, thumbnail, download_type,
-        format_id, error_message, user_id, supports_ranges, referer, cookies, created_at, completed_at
+        format_id, error_message, user_id, supports_ranges, referer, cookies, segments_data, created_at, completed_at
     ) VALUES (
         :id, :url, :title, :filename, :file_path, :file_size, :downloaded_bytes,
         :progress, :speed, :eta, :status, :category, :thumbnail, :download_type,
-        :format_id, :error_message, :user_id, :supports_ranges, :referer, :cookies, :created_at, :completed_at
+        :format_id, :error_message, :user_id, :supports_ranges, :referer, :cookies, :segments_data, :created_at, :completed_at
     )
     """, {
         "id": task["id"],
@@ -418,6 +428,7 @@ def save_download_task(task: Dict[str, Any], user_id: Optional[str] = None):
         "supports_ranges": int(bool(task.get("supports_ranges", False))),
         "referer": task.get("referer", None),
         "cookies": task.get("cookies", None),
+        "segments_data": segments_json,
         "created_at": created_at_val,
         "completed_at": task.get("completed_at", None)
     })
@@ -467,34 +478,61 @@ def get_daily_downloads_count(user_id: Optional[str] = None) -> int:
     conn.close()
     return max(ledger_count, dl_count)
 
-def update_download_progress(task_id: str, downloaded_bytes: int, progress: float, speed: float, eta: int, status: str, error_message: Optional[str] = None):
+def update_download_progress(task_id: str, downloaded_bytes: int, progress: float, speed: float, eta: int, status: str, error_message: Optional[str] = None, segments_data: Optional[str] = None):
     conn = get_db_connection()
     cursor = conn.cursor()
     completed_at = datetime.now().isoformat() if status == "completed" else None
     
-    if completed_at:
-        cursor.execute("""
-        UPDATE downloads SET
-            downloaded_bytes = ?,
-            progress = ?,
-            speed = ?,
-            eta = ?,
-            status = ?,
-            error_message = ?,
-            completed_at = ?
-        WHERE id = ?
-        """, (downloaded_bytes, progress, speed, eta, status, error_message, completed_at, task_id))
+    if segments_data:
+        if completed_at:
+            cursor.execute("""
+            UPDATE downloads SET
+                downloaded_bytes = ?,
+                progress = ?,
+                speed = ?,
+                eta = ?,
+                status = ?,
+                error_message = ?,
+                segments_data = ?,
+                completed_at = ?
+            WHERE id = ?
+            """, (downloaded_bytes, progress, speed, eta, status, error_message, segments_data, completed_at, task_id))
+        else:
+            cursor.execute("""
+            UPDATE downloads SET
+                downloaded_bytes = ?,
+                progress = ?,
+                speed = ?,
+                eta = ?,
+                status = ?,
+                error_message = ?,
+                segments_data = ?
+            WHERE id = ?
+            """, (downloaded_bytes, progress, speed, eta, status, error_message, segments_data, task_id))
     else:
-        cursor.execute("""
-        UPDATE downloads SET
-            downloaded_bytes = ?,
-            progress = ?,
-            speed = ?,
-            eta = ?,
-            status = ?,
-            error_message = ?
-        WHERE id = ?
-        """, (downloaded_bytes, progress, speed, eta, status, error_message, task_id))
+        if completed_at:
+            cursor.execute("""
+            UPDATE downloads SET
+                downloaded_bytes = ?,
+                progress = ?,
+                speed = ?,
+                eta = ?,
+                status = ?,
+                error_message = ?,
+                completed_at = ?
+            WHERE id = ?
+            """, (downloaded_bytes, progress, speed, eta, status, error_message, completed_at, task_id))
+        else:
+            cursor.execute("""
+            UPDATE downloads SET
+                downloaded_bytes = ?,
+                progress = ?,
+                speed = ?,
+                eta = ?,
+                status = ?,
+                error_message = ?
+            WHERE id = ?
+            """, (downloaded_bytes, progress, speed, eta, status, error_message, task_id))
         
     conn.commit()
     conn.close()
