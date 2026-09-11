@@ -743,8 +743,8 @@ class StreamDownloadTask:
         self.file_path = os.path.join(target_dir, custom_filename) if custom_filename else ""
         self.expected_size = int(expected_size) if (expected_size and int(expected_size) > 0) else -1
         self.file_size = self.expected_size
-        self.downloaded_bytes = downloaded_bytes or 0
-        self.progress = progress or 0.0
+        self.downloaded_bytes = int(downloaded_bytes or 0)
+        self.progress = float(progress or 0.0)
         self.speed = 0.0
         self.eta = 0
         self.status = "queued"
@@ -756,7 +756,9 @@ class StreamDownloadTask:
         self._is_paused = False
         self._is_canceled = False
         self._loop = None
-        self._max_progress = progress or 0.0
+        self._max_progress = float(progress or 0.0)
+        self._max_downloaded_bytes = int(downloaded_bytes or 0)
+        self._initial_downloaded_bytes = int(downloaded_bytes or 0)
         self._stream_history = {}
         self._stream_totals = {}
 
@@ -804,14 +806,17 @@ class StreamDownloadTask:
         if status == "downloading":
             self.status = "downloading"
             curr_fname = d.get("filename", "stream")
-            curr_dl = d.get("downloaded_bytes", 0)
+            curr_dl = d.get("downloaded_bytes", 0) or 0
             if curr_dl > 0:
-                self._stream_history[curr_fname] = curr_dl
+                self._stream_history[curr_fname] = max(self._stream_history.get(curr_fname, 0), curr_dl)
 
             # Total downloaded across all streams (video + audio)
-            total_dl = sum(self._stream_history.values())
-            if total_dl > 0:
-                self.downloaded_bytes = total_dl
+            raw_total_dl = sum(self._stream_history.values())
+            if raw_total_dl > self._max_downloaded_bytes:
+                self._max_downloaded_bytes = raw_total_dl
+
+            # downloaded_bytes strictly advances and never drops below previously downloaded/saved bytes
+            self.downloaded_bytes = max(self._max_downloaded_bytes, raw_total_dl, self._initial_downloaded_bytes)
 
             # Keep expected_size consistent and rock-solid without fluctuating every second
             if self.expected_size > 0:
@@ -934,9 +939,8 @@ class StreamDownloadTask:
             "no_warnings": True,
             "noplaylist": True,
             "merge_output_format": "mp4",
-            "overwrites": True,
+            "overwrites": False,
             "continuedl": True,
-            "nopart": True,
             "nocheckcertificate": True,
             "retries": 10,
             "fragment_retries": 10,
@@ -971,6 +975,10 @@ class StreamDownloadTask:
             else:
                 ydl_opts["format"] = "bestvideo+bestaudio/best"
             ydl_opts["merge_output_format"] = "mp4"
+
+        # Ensure resume state is retained on startup
+        if self.downloaded_bytes > 0 and not self._stream_history:
+            self._stream_history["stream"] = self.downloaded_bytes
 
         # Emit initial downloading event immediately
         self.status = "downloading"

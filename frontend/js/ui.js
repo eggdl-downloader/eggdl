@@ -524,9 +524,12 @@ const UI = {
         const isFinalizing = !isPaused && (task.status === 'processing' || task.status === 'finalizing' || (task.progress >= 99.5 && (!task.speed || task.speed <= 0)));
         const speedStr = isPaused ? 'Paused' : (isFinalizing ? 'Finalizing...' : UI.formatSpeed(task.speed));
         const etaStr = isPaused ? '--:--' : (isFinalizing ? '--:--' : UI.formatEta(task.eta));
+        const prevCardBytes = parseInt(card.dataset.dlBytes || '0', 10);
+        const effectiveBytes = Math.max(task.downloaded_bytes || 0, prevCardBytes);
+        card.dataset.dlBytes = effectiveBytes.toString();
         const sizeStr = task.file_size > 0 
-          ? `${UI.formatBytes(task.downloaded_bytes)} / ${UI.formatBytes(task.file_size)}` 
-          : UI.formatBytes(task.downloaded_bytes);
+          ? `${UI.formatBytes(effectiveBytes)} / ${UI.formatBytes(task.file_size)}` 
+          : UI.formatBytes(effectiveBytes);
 
         card.className = `active-card ${isPaused ? 'is-paused' : ''}`;
         
@@ -574,12 +577,13 @@ const UI = {
       const isFinalizing = !isPaused && (task.status === 'processing' || task.status === 'finalizing' || (task.progress >= 99.5 && (!task.speed || task.speed <= 0)));
       const speedStr = isPaused ? 'Paused' : (isFinalizing ? 'Finalizing...' : UI.formatSpeed(task.speed));
       const etaStr = isPaused ? '--:--' : (isFinalizing ? '--:--' : UI.formatEta(task.eta));
+      const effectiveBytes = task.downloaded_bytes || 0;
       const sizeStr = task.file_size > 0 
-        ? `${UI.formatBytes(task.downloaded_bytes)} / ${UI.formatBytes(task.file_size)}` 
-        : UI.formatBytes(task.downloaded_bytes);
+        ? `${UI.formatBytes(effectiveBytes)} / ${UI.formatBytes(task.file_size)}` 
+        : UI.formatBytes(effectiveBytes);
 
       return `
-        <div class="active-card ${isPaused ? 'is-paused' : ''}" id="card-${task.id}">
+        <div class="active-card ${isPaused ? 'is-paused' : ''}" id="card-${task.id}" data-dl-bytes="${effectiveBytes}">
           <div class="active-card-header">
             <div class="active-card-meta">
               ${task.thumbnail 

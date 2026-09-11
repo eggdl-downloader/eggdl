@@ -1870,6 +1870,12 @@ async def resume_download(task_id: str):
         # Resume active task seamlessly
         task._is_paused = False
         task.status = "downloading"
+        if hasattr(task, "_max_downloaded_bytes"):
+            task._max_downloaded_bytes = max(getattr(task, "_max_downloaded_bytes", 0), getattr(task, "downloaded_bytes", 0))
+        if hasattr(task, "_initial_downloaded_bytes"):
+            task._initial_downloaded_bytes = max(getattr(task, "_initial_downloaded_bytes", 0), getattr(task, "downloaded_bytes", 0))
+        if hasattr(task, "_max_progress"):
+            task._max_progress = max(getattr(task, "_max_progress", 0.0), getattr(task, "progress", 0.0))
         update_download_progress(
             task_id,
             task.downloaded_bytes,

@@ -284,6 +284,15 @@ const App = {
       this.updateDashboardStats();
     } else if (msg.type === 'progress_update' || msg.type === 'task_updated' || msg.type === 'task_added') {
       const task = msg.task;
+      const prevTask = this.activeTasks[task.id];
+      if (prevTask) {
+        if (task.downloaded_bytes < (prevTask.downloaded_bytes || 0)) {
+          task.downloaded_bytes = prevTask.downloaded_bytes;
+        }
+        if (task.progress < (prevTask.progress || 0)) {
+          task.progress = prevTask.progress;
+        }
+      }
       this.activeTasks[task.id] = task;
       UI.renderActiveTasks(this.activeTasks);
       this.updateGlobalSpeed();
