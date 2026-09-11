@@ -457,6 +457,8 @@ def show_desktop_notification_popup(task_dict):
             clr.AddReference('System.Drawing')
             import System.Windows.Forms as WF
             import System.Drawing as SD
+            import System.Drawing.Drawing2D as SD2D
+            import System
             import ctypes
             import subprocess
 
@@ -467,84 +469,99 @@ def show_desktop_notification_popup(task_dict):
                 except Exception:
                     pass
 
-            form = WF.Form()
-            _CURRENT_NOTIFICATION_FORM = form
-            form.FormBorderStyle = getattr(WF.FormBorderStyle, 'None')
-            form.TopMost = True
-            form.ShowInTaskbar = False
-            form.StartPosition = WF.FormStartPosition.Manual
-            form.BackColor = SD.ColorTranslator.FromHtml('#0F172A')
-            form.Size = SD.Size(370, 160)
+            def draw_rounded_rect(g, brush, pen, rect, radius):
+                path = SD2D.GraphicsPath()
+                r = radius
+                d = r * 2
+                x = rect.X
+                y = rect.Y
+                w = rect.Width
+                h = rect.Height
+                path.AddArc(x, y, d, d, 180, 90)
+                path.AddArc(x + w - d, y, d, d, 270, 90)
+                path.AddArc(x + w - d, y + h - d, d, d, 0, 90)
+                path.AddArc(x, y + h - d, d, d, 90, 90)
+                path.CloseFigure()
+                if brush:
+                    g.FillPath(brush, path)
+                if pen:
+                    g.DrawPath(pen, path)
+                path.Dispose()
 
-            # Position at bottom-right of primary display above taskbar
-            wa = WF.Screen.PrimaryScreen.WorkingArea
-            form.Location = SD.Point(wa.Right - 390, wa.Bottom - 180)
+            def draw_video_icon(g, x, y, color):
+                pen = SD.Pen(color, 1.8)
+                pen.StartCap = SD2D.LineCap.Round
+                pen.EndCap = SD2D.LineCap.Round
+                draw_rounded_rect(g, None, pen, SD.Rectangle(x, y + 2, 12, 10), 2)
+                poly = System.Array[SD.Point]([
+                    SD.Point(x + 12, y + 5),
+                    SD.Point(x + 17, y + 2),
+                    SD.Point(x + 17, y + 12),
+                    SD.Point(x + 12, y + 9)
+                ])
+                brush = SD.SolidBrush(color)
+                g.FillPolygon(brush, poly)
+                brush.Dispose()
+                pen.Dispose()
 
-            # Outer border panel
-            border_panel = WF.Panel()
-            border_panel.Dock = WF.DockStyle.Fill
-            border_panel.BackColor = SD.ColorTranslator.FromHtml('#334155')
-            border_panel.Padding = WF.Padding(1)
-            form.Controls.Add(border_panel)
+            def draw_audio_icon(g, x, y, color):
+                pen = SD.Pen(color, 1.8)
+                g.DrawLine(pen, x + 4, y + 12, x + 4, y + 3)
+                g.DrawLine(pen, x + 12, y + 10, x + 12, y + 1)
+                g.DrawLine(pen, x + 4, y + 3, x + 12, y + 1)
+                brush = SD.SolidBrush(color)
+                g.FillEllipse(brush, x + 1, y + 10, 5, 4)
+                g.FillEllipse(brush, x + 9, y + 8, 5, 4)
+                brush.Dispose()
+                pen.Dispose()
 
-            # Main dark container
-            container = WF.Panel()
-            container.Dock = WF.DockStyle.Fill
-            container.BackColor = SD.ColorTranslator.FromHtml('#0D1117')
-            border_panel.Controls.Add(container)
+            def draw_archive_icon(g, x, y, color):
+                pen = SD.Pen(color, 1.8)
+                draw_rounded_rect(g, None, pen, SD.Rectangle(x + 1, y + 2, 15, 12), 2)
+                g.DrawLine(pen, x + 1, y + 6, x + 16, y + 6)
+                g.DrawLine(pen, x + 8, y + 6, x + 8, y + 9)
+                pen.Dispose()
 
-            # 1. Header (Top bar)
-            header = WF.Panel()
-            header.Height = 32
-            header.Dock = WF.DockStyle.Top
-            header.BackColor = SD.ColorTranslator.FromHtml('#161B22')
-            container.Controls.Add(header)
+            def draw_file_icon(g, x, y, color):
+                pen = SD.Pen(color, 1.8)
+                poly = System.Array[SD.Point]([
+                    SD.Point(x + 2, y + 1),
+                    SD.Point(x + 11, y + 1),
+                    SD.Point(x + 15, y + 5),
+                    SD.Point(x + 15, y + 15),
+                    SD.Point(x + 2, y + 15)
+                ])
+                g.DrawPolygon(pen, poly)
+                g.DrawLine(pen, x + 11, y + 1, x + 11, y + 5)
+                g.DrawLine(pen, x + 11, y + 5, x + 15, y + 5)
+                pen.Dispose()
 
-            # Green pulse dot + "Download complete"
-            dot_lbl = WF.Label()
-            dot_lbl.Text = "●"
-            dot_lbl.ForeColor = SD.ColorTranslator.FromHtml('#10B981')
-            dot_lbl.Font = SD.Font("Segoe UI", 10, SD.FontStyle.Bold)
-            dot_lbl.Location = SD.Point(10, 5)
-            dot_lbl.AutoSize = True
-            header.Controls.Add(dot_lbl)
+            def draw_folder_svg(g, x, y, width, height, color):
+                pen = SD.Pen(color, 1.6)
+                poly = System.Array[SD.Point]([
+                    SD.Point(x, y + 2),
+                    SD.Point(x + 5, y + 2),
+                    SD.Point(x + 7, y + 4),
+                    SD.Point(x + width, y + 4),
+                    SD.Point(x + width, y + height),
+                    SD.Point(x, y + height)
+                ])
+                g.DrawPolygon(pen, poly)
+                pen.Dispose()
 
-            header_lbl = WF.Label()
-            header_lbl.Text = "Download complete"
-            header_lbl.ForeColor = SD.Color.White
-            header_lbl.Font = SD.Font("Segoe UI", 9, SD.FontStyle.Bold)
-            header_lbl.Location = SD.Point(26, 6)
-            header_lbl.AutoSize = True
-            header.Controls.Add(header_lbl)
-
-            # Close button '✕'
-            close_btn = WF.Button()
-            close_btn.Text = "✕"
-            close_btn.FlatStyle = WF.FlatStyle.Flat
-            close_btn.FlatAppearance.BorderSize = 0
-            close_btn.ForeColor = SD.ColorTranslator.FromHtml('#94A3B8')
-            close_btn.BackColor = SD.Color.Transparent
-            close_btn.Font = SD.Font("Segoe UI", 9)
-            close_btn.Size = SD.Size(28, 26)
-            close_btn.Location = SD.Point(336, 3)
-            close_btn.Cursor = WF.Cursors.Hand
-            close_btn.Click += lambda s, e: form.Close()
-            header.Controls.Add(close_btn)
-
-            # Extract details
             title = task_dict.get("title") or task_dict.get("filename") or "Download Complete"
             file_path = task_dict.get("file_path") or task_dict.get("save_path") or ""
             raw_bytes = task_dict.get("file_size") or task_dict.get("downloaded_bytes") or 0
 
             # File size formatting
             if raw_bytes >= 1024 * 1024 * 1024:
-                size_str = f"{raw_bytes / (1024 * 1024 * 1024):.2f} GB"
+                size_str = f"{raw_bytes / (1024 * 1024 * 1024):.2f} GB ({raw_bytes:,} Bytes)"
             elif raw_bytes >= 1024 * 1024:
-                size_str = f"{raw_bytes / (1024 * 1024):.2f} MB"
+                size_str = f"{raw_bytes / (1024 * 1024):.2f} MB ({raw_bytes:,} Bytes)"
             elif raw_bytes >= 1024:
-                size_str = f"{raw_bytes / 1024:.2f} KB"
+                size_str = f"{raw_bytes / 1024:.2f} KB ({raw_bytes:,} Bytes)"
             elif raw_bytes > 0:
-                size_str = f"{raw_bytes} Bytes"
+                size_str = f"{raw_bytes:,} Bytes"
             else:
                 size_str = "Complete"
 
@@ -554,72 +571,277 @@ def show_desktop_notification_popup(task_dict):
                 ext = file_path.rsplit(".", 1)[-1].upper()
             elif "." in title:
                 ext = title.rsplit(".", 1)[-1].upper()
+            else:
+                ext = "FILE"
             category = (task_dict.get("category") or "file").lower()
 
-            cat_icon = "📄"
+            # Category styling matching EggDL Modern Theme
             if category == "video" or ext in ["MP4", "MKV", "WEBM", "AVI", "MOV"]:
-                cat_icon = "🎬"
+                cat_label = "Video File"
+                badge_bg = "#2E1065"
+                badge_border = "#6366F1"
+                badge_color = "#C084FC"
+                draw_icon_fn = draw_video_icon
             elif category == "audio" or ext in ["MP3", "M4A", "WAV", "FLAC", "AAC", "OGG"]:
-                cat_icon = "🎵"
-            elif category == "image" or ext in ["JPG", "JPEG", "PNG", "GIF", "WEBP"]:
-                cat_icon = "🖼️"
-            elif category == "compressed" or ext in ["ZIP", "RAR", "7Z", "TAR", "GZ"]:
-                cat_icon = "📦"
+                cat_label = "Audio File"
+                badge_bg = "#3B2506"
+                badge_border = "#D97706"
+                badge_color = "#FBBF24"
+                draw_icon_fn = draw_audio_icon
+            elif category == "compressed" or ext in ["ZIP", "RAR", "7Z", "TAR", "GZ", "ISO"]:
+                cat_label = "Archive File"
+                badge_bg = "#3B1219"
+                badge_border = "#E11D48"
+                badge_color = "#FB7185"
+                draw_icon_fn = draw_archive_icon
+            elif category == "document" or ext in ["PDF", "DOC", "DOCX", "TXT", "XLS"]:
+                cat_label = "Document"
+                badge_bg = "#063A2B"
+                badge_border = "#059669"
+                badge_color = "#34D399"
+                draw_icon_fn = draw_file_icon
+            else:
+                cat_label = "File"
+                badge_bg = "#1E293B"
+                badge_border = "#475569"
+                badge_color = "#94A3B8"
+                draw_icon_fn = draw_file_icon
 
-            # 2. File Row (Middle)
-            icon_box = WF.Label()
-            icon_box.Text = cat_icon
-            icon_box.Font = SD.Font("Segoe UI Emoji", 14)
-            icon_box.Location = SD.Point(12, 40)
-            icon_box.Size = SD.Size(32, 32)
-            icon_box.TextAlign = SD.ContentAlignment.MiddleCenter
-            container.Controls.Add(icon_box)
+            # EggDL mascot logo
+            logo_path = os.path.join(BUNDLE_DIR, "frontend", "images", "egg-icon.png")
+            if not os.path.exists(logo_path):
+                logo_path = os.path.join(BASE_DIR, "frontend", "images", "egg-icon.png")
+            logo_bmp = None
+            if os.path.exists(logo_path):
+                try:
+                    logo_bmp = SD.Image.FromFile(logo_path)
+                except Exception:
+                    pass
+
+            form = WF.Form()
+            _CURRENT_NOTIFICATION_FORM = form
+            form.FormBorderStyle = getattr(WF.FormBorderStyle, 'None')
+            form.TopMost = True
+            form.ShowInTaskbar = False
+            form.StartPosition = WF.FormStartPosition.Manual
+            form.BackColor = SD.ColorTranslator.FromHtml('#1E293B')
+            form.Size = SD.Size(434, 186)
+
+            wa = WF.Screen.PrimaryScreen.WorkingArea
+            form.Location = SD.Point(wa.Right - 454, wa.Bottom - 206)
+
+            container = WF.Panel()
+            container.Location = SD.Point(1, 1)
+            container.Size = SD.Size(432, 184)
+            container.BackColor = SD.ColorTranslator.FromHtml('#0B0F19')
+            form.Controls.Add(container)
+
+            # 1. Header Bar (34px)
+            header = WF.Panel()
+            header.Location = SD.Point(0, 0)
+            header.Size = SD.Size(432, 34)
+            header.BackColor = SD.ColorTranslator.FromHtml('#111827')
+            container.Controls.Add(header)
+
+            def paint_header(sender, e):
+                g = e.Graphics
+                g.SmoothingMode = SD2D.SmoothingMode.AntiAlias
+                pen = SD.Pen(SD.ColorTranslator.FromHtml('#1E293B'), 1)
+                g.DrawLine(pen, 0, 33, 432, 33)
+                pen.Dispose()
+                if logo_bmp:
+                    g.DrawImage(logo_bmp, SD.Rectangle(12, 8, 18, 18))
+            header.Paint += paint_header
+
+            hdr_title = WF.Label()
+            hdr_title.Text = "EggDL - Download Complete"
+            hdr_title.ForeColor = SD.Color.White
+            hdr_title.Font = SD.Font("Segoe UI", 9.25, SD.FontStyle.Bold)
+            hdr_title.Location = SD.Point(36, 7)
+            hdr_title.AutoSize = True
+            header.Controls.Add(hdr_title)
+
+            close_btn = WF.Button()
+            close_btn.Text = "✕"
+            close_btn.FlatStyle = WF.FlatStyle.Flat
+            close_btn.FlatAppearance.BorderSize = 0
+            close_btn.ForeColor = SD.ColorTranslator.FromHtml('#94A3B8')
+            close_btn.BackColor = SD.Color.Transparent
+            close_btn.Font = SD.Font("Segoe UI", 9)
+            close_btn.Size = SD.Size(30, 28)
+            close_btn.Location = SD.Point(394, 3)
+            close_btn.Cursor = WF.Cursors.Hand
+            close_btn.MouseEnter += lambda s, e: setattr(close_btn, 'ForeColor', SD.Color.White)
+            close_btn.MouseLeave += lambda s, e: setattr(close_btn, 'ForeColor', SD.ColorTranslator.FromHtml('#94A3B8'))
+            close_btn.Click += lambda s, e: form.Close()
+            header.Controls.Add(close_btn)
+
+            # 2. File Information Row
+            cat_box = WF.Panel()
+            cat_box.Location = SD.Point(14, 46)
+            cat_box.Size = SD.Size(38, 38)
+            cat_box.BackColor = SD.Color.Transparent
+            container.Controls.Add(cat_box)
+
+            def paint_cat_box(sender, e):
+                g = e.Graphics
+                g.SmoothingMode = SD2D.SmoothingMode.AntiAlias
+                brush = SD.SolidBrush(SD.ColorTranslator.FromHtml(badge_bg))
+                pen = SD.Pen(SD.ColorTranslator.FromHtml(badge_border), 1)
+                draw_rounded_rect(g, brush, pen, SD.Rectangle(0, 0, 37, 37), 5)
+                brush.Dispose()
+                pen.Dispose()
+                draw_icon_fn(g, 10, 11, SD.ColorTranslator.FromHtml(badge_color))
+            cat_box.Paint += paint_cat_box
 
             title_lbl = WF.Label()
             title_lbl.Text = title
             title_lbl.ForeColor = SD.Color.White
-            title_lbl.Font = SD.Font("Segoe UI", 9, SD.FontStyle.Bold)
-            title_lbl.Location = SD.Point(48, 38)
-            title_lbl.Size = SD.Size(306, 18)
+            title_lbl.Font = SD.Font("Segoe UI", 9.5, SD.FontStyle.Bold)
+            title_lbl.Location = SD.Point(60, 44)
+            title_lbl.Size = SD.Size(356, 19)
             title_lbl.AutoEllipsis = True
             container.Controls.Add(title_lbl)
 
-            meta_lbl = WF.Label()
-            meta_lbl.Text = f"{size_str} • {ext}" if ext else f"{size_str}"
-            meta_lbl.ForeColor = SD.ColorTranslator.FromHtml('#94A3B8')
-            meta_lbl.Font = SD.Font("Segoe UI", 8)
-            meta_lbl.Location = SD.Point(48, 56)
-            meta_lbl.Size = SD.Size(306, 15)
-            container.Controls.Add(meta_lbl)
+            sub_panel = WF.Panel()
+            sub_panel.Location = SD.Point(60, 65)
+            sub_panel.Size = SD.Size(356, 20)
+            sub_panel.BackColor = SD.Color.Transparent
+            container.Controls.Add(sub_panel)
 
-            # Folder directory path
+            def paint_sub_panel(sender, e):
+                g = e.Graphics
+                g.SmoothingMode = SD2D.SmoothingMode.AntiAlias
+                g.TextRenderingHint = SD.Text.TextRenderingHint.ClearTypeGridFit
+
+                badge_w = 40
+                badge_h = 16
+                brush = SD.SolidBrush(SD.ColorTranslator.FromHtml(badge_bg))
+                pen = SD.Pen(SD.ColorTranslator.FromHtml(badge_border), 1)
+                draw_rounded_rect(g, brush, pen, SD.Rectangle(0, 1, badge_w, badge_h), 3)
+                brush.Dispose()
+                pen.Dispose()
+
+                b_font = SD.Font("Segoe UI", 7.5, SD.FontStyle.Bold)
+                b_brush = SD.SolidBrush(SD.ColorTranslator.FromHtml(badge_color))
+                sf = SD.StringFormat()
+                sf.Alignment = SD.StringAlignment.Center
+                sf.LineAlignment = SD.StringAlignment.Center
+                g.DrawString(ext, b_font, b_brush, SD.RectangleF(0, 1, badge_w, badge_h), sf)
+                b_brush.Dispose()
+                b_font.Dispose()
+
+                meta_font = SD.Font("Segoe UI", 8.25)
+                dot_brush = SD.SolidBrush(SD.ColorTranslator.FromHtml('#64748B'))
+                cat_brush = SD.SolidBrush(SD.ColorTranslator.FromHtml('#94A3B8'))
+                size_brush = SD.SolidBrush(SD.ColorTranslator.FromHtml('#38BDF8'))
+
+                cur_x = badge_w + 8
+                g.DrawString("•", meta_font, dot_brush, cur_x, 1)
+                cur_x += 10
+                g.DrawString(cat_label, meta_font, cat_brush, cur_x, 1)
+                cat_w = g.MeasureString(cat_label, meta_font).Width
+                cur_x += cat_w + 2
+                g.DrawString("•", meta_font, dot_brush, cur_x, 1)
+                cur_x += 10
+                g.DrawString(size_str, meta_font, size_brush, cur_x, 1)
+
+                meta_font.Dispose()
+                dot_brush.Dispose()
+                cat_brush.Dispose()
+                size_brush.Dispose()
+
+            sub_panel.Paint += paint_sub_panel
+
+            # 3. "Save As:" Location Card
+            save_card = WF.Panel()
+            save_card.Location = SD.Point(14, 94)
+            save_card.Size = SD.Size(404, 30)
+            save_card.BackColor = SD.ColorTranslator.FromHtml('#0D1526')
+            container.Controls.Add(save_card)
+
+            def paint_save_card(sender, e):
+                g = e.Graphics
+                g.SmoothingMode = SD2D.SmoothingMode.AntiAlias
+                pen = SD.Pen(SD.ColorTranslator.FromHtml('#1E293B'), 1)
+                draw_rounded_rect(g, None, pen, SD.Rectangle(0, 0, 403, 29), 4)
+                pen.Dispose()
+                draw_folder_svg(g, 382, 8, 14, 12, SD.ColorTranslator.FromHtml('#94A3B8'))
+            save_card.Paint += paint_save_card
+
+            save_as_lbl = WF.Label()
+            save_as_lbl.Text = "Save As:"
+            save_as_lbl.ForeColor = SD.ColorTranslator.FromHtml('#60A5FA')
+            save_as_lbl.Font = SD.Font("Segoe UI", 8, SD.FontStyle.Bold)
+            save_as_lbl.Location = SD.Point(8, 7)
+            save_as_lbl.AutoSize = True
+            save_card.Controls.Add(save_as_lbl)
+
+            path_text_lbl = WF.Label()
+            path_text_lbl.Text = file_path
+            path_text_lbl.ForeColor = SD.ColorTranslator.FromHtml('#94A3B8')
+            path_text_lbl.Font = SD.Font("Segoe UI", 8)
+            path_text_lbl.Location = SD.Point(62, 7)
+            path_text_lbl.Size = SD.Size(315, 16)
+            path_text_lbl.AutoEllipsis = True
+            save_card.Controls.Add(path_text_lbl)
+
             dir_path = os.path.dirname(file_path) if file_path else ""
-            path_lbl = WF.Label()
-            path_lbl.Text = f"📁 {dir_path}" if dir_path else "📁 Downloads"
-            path_lbl.ForeColor = SD.ColorTranslator.FromHtml('#64748B')
-            path_lbl.Font = SD.Font("Consolas", 8)
-            path_lbl.Location = SD.Point(14, 78)
-            path_lbl.Size = SD.Size(340, 16)
-            path_lbl.AutoEllipsis = True
-            container.Controls.Add(path_lbl)
+            def on_click_path(s, e):
+                form.Close()
+                if dir_path and os.path.exists(dir_path):
+                    try:
+                        os.startfile(dir_path)
+                    except Exception:
+                        pass
+            save_card.Cursor = WF.Cursors.Hand
+            save_card.Click += on_click_path
+            path_text_lbl.Click += on_click_path
 
-            # 3. Action Buttons (Bottom)
+            # 4. Action Buttons (Open and Folder)
             btn_panel = WF.Panel()
-            btn_panel.Height = 46
-            btn_panel.Dock = WF.DockStyle.Bottom
+            btn_panel.Location = SD.Point(14, 134)
+            btn_panel.Size = SD.Size(404, 40)
             btn_panel.BackColor = SD.Color.Transparent
             container.Controls.Add(btn_panel)
 
             open_btn = WF.Button()
-            open_btn.Text = "▷  Open"
             open_btn.FlatStyle = WF.FlatStyle.Flat
             open_btn.FlatAppearance.BorderSize = 0
-            open_btn.BackColor = SD.ColorTranslator.FromHtml('#2563EB')
-            open_btn.ForeColor = SD.Color.White
-            open_btn.Font = SD.Font("Segoe UI", 9, SD.FontStyle.Bold)
-            open_btn.Size = SD.Size(166, 32)
-            open_btn.Location = SD.Point(12, 6)
+            open_btn.BackColor = SD.ColorTranslator.FromHtml('#0284C7')
+            open_btn.Size = SD.Size(196, 34)
+            open_btn.Location = SD.Point(0, 0)
             open_btn.Cursor = WF.Cursors.Hand
+
+            is_open_hover = [False]
+            open_btn.MouseEnter += lambda s, e: (is_open_hover.__setitem__(0, True), open_btn.Invalidate())
+            open_btn.MouseLeave += lambda s, e: (is_open_hover.__setitem__(0, False), open_btn.Invalidate())
+
+            def paint_open_btn(sender, e):
+                g = e.Graphics
+                g.SmoothingMode = SD2D.SmoothingMode.AntiAlias
+                g.TextRenderingHint = SD.Text.TextRenderingHint.ClearTypeGridFit
+                bg_col = SD.ColorTranslator.FromHtml('#0EA5E9') if is_open_hover[0] else SD.ColorTranslator.FromHtml('#0284C7')
+                brush = SD.SolidBrush(bg_col)
+                draw_rounded_rect(g, brush, None, SD.Rectangle(0, 0, 195, 33), 5)
+                brush.Dispose()
+
+                play_poly = System.Array[SD.Point]([
+                    SD.Point(74, 11),
+                    SD.Point(82, 16),
+                    SD.Point(74, 21)
+                ])
+                p_brush = SD.SolidBrush(SD.Color.White)
+                g.FillPolygon(p_brush, play_poly)
+                p_brush.Dispose()
+
+                btn_font = SD.Font("Segoe UI", 9.25, SD.FontStyle.Bold)
+                t_brush = SD.SolidBrush(SD.Color.White)
+                g.DrawString("Open", btn_font, t_brush, 88, 8)
+                btn_font.Dispose()
+                t_brush.Dispose()
+            open_btn.Paint += paint_open_btn
+
             def on_open(s, e):
                 form.Close()
                 if file_path and os.path.exists(file_path):
@@ -631,16 +853,39 @@ def show_desktop_notification_popup(task_dict):
             btn_panel.Controls.Add(open_btn)
 
             folder_btn = WF.Button()
-            folder_btn.Text = "📁  Folder"
             folder_btn.FlatStyle = WF.FlatStyle.Flat
-            folder_btn.FlatAppearance.BorderColor = SD.ColorTranslator.FromHtml('#334155')
-            folder_btn.FlatAppearance.BorderSize = 1
+            folder_btn.FlatAppearance.BorderSize = 0
             folder_btn.BackColor = SD.ColorTranslator.FromHtml('#1E293B')
-            folder_btn.ForeColor = SD.ColorTranslator.FromHtml('#E2E8F0')
-            folder_btn.Font = SD.Font("Segoe UI", 9, SD.FontStyle.Bold)
-            folder_btn.Size = SD.Size(166, 32)
-            folder_btn.Location = SD.Point(188, 6)
+            folder_btn.Size = SD.Size(196, 34)
+            folder_btn.Location = SD.Point(208, 0)
             folder_btn.Cursor = WF.Cursors.Hand
+
+            is_folder_hover = [False]
+            folder_btn.MouseEnter += lambda s, e: (is_folder_hover.__setitem__(0, True), folder_btn.Invalidate())
+            folder_btn.MouseLeave += lambda s, e: (is_folder_hover.__setitem__(0, False), folder_btn.Invalidate())
+
+            def paint_folder_btn(sender, e):
+                g = e.Graphics
+                g.SmoothingMode = SD2D.SmoothingMode.AntiAlias
+                g.TextRenderingHint = SD.Text.TextRenderingHint.ClearTypeGridFit
+                bg_col = SD.ColorTranslator.FromHtml('#334155') if is_folder_hover[0] else SD.ColorTranslator.FromHtml('#1E293B')
+                border_col = SD.ColorTranslator.FromHtml('#475569') if is_folder_hover[0] else SD.ColorTranslator.FromHtml('#334155')
+                brush = SD.SolidBrush(bg_col)
+                pen = SD.Pen(border_col, 1)
+                draw_rounded_rect(g, brush, pen, SD.Rectangle(0, 0, 195, 33), 5)
+                brush.Dispose()
+                pen.Dispose()
+
+                icon_color = SD.Color.White if is_folder_hover[0] else SD.ColorTranslator.FromHtml('#CBD5E1')
+                draw_folder_svg(g, 72, 11, 14, 11, icon_color)
+
+                btn_font = SD.Font("Segoe UI", 9.25, SD.FontStyle.Bold)
+                t_brush = SD.SolidBrush(icon_color)
+                g.DrawString("Folder", btn_font, t_brush, 92, 8)
+                btn_font.Dispose()
+                t_brush.Dispose()
+            folder_btn.Paint += paint_folder_btn
+
             def on_folder(s, e):
                 form.Close()
                 if file_path and os.path.exists(file_path):
@@ -669,7 +914,7 @@ def show_desktop_notification_popup(task_dict):
                 auto_timer.Interval = 4000
                 auto_timer.Start()
 
-            for ctrl in [form, border_panel, container, header, btn_panel]:
+            for ctrl in [form, container, header, btn_panel, cat_box, title_lbl, sub_panel, save_card]:
                 ctrl.MouseEnter += on_mouse_enter
                 ctrl.MouseLeave += on_mouse_leave
 

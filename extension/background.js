@@ -215,7 +215,7 @@ function injectInPageCompleteNotification(tabId, task) {
         <div style="display: flex; align-items: center; justify-content: space-between; padding: 11px 14px; border-bottom: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02);">
           <div style="display: flex; align-items: center; gap: 8px;">
             <img src="${realLogoUrl}" alt="EggDL" style="width: 19px; height: 19px; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));">
-            <span style="font-size: 13px; font-weight: 700; color: #FFFFFF; letter-spacing: -0.01em;">Download complete</span>
+            <span style="font-size: 13px; font-weight: 700; color: #FFFFFF; letter-spacing: -0.01em;">EggDL - Download Complete</span>
           </div>
           <button type="button" class="egg-dl-close-btn" style="background: transparent; border: none; color: #94A3B8; cursor: pointer; padding: 4px 6px; border-radius: 6px; display: flex; align-items: center; justify-content: center; transition: all 0.15s ease;" title="Close">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -230,16 +230,18 @@ function injectInPageCompleteNotification(tabId, task) {
             <div style="flex: 1; min-width: 0;">
               <div style="font-size: 13px; font-weight: 600; color: #FFFFFF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.35;" title="${title}">${title}</div>
               <div style="font-size: 11px; font-weight: 500; color: #94A3B8; margin-top: 3px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                <span style="color: #CBD5E1; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 10.5px;">${detailedSizeText}</span>
+                <span style="color: ${catBadgeColor}; font-weight: 700; font-size: 10px; background: ${catBg}; border: 1px solid ${catBorder}; padding: 1px 6px; border-radius: 4px; letter-spacing: 0.3px;">${fileExt}</span>
                 <span style="color: #64748B;">•</span>
-                <span style="color: ${catBadgeColor}; font-weight: 700; font-size: 10px; background: ${catBg}; border: 1px solid ${catBorder}; padding: 1px 5px; border-radius: 4px; letter-spacing: 0.3px;">${fileExt}</span>
+                <span style="color: #94A3B8; font-weight: 500; font-size: 11px;">${catLabel}</span>
+                <span style="color: #64748B;">•</span>
+                <span style="color: #38BDF8; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 10.5px; font-weight: 600;">${detailedSizeText}</span>
               </div>
             </div>
           </div>
 
           <div class="egg-dl-path-container" style="background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 6px 8px 6px 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; transition: all 0.15s ease;">
             <div class="egg-dl-path-text-area" style="display: flex; align-items: center; gap: 7px; min-width: 0; flex: 1; cursor: pointer;" title="Open containing folder: ${dirPath}">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#60A5FA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+              <span style="font-size: 11px; font-weight: 700; color: #60A5FA; flex-shrink: 0;">Save As:</span>
               <span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; color: #94A3B8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${dirPath}</span>
             </div>
             <button type="button" class="egg-dl-copy-path-btn" title="Copy file path" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 4px 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #94A3B8; transition: all 0.15s ease; flex-shrink: 0;">

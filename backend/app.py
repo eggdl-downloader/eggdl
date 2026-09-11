@@ -142,6 +142,19 @@ async def get_unread_notifications():
         "notifications": list(_UNNOTIFIED_COMPLETIONS.values())
     }
 
+@app.post("/api/system/test-completion-popup")
+async def test_completion_popup():
+    global _DOWNLOAD_COMPLETED_CALLBACK
+    if _DOWNLOAD_COMPLETED_CALLBACK:
+        _DOWNLOAD_COMPLETED_CALLBACK({
+            "title": "Alan Walker - Adagio (Official Lyric Video).mp4",
+            "file_path": r"C:\Users\Sriman\Downloads\Trade Withfamily\Alan Walker - Adagio.mp4",
+            "file_size": 392425872,
+            "category": "video"
+        })
+        return {"success": True, "message": "Popup triggered"}
+    return {"success": False, "message": "Callback not set"}
+
 @app.post("/api/system/mark-notified")
 async def mark_notifications_read(req: Dict[str, Any]):
     global _UNNOTIFIED_COMPLETIONS
