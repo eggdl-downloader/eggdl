@@ -212,8 +212,18 @@ def cleanup_stream_artifacts(target_dir: str, title: str = "", filename: str = "
                 bool(re.search(r'\.f\d+$', entry_lower))
             )
 
-            # If it's an artifact OR if delete_all is True (task canceled), delete it!
-            if is_artifact or delete_all:
+            # If delete_all is True (task was canceled/deleted), delete ALL matching files and artifacts!
+            # If delete_all is False (task is paused, in-progress, or completed), PRESERVE .part and .ytdl cache for resume!
+            should_delete = False
+            if delete_all:
+                should_delete = True
+            elif is_artifact:
+                # Only clean 0-byte orphan temp files if not canceling, NEVER wipe .part or .ytdl cache
+                is_stale_empty = (".temp." in entry_lower or "_temp" in entry_lower) and os.path.getsize(entry_path) == 0
+                if is_stale_empty:
+                    should_delete = True
+
+            if should_delete:
                 close_tracked_streams(target_dir=target_dir, file_path=entry_path)
                 for _ in range(15):
                     try:
@@ -1039,7 +1049,6 @@ class StreamDownloadTask:
             "nocheckcertificate": True,
             "retries": 10,
             "fragment_retries": 10,
-            "concurrent_fragment_downloads": 16,
             "buffersize": 1024 * 1024,
             "http_chunk_size": 10485760,
             "socket_timeout": 30,

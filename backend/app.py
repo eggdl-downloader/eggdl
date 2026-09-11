@@ -1711,16 +1711,15 @@ def cleanup_task_files(task_record: Dict[str, Any], delete_final: bool = True):
             target_dir = settings.get("download_dir", str(Path.home() / "Downloads" / "Eggdl Downloads"))
 
         # 1. Clean direct download files (.eggdl_part, .eggdl_state, .part, .crdownload, and file_path)
-        if file_path:
+        # 1. Clean direct download files only when delete_final is True (task was canceled or deleted)
+        if file_path and delete_final:
             candidates = [
                 file_path + ".eggdl_part",
                 file_path + ".eggdl_state",
                 file_path + ".part",
                 file_path + ".crdownload",
+                file_path
             ]
-            if delete_final:
-                candidates.append(file_path)
-
             for p in candidates:
                 for _ in range(15):
                     try:
@@ -1928,6 +1927,7 @@ async def resume_download(task_id: str):
             format_id=task_record.get("format_id") or "bestvideo+bestaudio/best",
             is_audio_only=(task_record.get("category") == "audio"),
             custom_title=task_record.get("title"),
+            custom_filename=task_record.get("custom_filename"),
             expected_size=task_record.get("expected_size") or task_record.get("file_size", -1),
             downloaded_bytes=task_record.get("downloaded_bytes", 0),
             progress=task_record.get("progress", 0.0),
