@@ -1451,7 +1451,7 @@ const App = {
           desktop_name: machine.desktop_name || API.getDeviceName(),
           user_name: machine.user_name || 'User',
           os_info: machine.os_info || navigator.platform || 'Windows',
-          app_version: '2.1.8',
+          app_version: '2.1.9',
           total_downloads: this.downloads?.length || 0,
           data_downloaded_mb: 0
         });
@@ -1621,7 +1621,7 @@ const App = {
 
     try {
       const info = await API.checkVersion();
-      const curVer = info?.current_version || '2.1.8';
+      const curVer = info?.current_version || '2.1.9';
       const latVer = info?.latest_version || curVer;
 
       if (versionBadge) versionBadge.innerText = `v${curVer}`;
@@ -1706,7 +1706,7 @@ const App = {
     if (progressView) progressView.style.display = 'none';
     if (installBtn) installBtn.style.display = 'none';
 
-    if (verBadge) verBadge.innerText = `v${info.latest_version || '2.1.8'} Available`;
+    if (verBadge) verBadge.innerText = `v${info.latest_version || '2.1.9'} Available`;
     if (notesBox) {
       const rawNotes = info.release_notes || '⚡ Strict 3 Downloads/Day for Trial\n🔒 Expired Trial Product Key Lockout\n🚀 Starter Plan: 4K Max & 2 Simultaneous Active Downloads\n👑 Cloud Product Key Activation & Real-Time Sync\n🎬 4K/8K stream download optimizations';
       notesBox.innerHTML = rawNotes.split('\n').map(l => `<div style="margin-bottom: 4px;">${l}</div>`).join('');
@@ -2026,7 +2026,7 @@ const App = {
   },
 
   async handleAdminPublishRelease() {
-    const ver = document.getElementById('admin-release-ver')?.value.trim() || '2.1.8';
+    const ver = document.getElementById('admin-release-ver')?.value.trim() || '2.1.9';
     const notes = document.getElementById('admin-release-notes')?.value.trim() || '';
     const url = document.getElementById('admin-release-url')?.value.trim() || 'https://raw.githubusercontent.com/eggdl-downloader/eggdl/main/frontend/downloads/EggDL_Setup.exe';
     const mandatory = document.getElementById('admin-release-mandatory')?.checked ?? true;

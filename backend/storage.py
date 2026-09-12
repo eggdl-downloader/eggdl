@@ -803,7 +803,7 @@ def register_or_update_device(
     desktop_name: Optional[str] = None,
     user_name: Optional[str] = None,
     os_info: Optional[str] = None,
-    app_version: str = "2.1.8",
+    app_version: str = "2.1.9",
     ip_address: Optional[str] = None,
     total_downloads: Optional[int] = None,
     data_downloaded_mb: Optional[float] = None
@@ -1351,13 +1351,13 @@ def get_latest_app_release() -> Dict[str, Any]:
     conn.close()
     if row:
         d = dict(row)
-        if d.get("version") in ("2.0.0", "2.1.0", "2.1.1", "2.1.2", "2.1.3", "2.1.4", "2.1.5", "2.1.6", "2.1.7"):
-            d["version"] = "2.1.8"
+        if d.get("version") in ("2.0.0", "2.1.0", "2.1.1", "2.1.2", "2.1.3", "2.1.4", "2.1.5", "2.1.6", "2.1.7", "2.1.8"):
+            d["version"] = "2.1.9"
             d["release_notes"] = "⚡ Ultra-Fast Native MP4 Engine\n🚀 Instant Single-File Output & Zero 99% Lag\n👑 Cloud Product Key Activation & Real-Time Sync\n🎬 4K/8K stream download optimizations."
             d["download_url"] = "https://raw.githubusercontent.com/eggdl-downloader/eggdl/main/frontend/downloads/EggDL_Setup.exe"
         return d
     return {
-        "version": "2.1.8",
+        "version": "2.1.9",
         "release_notes": "⚡ Ultra-Fast Native MP4 Engine\n🚀 Instant Single-File Output & Zero 99% Lag\n👑 Cloud Product Key Activation & Real-Time Sync\n🎬 4K/8K stream download optimizations.",
         "download_url": "https://raw.githubusercontent.com/eggdl-downloader/eggdl/main/frontend/downloads/EggDL_Setup.exe",
         "mandatory": 0
@@ -1374,7 +1374,7 @@ def set_app_release(version: str, release_notes: str, download_url: str, mandato
     conn.commit()
     conn.close()
 
-def register_device(device_id: str, user_email: Optional[str] = None, app_version: str = "2.1.8") -> Dict[str, Any]:
+def register_device(device_id: str, user_email: Optional[str] = None, app_version: str = "2.1.9") -> Dict[str, Any]:
     info = get_machine_info()
     return register_or_update_device(device_id, info["desktop_name"], info["user_name"], info["os_info"], app_version)
 

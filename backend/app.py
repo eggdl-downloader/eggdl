@@ -86,7 +86,7 @@ except ImportError:
 
 app = FastAPI(title="EggDL API", version="2.0.0")
 
-APP_CURRENT_VERSION = "2.1.8"
+APP_CURRENT_VERSION = "2.1.9"
 FIREBASE_DB_URL = "https://eggdl-app-default-rtdb.firebaseio.com"
 
 @app.middleware("http")
@@ -2541,7 +2541,7 @@ async def system_stats():
         "download_dir": dl_dir
     }
 
-APP_CURRENT_VERSION = "2.1.8"
+APP_CURRENT_VERSION = "2.1.9"
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "eggdl_admin_2026")
 
 def is_valid_admin_key(key: Optional[str]) -> bool:
@@ -2572,7 +2572,7 @@ class PushReleaseRequest(BaseModel):
 
 class DeviceCheckRequest(BaseModel):
     device_id: Optional[str] = None
-    app_version: Optional[str] = "2.1.8"
+    app_version: Optional[str] = "2.1.9"
     user_email: Optional[str] = None
 
 def is_newer_version(remote_ver: str, local_ver: str) -> bool:
@@ -2964,7 +2964,7 @@ update_mgr = UpdateDownloadManager()
 
 @app.post("/api/system/update/download")
 async def start_app_update_download(data: Dict[str, Any] = Body(...)):
-    version = data.get("version", "2.1.8")
+    version = data.get("version", "2.1.9")
     download_url = data.get("download_url", "")
     update_mgr.start_download(version, download_url)
     return {"success": True, "message": "Update download started"}
