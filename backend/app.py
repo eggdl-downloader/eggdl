@@ -136,10 +136,10 @@ _UNNOTIFIED_COMPLETIONS: Dict[str, Dict[str, Any]] = {}
 
 @app.get("/api/system/unread-notifications")
 async def get_unread_notifications():
-    global _UNNOTIFIED_COMPLETIONS
+    # In-browser notification disabled per user request. Always return empty list.
     return {
         "success": True,
-        "notifications": list(_UNNOTIFIED_COMPLETIONS.values())
+        "notifications": []
     }
 
 @app.post("/api/system/test-completion-popup")
@@ -1446,7 +1446,6 @@ async def save_direct_file(req: SaveFileRequest, user: Optional[Dict[str, Any]] 
 
         save_download_task(task_dict, user_id=user_id)
         record_download_in_ledger(get_device_id(), user_id=user_id, task_id=task_id)
-        _UNNOTIFIED_COMPLETIONS[task_id] = task_dict
         await broadcast({
             "type": "task_added",
             "task": task_dict
@@ -1798,16 +1797,6 @@ async def _run_task(task_id: str, task: Any):
             "task": task_dict
         })
         if not is_canceled and task_dict.get("status") == "completed":
-            _UNNOTIFIED_COMPLETIONS[task_id] = {
-                "id": task_id,
-                "title": task_dict.get("title") or task_dict.get("filename") or "download",
-                "filename": task_dict.get("filename") or task_dict.get("title") or "download",
-                "file_path": task_dict.get("file_path", ""),
-                "file_size": task_dict.get("file_size", 0),
-                "downloaded_bytes": task_dict.get("downloaded_bytes", 0),
-                "category": task_dict.get("category", "other"),
-                "completed_at": task_dict.get("completed_at") or datetime.now().isoformat()
-            }
             await broadcast({
                 "type": "task_completed",
                 "task": task_dict

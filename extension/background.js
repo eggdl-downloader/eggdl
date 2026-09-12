@@ -91,38 +91,14 @@ function injectInPageToast(tabId, message, isError = false) {
 }
 
 function injectInPageCompleteNotification(tabId, task) {
-  // In-browser popup removed per user request.
+  // In-browser popup disabled per user request.
   // The system-wide native Windows notification is displayed globally by EggDL desktop app across any window.
   return;
 }
 
 function monitorDownloadTask(tabId, taskId) {
-  if (!taskId) return;
-  const startTime = Date.now();
-  const pollInterval = setInterval(async () => {
-    if (Date.now() - startTime > 15 * 60 * 1000) {
-      clearInterval(pollInterval);
-      return;
-    }
-    try {
-      const res = await fetchFromBackend(`/api/download/${taskId}`);
-      if (res && res.success && res.task) {
-        if (res.task.status === 'completed') {
-          clearInterval(pollInterval);
-          try {
-            chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
-              const activeTabId = (tabs && tabs.length > 0 && tabs[0].id) ? tabs[0].id : tabId;
-              injectInPageCompleteNotification(activeTabId, res.task);
-            });
-          } catch (_) {
-            injectInPageCompleteNotification(tabId, res.task);
-          }
-        } else if (res.task.status === 'error' || res.task.status === 'canceled') {
-          clearInterval(pollInterval);
-        }
-      }
-    } catch (e) {}
-  }, 1000);
+  // Polling disabled: native Windows notification handles completion globally.
+  return;
 }
 
 async function executeInPageImageCapture(tabId, srcUrl) {
