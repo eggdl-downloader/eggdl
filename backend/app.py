@@ -1645,6 +1645,7 @@ async def start_download(req: StartDownloadRequest, user: Optional[Dict[str, Any
             custom_title=req.custom_title or req.custom_filename,
             custom_filename=req.custom_filename,
             expected_size=req.expected_size or -1,
+            segments_count=segments,
             video_encoder_enabled=bool(enc_enabled),
             video_codec=str(v_codec),
             on_progress=handle_progress_update
@@ -1920,6 +1921,7 @@ async def resume_download(task_id: str):
             expected_size=task_record.get("expected_size") or task_record.get("file_size", -1),
             downloaded_bytes=task_record.get("downloaded_bytes", 0),
             progress=task_record.get("progress", 0.0),
+            segments_count=segments,
             video_encoder_enabled=bool(enc_enabled),
             video_codec=str(v_codec),
             on_progress=handle_progress_update
@@ -2781,6 +2783,8 @@ class UpdateDownloadManager:
                 # 1. First check local candidates for instant, offline/development updates
                 local_candidates = [
                     r"C:\Users\Sriman\.gemini\antigravity\scratch\pro-downloader\dist\EggDL_Setup.exe",
+                    os.path.join(frontend_dir, "downloads", "EggDL_Setup.exe"),
+                    os.path.join(os.path.dirname(__file__), "..", "frontend", "downloads", "EggDL_Setup.exe"),
                     os.path.join(os.path.dirname(__file__), "..", "dist", "EggDL_Setup.exe"),
                     os.path.join(os.path.dirname(__file__), "..", "..", "dist", "EggDL_Setup.exe"),
                     os.path.join(os.path.dirname(sys.executable), "dist", "EggDL_Setup.exe"),
@@ -2796,19 +2800,19 @@ class UpdateDownloadManager:
                     try:
                         tot = os.path.getsize(found_local)
                         self.total_bytes = tot
-                        self.speed_str = "18.5 MB/s"
+                        self.speed_str = "35.0 MB/s"
                         
                         with open(found_local, "rb") as src, open(self.target_file, "wb") as dst:
                             copied = 0
                             while True:
-                                buf = src.read(4 * 1024 * 1024)
+                                buf = src.read(8 * 1024 * 1024)
                                 if not buf:
                                     break
                                 dst.write(buf)
                                 copied += len(buf)
                                 self.downloaded_bytes = copied
                                 self.progress = round((copied / tot) * 100, 1)
-                                time.sleep(0.06)
+                                time.sleep(0.02)
 
                         self.progress = 100.0
                         self.status = "ready"
@@ -2826,9 +2830,9 @@ class UpdateDownloadManager:
                 urls_to_try = []
                 if download_url and download_url.startswith("http"):
                     urls_to_try.append(download_url)
+                if version:
+                    urls_to_try.append(f"https://github.com/eggdl-downloader/eggdl/releases/download/v{version}/EggDL_Setup.exe")
                 urls_to_try.append("https://github.com/eggdl-downloader/eggdl/releases/latest/download/EggDL_Setup.exe")
-                urls_to_try.append("https://github.com/eggdl-downloader/eggdl/releases/download/v2.1.8/EggDL_Setup.exe")
-                urls_to_try.append("https://github.com/eggdl-downloader/eggdl/releases/download/v2.1.7/EggDL_Setup.exe")
                 urls_to_try.append("https://raw.githubusercontent.com/eggdl-downloader/eggdl/main/frontend/downloads/EggDL_Setup.exe")
                 urls_to_try.append("https://github.com/eggdl-downloader/eggdl/raw/main/frontend/downloads/EggDL_Setup.exe")
 
@@ -2932,11 +2936,12 @@ class UpdateDownloadManager:
                 f.write(f'''Option Explicit
 Dim WshShell, newExe, fso
 Set WshShell = CreateObject("WScript.Shell")
-WScript.Sleep 1000
+WScript.Sleep 400
 On Error Resume Next
-WshShell.Run "taskkill /F /IM EggDL.exe", 0, True
-WshShell.Run """{target_exe}"" /VERYSILENT /SUPPRESSMSGBOXES /SP- /CLOSEAPPLICATIONS /FORCECLOSEAPPLICATIONS /NORESTART", 0, True
-WScript.Sleep 1000
+WshShell.Run "taskkill.exe /F /IM EggDL.exe /T", 0, True
+WScript.Sleep 300
+WshShell.Run """{target_exe}"" /VERYSILENT /SUPPRESSMSGBOXES /SP- /NORESTART", 0, True
+WScript.Sleep 500
 newExe = WshShell.ExpandEnvironmentStrings("%LOCALAPPDATA%\\EggDL\\EggDL.exe")
 WshShell.Run """" & newExe & """", 1, False
 Set fso = CreateObject("Scripting.FileSystemObject")
@@ -2949,7 +2954,7 @@ If fso.FileExists(WScript.ScriptFullName) Then fso.DeleteFile WScript.ScriptFull
         except Exception as vbs_err:
             print(f"[SilentUpdate Error]: {vbs_err}")
             try:
-                subprocess.Popen([target_exe, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/SP-", "/CLOSEAPPLICATIONS", "/FORCECLOSEAPPLICATIONS"], creationflags=flags, close_fds=True)
+                subprocess.Popen([target_exe, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/SP-", "/NORESTART"], creationflags=flags, close_fds=True)
             except Exception:
                 pass
 

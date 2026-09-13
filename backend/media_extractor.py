@@ -823,6 +823,7 @@ class StreamDownloadTask:
         expected_size: int = -1,
         downloaded_bytes: int = 0,
         progress: float = 0.0,
+        segments_count: int = 16,
         video_encoder_enabled: bool = False,
         video_codec: str = "h264",
         on_progress: Optional[Callable] = None
@@ -835,6 +836,7 @@ class StreamDownloadTask:
         self.audio_format = audio_format
         self.custom_title = custom_title
         self.custom_filename = custom_filename
+        self.segments_count = int(segments_count or 16)
         self.video_encoder_enabled = video_encoder_enabled
         self.video_codec = video_codec or "h264"
         self.on_progress = on_progress
@@ -1051,6 +1053,7 @@ class StreamDownloadTask:
             "fragment_retries": 10,
             "buffersize": 4 * 1024 * 1024,
             "http_chunk_size": 10485760,
+            "concurrent_fragment_downloads": max(1, min(self.segments_count, 16)),
             "socket_timeout": 30,
             "cachedir": False,
             "format_sort": ["res", "fps", "vcodec:h264", "acodec:m4a", "ext:mp4:m4a"],

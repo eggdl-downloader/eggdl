@@ -32,7 +32,7 @@ const App = {
   },
 
   initTheme() {
-    const savedTheme = localStorage.getItem('eggdl_theme') || 'mint';
+    const savedTheme = localStorage.getItem('eggdl_theme') || 'dark';
     this.applyTheme(savedTheme);
 
     const themeSelector = document.getElementById('theme-selector');
@@ -52,7 +52,7 @@ const App = {
       });
     }
 
-    // 5 Visual Theme Swatch Click Listeners
+    // Theme Swatch Click Listeners
     const swatches = document.querySelectorAll('.theme-swatch-card');
     swatches.forEach(swatch => {
       swatch.addEventListener('click', () => {
@@ -65,8 +65,8 @@ const App = {
   },
 
   applyTheme(themeName) {
-    const validThemes = ['slate', 'navy', 'mint', 'frost', 'zinc'];
-    const theme = validThemes.includes(themeName) ? themeName : 'mint';
+    const validThemes = ['dark', 'midnight', 'amoled', 'slate', 'navy', 'mint', 'frost', 'zinc'];
+    const theme = validThemes.includes(themeName) ? themeName : 'dark';
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('eggdl_theme', theme);
 
@@ -319,10 +319,10 @@ const App = {
           if (badge) {
             if (task.status === 'downloading' && !badge.classList.contains('downloading')) {
               badge.className = 'status-badge downloading';
-              badge.innerHTML = '<span class="status-icon">⬇</span> Downloading';
+              badge.innerHTML = '<span>Downloading</span>';
             } else if (task.status === 'paused' && !badge.classList.contains('paused')) {
               badge.className = 'status-badge paused';
-              badge.innerHTML = '<span class="status-icon">⏸</span> Paused';
+              badge.innerHTML = '<span>Paused</span>';
             }
           }
         }
@@ -475,6 +475,47 @@ const App = {
       settingSegments.value = this.settings.max_segments_per_download;
     }
 
+    // Synchronize active theme swatch in settings modal
+    const curTheme = localStorage.getItem('eggdl_theme') || 'dark';
+    document.querySelectorAll('.theme-swatch-card').forEach(s => {
+      if (s.dataset.themeVal === curTheme) {
+        s.classList.add('active');
+      } else {
+        s.classList.remove('active');
+      }
+    });
+
+    // Synchronize PC Name, Machine ID and Pro Subscription in Settings
+    if (this.authData) {
+      const machine = this.authData.machine || {};
+      const user = this.authData.user || {};
+      const sPcName = document.getElementById('settings-pc-name-display');
+      const sDevId = document.getElementById('settings-device-id-display');
+      const sLicenseStatus = document.getElementById('settings-license-status-display');
+      if (sPcName) sPcName.innerText = machine.desktop_name || user.name || 'SRIMAN';
+      if (sDevId) sDevId.innerText = machine.machine_id || user.id || 'EGG-777-SRIMAN';
+      if (sLicenseStatus) {
+        const isPro = this.authData.is_pro;
+        const daysLeft = this.authData.days_remaining;
+        const planName = this.authData.plan_name || 'Pro';
+        if (user.plan_type === 'lifetime' || (isPro && (!daysLeft || daysLeft >= 36500))) {
+          sLicenseStatus.innerText = 'Active (Lifetime)';
+          sLicenseStatus.style.color = '#10B981';
+        } else if (isPro) {
+          const remainingStr = daysLeft ? ` • ${daysLeft} days left` : '';
+          sLicenseStatus.innerText = `Active (${planName}${remainingStr})`;
+          sLicenseStatus.style.color = '#10B981';
+        } else if (this.authData.is_trial) {
+          const tDays = this.authData.trial_days_remaining ?? 7;
+          sLicenseStatus.innerText = `Free Trial (${tDays} days left)`;
+          sLicenseStatus.style.color = '#F59E0B';
+        } else {
+          sLicenseStatus.innerText = 'Free Trial Expired';
+          sLicenseStatus.style.color = '#EF4444';
+        }
+      }
+    }
+
     // Video Encoder Settings - strictly populate from saved settings
     this.populateAdvancedSettingsModal();
   },
@@ -549,10 +590,14 @@ const App = {
         const freeText = document.getElementById('disk-free-text');
         const diskFill = document.getElementById('disk-progress');
         const statDiskFree = document.getElementById('stat-disk-free');
+        const sidebarDiskText = document.getElementById('sidebar-disk-text');
+        const sidebarDiskFill = document.getElementById('sidebar-disk-fill');
 
         if (freeText) freeText.innerText = `${res.disk.free_gb} GB Free`;
         if (statDiskFree) statDiskFree.innerText = `${res.disk.free_gb} GB Free`;
         if (diskFill) diskFill.style.width = `${res.disk.percent_used}%`;
+        if (sidebarDiskText) sidebarDiskText.innerText = `Drive C: ${res.disk.free_gb} GB Free`;
+        if (sidebarDiskFill) sidebarDiskFill.style.width = `${res.disk.percent_used}%`;
       }
     } catch (e) {
       console.error(e);
@@ -753,6 +798,13 @@ const App = {
       document.getElementById('settings-modal').style.display = 'flex';
       if (window.lucide) window.lucide.createIcons();
     });
+    document.getElementById('topbar-settings-btn')?.addEventListener('click', () => {
+      document.getElementById('open-settings-btn')?.click();
+    });
+    document.getElementById('back-settings-btn')?.addEventListener('click', () => {
+      this.applySettingsUI();
+      document.getElementById('settings-modal').style.display = 'none';
+    });
     document.getElementById('close-settings-btn')?.addEventListener('click', () => {
       this.applySettingsUI();
       document.getElementById('settings-modal').style.display = 'none';
@@ -765,6 +817,23 @@ const App = {
       if (e.target.id === 'settings-modal') {
         this.applySettingsUI();
         document.getElementById('settings-modal').style.display = 'none';
+      }
+    });
+
+    // Purchase License Website Button
+    document.getElementById('btn-purchase-website')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      const buyBtn = document.getElementById('btn-purchase-website');
+      const targetUrl = buyBtn?.getAttribute('data-url') || buyBtn?.getAttribute('href') || 'https://eggdl.com';
+      window.open(targetUrl, '_blank');
+    });
+
+    // Global Safety: Pressing Escape always closes any open modal
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        document.querySelectorAll('.modal-backdrop').forEach(m => {
+          m.style.display = 'none';
+        });
       }
     });
     document.getElementById('browse-dl-dir-btn')?.addEventListener('click', () => this.browseDownloadDirectory());
@@ -867,7 +936,7 @@ const App = {
 
       const res = await API.startDownload(fullPayload);
       if (res.success) {
-        UI.showToast('Download started with Turbo Speed!', 'success');
+        UI.showToast('Download started', 'success');
         document.getElementById('url-input').value = '';
         const clearBtn = document.getElementById('clear-input-btn');
         if (clearBtn) clearBtn.style.display = 'none';
@@ -907,7 +976,7 @@ const App = {
           'Pro'
         );
       } else if (e.errorType === 'simultaneous_limit_reached' || (e.message && e.message.includes('Simultaneous download limit reached'))) {
-        UI.showToast(e.message || '⚠️ Simultaneous download limit reached (max 2 active for Starter). Please wait for an active download to complete!', 'warning', 7000);
+        UI.showToast(e.message || 'Simultaneous download limit reached. Please wait for an active download to complete.', 'warning', 7000);
       } else {
         UI.showToast(e.message || 'Failed to start download', 'error');
       }
@@ -1063,26 +1132,31 @@ const App = {
     const dlDir = document.getElementById('setting-dl-dir')?.value.trim();
     const segments = parseInt(document.getElementById('setting-segments')?.value || 16);
     const maxActive = parseInt(document.getElementById('setting-max-active')?.value || 3);
+    const encoderToggle = document.getElementById('toggle-video-encoder');
+    const isEncoderEnabled = Boolean(encoderToggle?.checked);
+    const selectedCodec = document.querySelector('input[name="video_codec_selection"]:checked')?.value || 'h264';
 
-    // Instant premium tactile feedback - locked size, clean text only (NO tick icon)
+    // Instant tactile feedback
     if (saveBtn) {
       saveBtn.classList.add('btn-saved-pulse');
       saveBtn.textContent = 'Saved!';
     }
 
-    // Right downside toast notification for saved preferences (silent, no download audio)
+    // Right downside toast notification for saved preferences (silent)
     UI.showToast('Saved preferences', 'success', 4000);
-
-    const savedDir = dlDir || this.settings?.download_dir;
 
     try {
       const res = await API.saveSettings({
         download_dir: dlDir,
         max_segments_per_download: segments,
-        max_concurrent_downloads: maxActive
+        max_concurrent_downloads: maxActive,
+        video_encoder_enabled: isEncoderEnabled,
+        video_codec: selectedCodec
       });
       if (res && res.success) {
         this.settings = res.settings;
+        localStorage.setItem('eggdl_video_encoder_enabled', isEncoderEnabled ? 'true' : 'false');
+        localStorage.setItem('eggdl_video_codec', selectedCodec);
         this.applySettingsUI();
       }
     } catch (e) {
@@ -1090,12 +1164,12 @@ const App = {
       UI.showToast('Failed to save settings: ' + (e.message || 'Server error'), 'error');
     }
 
-    // Snappy dismissal (280ms) so user sees the instant "Saved!" confirmation with zero lag
+    // Snappy dismissal (280ms)
     setTimeout(() => {
       document.getElementById('settings-modal').style.display = 'none';
       if (saveBtn) {
         saveBtn.classList.remove('btn-saved-pulse');
-        saveBtn.textContent = 'Save Settings';
+        saveBtn.textContent = 'Save & Apply';
       }
     }, 280);
   },
@@ -1361,7 +1435,7 @@ const App = {
     document.getElementById('verify-upi-btn')?.addEventListener('click', () => {
       const upiId = document.getElementById('pay-upi-id')?.value.trim();
       if (upiId && upiId.includes('@')) {
-        UI.showToast(`✓ UPI ID "${upiId}" verified! Ready to pay.`, 'success');
+        UI.showToast(`UPI ID "${upiId}" verified. Ready to pay.`, 'success');
       } else {
         UI.showToast('Please enter a valid UPI ID (e.g. name@okhdfcbank)', 'error');
       }
@@ -1371,7 +1445,7 @@ const App = {
     document.getElementById('success-done-btn')?.addEventListener('click', () => {
       UI.closePaymentSuccessModal();
       UI.closeAccountModal();
-      UI.showToast('🚀 Pro status activated! Enjoy unlimited turbo speed.', 'success');
+      UI.showToast('Pro status activated.', 'success');
     });
   },
 
@@ -1630,7 +1704,7 @@ const App = {
         if (statusHint) {
           statusHint.style.color = '#F59E0B';
           statusHint.style.fontWeight = '600';
-          statusHint.innerHTML = `🚀 <b style="color: #F59E0B;">v${latVer} Update Available</b> &bull; <a href="javascript:void(0)" style="color: #38BDF8; text-decoration: underline; margin-left: 4px;">Click to Install</a>`;
+          statusHint.innerHTML = `<b style="color: #F59E0B;">v${latVer} Update Available</b> &bull; <a href="javascript:void(0)" style="color: #38BDF8; text-decoration: underline; margin-left: 4px;">Click to Install</a>`;
           statusHint.style.cursor = 'pointer';
           statusHint.onclick = () => this.showUpdateModal(info);
         }
@@ -1638,7 +1712,7 @@ const App = {
         if (topBanner) {
           topBanner.style.display = 'flex';
           const titleEl = document.getElementById('top-update-title');
-          if (titleEl) titleEl.innerText = `🚀 New EggDL Update v${latVer} is Available!`;
+          if (titleEl) titleEl.innerText = `New EggDL Update v${latVer} is Available`;
           const updateBtn = document.getElementById('top-update-btn');
           if (updateBtn) updateBtn.onclick = () => this.showUpdateModal(info);
           const dismissBtn = document.getElementById('top-update-dismiss');
@@ -1652,19 +1726,19 @@ const App = {
           }
         }
 
-        UI.showToast(`🎉 New EggDL Update v${latVer} is available!`, 'success', 7000);
+        UI.showToast(`New EggDL Update v${latVer} is available`, 'success', 7000);
         this.showUpdateModal(info);
       } else {
         if (topBanner) topBanner.style.display = 'none';
         if (statusHint) {
           statusHint.style.color = '#10B981';
           statusHint.style.fontWeight = '500';
-          statusHint.innerHTML = `✓ You are running the latest version (v${curVer})`;
+          statusHint.innerHTML = `You are running the latest version (v${curVer})`;
           statusHint.style.cursor = 'default';
           statusHint.onclick = null;
         }
         if (manual && window.UI) {
-          UI.showToast(`✓ EggDL v${curVer} is the latest version.`, 'success');
+          UI.showToast(`EggDL v${curVer} is the latest version.`, 'success');
         }
       }
     } catch (e) {
@@ -1708,7 +1782,7 @@ const App = {
 
     if (verBadge) verBadge.innerText = `v${info.latest_version || '2.1.9'} Available`;
     if (notesBox) {
-      const rawNotes = info.release_notes || '⚡ Strict 3 Downloads/Day for Trial\n🔒 Expired Trial Product Key Lockout\n🚀 Starter Plan: 4K Max & 2 Simultaneous Active Downloads\n👑 Cloud Product Key Activation & Real-Time Sync\n🎬 4K/8K stream download optimizations';
+      const rawNotes = info.release_notes || 'Performance and stability improvements\nEnhanced stream resolution handling\nOptimized parallel downloads';
       notesBox.innerHTML = rawNotes.split('\n').map(l => `<div style="margin-bottom: 4px;">${l}</div>`).join('');
     }
 
@@ -1748,7 +1822,7 @@ const App = {
                 if (pBar) pBar.style.width = '100%';
                 if (pPercent) pPercent.innerText = '100%';
                 if (pSpeed) pSpeed.innerText = 'Ready';
-                if (pTitle) pTitle.innerHTML = '✅ Update Download Complete!';
+                if (pTitle) pTitle.innerHTML = 'Update Download Complete';
                 if (pSub) pSub.innerText = 'EggDL is ready to install the new update.';
                 if (installBtn) {
                   installBtn.style.display = 'inline-flex';
@@ -1758,7 +1832,7 @@ const App = {
                     installBtn.disabled = true;
                     installBtn.innerHTML = '<i data-lucide="loader-2" class="spin"></i> Restarting EggDL...';
                     if (window.lucide) window.lucide.createIcons();
-                    UI.showToast('🚀 Launching update installer...', 'success', 5000);
+                    UI.showToast('Launching update installer...', 'success', 5000);
                     try {
                       const res = await API.installUpdate();
                       if (res && res.success === false) {
@@ -1971,7 +2045,7 @@ const App = {
         try {
           pushReleaseBtn.disabled = true;
           await API.adminPushRelease(this.adminKey, ver, notes, url);
-          UI.showToast(`🚀 Broadcasted v${ver} update to all users!`, 'success');
+          UI.showToast(`Broadcasted v${ver} update to all users!`, 'success');
         } catch (e) {
           UI.showToast('Push failed: ' + e.message, 'error');
         } finally {
@@ -2041,7 +2115,7 @@ const App = {
     }
     try {
       await API.adminPushRelease(this.adminKey, ver, notes, url, mandatory);
-      UI.showToast(`🚀 Broadcasted v${ver} update to all users!`, 'success');
+      UI.showToast(`Broadcasted v${ver} update to all users!`, 'success');
     } catch (e) {
       UI.showToast('Push failed: ' + e.message, 'error');
     } finally {

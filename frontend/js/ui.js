@@ -110,6 +110,7 @@ const UI = {
     switch (category) {
       case 'video': return 'video';
       case 'audio': return 'music';
+      case 'image': return 'image';
       case 'document': return 'file-text';
       case 'compressed': return 'archive';
       case 'program': return 'terminal';
@@ -335,7 +336,7 @@ const UI = {
           </div>
           <div class="dl-complete-file-info">
             <div class="dl-complete-filename" title="Encoder Preferences">${enabled ? 'Video Transcoding Active' : 'Native Source Download Mode'}</div>
-            <div class="dl-complete-filesize" style="color: #34D399; font-weight: 600;">${enabled ? `Codec: ${codecLabel}` : '✓ Instant Single-File Output (Zero Lag)'}</div>
+            <div class="dl-complete-filesize" style="color: #34D399; font-weight: 600;">${enabled ? `Codec: ${codecLabel}` : 'Native Format (Direct Stream)'}</div>
           </div>
         </div>
       </div>
@@ -656,12 +657,12 @@ const UI = {
       const statusClass = (effectiveStatus === 'stopped') ? 'canceled' : effectiveStatus;
       
       let statusLabel = `<span>${effectiveStatus}</span>`;
-      if (effectiveStatus === 'completed') statusLabel = '<i data-lucide="check"></i> <span>Completed</span>';
-      else if (effectiveStatus === 'downloading') statusLabel = '<i data-lucide="download"></i> <span>Downloading</span>';
-      else if (effectiveStatus === 'paused') statusLabel = '<i data-lucide="pause"></i> <span>Paused</span>';
-      else if (effectiveStatus === 'canceled' || effectiveStatus === 'stopped') statusLabel = '<i data-lucide="x"></i> <span>Canceled</span>';
-      else if (effectiveStatus === 'error') statusLabel = '<i data-lucide="alert-circle"></i> <span>Error</span>';
-      else if (effectiveStatus === 'queued') statusLabel = '<i data-lucide="clock"></i> <span>Queued</span>';
+      if (effectiveStatus === 'completed') statusLabel = '<span>Completed</span>';
+      else if (effectiveStatus === 'downloading') statusLabel = '<span>Downloading</span>';
+      else if (effectiveStatus === 'paused') statusLabel = '<span>Paused</span>';
+      else if (effectiveStatus === 'canceled' || effectiveStatus === 'stopped') statusLabel = '<span>Canceled</span>';
+      else if (effectiveStatus === 'error' || effectiveStatus === 'failed') statusLabel = '<span>Failed</span>';
+      else if (effectiveStatus === 'queued') statusLabel = '<span>Queued</span>';
       
       const title = item.title || item.filename || 'Download';
       const cleanUrl = (item.url && item.url.startsWith('data:')) ? 'data:image/... [Embedded Image Data]' : (item.url || '');
@@ -690,11 +691,7 @@ const UI = {
               <span class="row-progress-pct">${effectiveProgress}%</span>
             </div>
           </td>
-          <td class="col-status">
-            <span class="status-badge ${statusClass}">
-              ${statusLabel}
-            </span>
-          </td>
+          <td class="col-status"><span class="status-badge ${statusClass}">${statusLabel}</span></td>
           <td class="col-date">${UI.formatDate(item.created_at)}</td>
           <td class="col-actions">
             <div class="action-buttons">
@@ -721,9 +718,6 @@ const UI = {
                 </button>
                 <button class="action-icon-btn action-delete" onclick="App.deleteDownload('${item.id}')" title="Delete">
                   <i data-lucide="trash-2"></i>
-                </button>
-                <button class="action-icon-btn action-play" onclick="UI.openPlayerModal('${item.id}', '${(item.title || item.filename || '').replace(/'/g, "\\'")}')" title="Play Video / Audio">
-                  <i data-lucide="play"></i>
                 </button>
               ` : (isFailedOrCanceled ? `
                 <button class="action-icon-btn action-play" onclick="App.resumeTask('${item.id}')" title="Retry Download">
@@ -866,7 +860,7 @@ const UI = {
       modalBody.innerHTML = `
         <div class="media-preview-box">
           <div class="type-icon ${data.category || 'other'}" style="width: 48px; height: 48px;">
-            <i data-lucide="${UI.getCategoryIcon(data.category)}"></i>
+            <i data-lucide="${UI.getCategoryIcon(data.category)}" style="width: 24px; height: 24px;"></i>
           </div>
           <div class="media-preview-info">
             <h3 id="direct-filename-preview">${data.filename}</h3>
@@ -889,9 +883,9 @@ const UI = {
             <option value="1">1 Connection (Single stream)</option>
             <option value="4">4 Connections</option>
             <option value="8">8 Connections</option>
-            <option value="16" selected>16 Connections (Recommended - Optimal Speed)</option>
-            <option value="24">24 Connections (High-Speed Turbo)</option>
-            <option value="32">32 Connections (Maximum Turbo)</option>
+            <option value="16" selected>16 Connections (Recommended)</option>
+            <option value="24">24 Connections</option>
+            <option value="32">32 Connections (Maximum Performance)</option>
           </select>
           ${!data.supports_ranges ? '<small class="form-hint" style="color: var(--accent-amber);">Server does not support Range headers; downloading in 1 stream.</small>' : ''}
         </div>
@@ -992,32 +986,12 @@ const UI = {
   },
 
   openPlayerModal(taskId, title) {
-    const modal = document.getElementById('player-modal');
-    const video = document.getElementById('player-video-element');
-    const titleEl = document.getElementById('player-title');
-    const extBtn = document.getElementById('player-external-btn');
-
-    if (titleEl) titleEl.innerText = title || 'Playing Media';
-    if (video) {
-      video.src = `/api/media/${taskId}`;
-      video.play().catch(() => {});
+    if (taskId && typeof App !== 'undefined' && App.openFile) {
+      App.openFile(taskId);
     }
-    if (extBtn) {
-      extBtn.onclick = () => App.openFile(taskId);
-    }
-    if (modal) modal.style.display = 'flex';
-    lucide.createIcons();
   },
 
-  closePlayerModal() {
-    const modal = document.getElementById('player-modal');
-    const video = document.getElementById('player-video-element');
-    if (video) {
-      video.pause();
-      video.src = '';
-    }
-    if (modal) modal.style.display = 'none';
-  },
+  closePlayerModal() {},
 
   getPlanDisplayName(planType) {
     if (!planType) return 'Pro';
@@ -1172,6 +1146,31 @@ const UI = {
 
     if (nameEl) nameEl.innerText = desktopName;
     if (machineIdEl) machineIdEl.innerText = machineId;
+
+    // Synchronize Device & Pro details in Settings Modal
+    const sPcName = document.getElementById('settings-pc-name-display');
+    const sDevId = document.getElementById('settings-device-id-display');
+    const sLicenseStatus = document.getElementById('settings-license-status-display');
+    if (sPcName) sPcName.innerText = desktopName;
+    if (sDevId) sDevId.innerText = machineId;
+    if (sLicenseStatus) {
+      if (user.plan_type === 'lifetime' || (isPro && (!daysLeft || daysLeft >= 36500))) {
+        sLicenseStatus.innerText = 'Active (Lifetime)';
+        sLicenseStatus.style.color = '#10B981';
+      } else if (isPro) {
+        const remainingStr = daysLeft ? ` • ${daysLeft} days left` : '';
+        sLicenseStatus.innerText = `Active (${planName || 'Pro'}${remainingStr})`;
+        sLicenseStatus.style.color = '#10B981';
+      } else if (authData?.is_trial) {
+        const tDays = authData.trial_days_remaining ?? 7;
+        sLicenseStatus.innerText = `Free Trial (${tDays} days left)`;
+        sLicenseStatus.style.color = '#F59E0B';
+      } else {
+        sLicenseStatus.innerText = 'Free Trial Expired';
+        sLicenseStatus.style.color = '#EF4444';
+      }
+    }
+
     if (!preserveKeyInput) {
       if (keyInput) keyInput.value = '';
       if (feedbackMsg) feedbackMsg.style.display = 'none';
@@ -1339,11 +1338,11 @@ const UI = {
     this.currentPaymentMethod = 'upi';
 
     const planPrices = {
-      '1month': { name: 'Starter (1 Month)', price: 99, desc: '30 Days • 16 Turbo Threads • Up to 4K Ultra HD • 2 Simultaneous' },
-      '3month': { name: 'Pro (3 Months)', price: 249, desc: '90 Days • 24 Turbo Threads • Full 8K Ultra HD • 5 Simultaneous' },
-      '6month': { name: 'Elite (6 Months)', price: 449, desc: '180 Days • 32 Turbo Threads • 10 Simultaneous • Smart Media Sniffer' },
-      '1year': { name: 'Ultra Elite (1 Year)', price: 699, desc: '365 Days • 48 Turbo Threads • 20 Simultaneous • VIP Speeds' },
-      'lifetime': { name: 'Ultimate Pass (Lifetime)', price: 1499, desc: 'Permanent Pass • Unlimited Everything • Infinite Simultaneous Downloads' }
+      '1month': { name: 'Starter (1 Month)', price: 99, desc: '30 Days • 16 Connections • Up to 4K Ultra HD • 2 Simultaneous' },
+      '3month': { name: 'Pro (3 Months)', price: 249, desc: '90 Days • 24 Connections • Full 8K Ultra HD • 5 Simultaneous' },
+      '6month': { name: 'Elite (6 Months)', price: 449, desc: '180 Days • 32 Connections • 10 Simultaneous • Media Sniffer' },
+      '1year': { name: 'Ultra Elite (1 Year)', price: 699, desc: '365 Days • 48 Connections • 20 Simultaneous • Maximum Speed' },
+      'lifetime': { name: 'Ultimate Pass (Lifetime)', price: 1499, desc: 'Permanent License • Unlimited Downloads • All Future Updates' }
     };
 
     const info = planPrices[planType] || planPrices['1month'];
@@ -1428,6 +1427,7 @@ const UI = {
       const okBtn = document.getElementById('confirm-modal-ok-btn');
       const cancelBtn = document.getElementById('confirm-modal-cancel-btn');
       const iconWrapper = document.getElementById('confirm-modal-icon');
+      const closeXBtn = document.getElementById('confirm-modal-close-x');
 
       if (!modal) {
         resolve(window.confirm(message));
@@ -1438,16 +1438,13 @@ const UI = {
       if (descEl) descEl.innerText = message;
       if (okBtn) {
         okBtn.innerText = confirmText;
-        okBtn.className = isDanger ? 'btn btn-danger btn-glow' : 'btn btn-primary btn-glow';
-        okBtn.style.flex = '1';
-        okBtn.style.padding = '10px 16px';
+        okBtn.className = isDanger ? 'btn btn-danger btn-sm' : 'btn btn-primary btn-sm';
       }
       if (cancelBtn) {
         cancelBtn.innerText = cancelText;
       }
       if (iconWrapper) {
-        iconWrapper.style.background = isDanger ? 'rgba(239, 68, 68, 0.12)' : 'rgba(59, 130, 246, 0.12)';
-        iconWrapper.style.color = isDanger ? '#EF4444' : '#3B82F6';
+        iconWrapper.style.color = isDanger ? '#EF4444' : 'var(--accent-primary)';
         iconWrapper.innerHTML = `<i data-lucide="${icon}"></i>`;
       }
 
@@ -1458,11 +1455,17 @@ const UI = {
         modal.style.display = 'none';
         okBtn.onclick = null;
         cancelBtn.onclick = null;
+        if (closeXBtn) closeXBtn.onclick = null;
+        modal.onclick = null;
         resolve(result);
       };
 
       okBtn.onclick = () => cleanup(true);
       cancelBtn.onclick = () => cleanup(false);
+      if (closeXBtn) closeXBtn.onclick = () => cleanup(false);
+      modal.onclick = (e) => {
+        if (e.target === modal) cleanup(false);
+      };
     });
   },
 
@@ -1622,17 +1625,17 @@ const UI = {
       // Formatted License Badge with exact Days Left (No redundant 'Active Now' underneath)
       let licenseBadgeHtml = '';
       if (isBlocked) {
-        licenseBadgeHtml = `<div style="font-size:0.84rem;font-weight:800;color:#EF4444;letter-spacing:0.2px;">🚨 BLOCKED / KILLED</div>`;
+        licenseBadgeHtml = `<div style="font-size:0.84rem;font-weight:800;color:#EF4444;letter-spacing:0.2px;">BLOCKED</div>`;
       } else if (isPro) {
         if (planType === 'lifetime' || daysLeft >= 36500) {
-          licenseBadgeHtml = `<div style="font-size:0.84rem;font-weight:800;color:#FBBF24;display:flex;align-items:center;gap:4px;justify-content:flex-end;">👑 PRO (Lifetime) • Permanent</div>`;
+          licenseBadgeHtml = `<div style="font-size:0.84rem;font-weight:800;color:#FBBF24;display:flex;align-items:center;gap:4px;justify-content:flex-end;">PRO (Lifetime) • Permanent</div>`;
         } else {
-          licenseBadgeHtml = `<div style="font-size:0.84rem;font-weight:800;color:#10B981;display:flex;align-items:center;gap:4px;justify-content:flex-end;">⭐ PRO (${planType}) • <span style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);padding:1px 6px;border-radius:4px;">${daysLeft} days left</span></div>`;
+          licenseBadgeHtml = `<div style="font-size:0.84rem;font-weight:800;color:#10B981;display:flex;align-items:center;gap:4px;justify-content:flex-end;">PRO (${planType}) • <span style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);padding:1px 6px;border-radius:4px;">${daysLeft} days left</span></div>`;
         }
       } else if (isTrial) {
-        licenseBadgeHtml = `<div style="font-size:0.84rem;font-weight:800;color:#F59E0B;display:flex;align-items:center;gap:4px;justify-content:flex-end;">⏳ Free Trial • <span style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.3);padding:1px 6px;border-radius:4px;">${trialDaysLeft} days left</span></div>`;
+        licenseBadgeHtml = `<div style="font-size:0.84rem;font-weight:800;color:#F59E0B;display:flex;align-items:center;gap:4px;justify-content:flex-end;">Free Trial • <span style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.3);padding:1px 6px;border-radius:4px;">${trialDaysLeft} days left</span></div>`;
       } else {
-        licenseBadgeHtml = `<div style="font-size:0.84rem;font-weight:700;color:#94A3B8;">⚠️ Free Trial Expired</div>`;
+        licenseBadgeHtml = `<div style="font-size:0.84rem;font-weight:700;color:#94A3B8;">Free Trial Expired</div>`;
       }
 
       html += `

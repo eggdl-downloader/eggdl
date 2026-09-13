@@ -18,15 +18,14 @@ DisableProgramGroupPage=yes
 DefaultGroupName={#MyAppName}
 OutputBaseFilename=EggDL_Setup
 OutputDir=dist
-Compression=lzma2/ultra64
+Compression=lzma2/normal
 SolidCompression=yes
 WizardStyle=modern
 SetupIconFile=eggdl.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
-CloseApplications=yes
-CloseApplicationsFilter=*.exe
+CloseApplications=no
 RestartApplications=no
 
 [Languages]
@@ -63,8 +62,9 @@ var
   ErrorCode: Integer;
 begin
   // Forcefully terminate any running EggDL instances before installation/update
-  Exec('taskkill.exe', '/F /IM EggDL.exe', '', SW_HIDE, ewWaitUntilTerminated, ErrorCode);
-  Sleep(400);
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM EggDL.exe /T', '', SW_HIDE, ewWaitUntilTerminated, ErrorCode);
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM msedgewebview2.exe /FI "WINDOWTITLE eq EggDL*"', '', SW_HIDE, ewWaitUntilTerminated, ErrorCode);
+  Sleep(300);
   Result := True;
 end;
 
@@ -72,8 +72,8 @@ function InitializeUninstall(): Boolean;
 var
   ErrorCode: Integer;
 begin
-  Exec('taskkill.exe', '/F /IM EggDL.exe', '', SW_HIDE, ewWaitUntilTerminated, ErrorCode);
-  Sleep(400);
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM EggDL.exe /T', '', SW_HIDE, ewWaitUntilTerminated, ErrorCode);
+  Sleep(300);
   Result := True;
 end;
 

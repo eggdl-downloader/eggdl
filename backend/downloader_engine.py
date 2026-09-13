@@ -431,14 +431,10 @@ class DownloadTask:
             self.segments.append(Segment(0, 0, self.file_size - 1 if self.file_size > 0 else -1, downloaded=0))
             return
 
-        # Ultra-speed turbo connection scaling based on file size
-        active_count = self.segments_count
-        if active_count < 16 and self.file_size >= 10 * 1024 * 1024:
-            active_count = 16
-        if active_count < 24 and self.file_size >= 50 * 1024 * 1024:
-            active_count = 24
-        if active_count < 32 and self.file_size >= 100 * 1024 * 1024:
-            active_count = 32
+        # Strictly respect user configured parallel connection count (e.g. 16, 24, 32)
+        active_count = max(1, self.segments_count if self.segments_count else 16)
+        if self.file_size > 0:
+            active_count = min(active_count, self.file_size)
 
         chunk_size = math.ceil(self.file_size / active_count)
         for i in range(active_count):

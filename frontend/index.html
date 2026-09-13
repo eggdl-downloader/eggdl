@@ -12,14 +12,13 @@
   <meta name="apple-mobile-web-app-title" content="EggDL">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/geist@1.3.0/dist/core.css">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <!-- Lucide Icons (Bundled locally for 100% offline standalone operation) -->
   <script src="/static/js/lucide.min.js?v=64.0"></script>
-  <link rel="stylesheet" href="/static/css/style.css?v=64.0">
+  <link rel="stylesheet" href="/static/css/style.css?v=74.0">
 </head>
 <body>
   <div class="app-container">
@@ -77,55 +76,27 @@
           <i data-lucide="settings"></i>
           <span class="nav-text">Settings</span>
         </button>
-        <button class="nav-item" id="open-advanced-settings-btn">
-          <i data-lucide="sliders"></i>
-          <span class="nav-text">Advanced Settings</span>
-        </button>
       </nav>
+
+      <!-- Sidebar Bottom Disk Space Indicator -->
+      <div class="sidebar-disk-widget" id="sidebar-disk-widget" title="Live Local Drive Free Storage">
+        <div class="sidebar-disk-info">
+          <i data-lucide="hard-drive"></i>
+          <span id="sidebar-disk-text">Drive C: ... Free</span>
+        </div>
+        <div class="sidebar-disk-track">
+          <div class="sidebar-disk-fill" id="sidebar-disk-fill" style="width: 45%;"></div>
+        </div>
+      </div>
     </aside>
 
     <!-- Main Content Area -->
     <main class="main-content">
-      <!-- Top Bar (Standard 56dp M3 TopAppBar on Android / Mobile) -->
+      <!-- Top Bar (Clean Minimal Topside) -->
       <header class="topbar">
         <div class="m3-topbar-brand">
           <img src="/static/images/egg-icon.png" class="m3-brand-icon" alt="EggDL">
           <span class="m3-brand-title">EggDL</span>
-        </div>
-
-        <div class="topbar-actions">
-          <div class="theme-select-wrapper" title="Switch Theme">
-            <i data-lucide="palette" class="theme-icon"></i>
-            <select id="theme-selector" class="theme-select-native" aria-label="Select Theme">
-              <option value="slate">Slate</option>
-              <option value="navy">Navy</option>
-              <option value="mint">Mint</option>
-              <option value="frost">Frost</option>
-              <option value="zinc">Zinc</option>
-            </select>
-          </div>
-          <button class="btn btn-secondary btn-sm" id="open-folder-btn" title="Open Download Folder">
-            <i data-lucide="folder-open"></i>
-            <span>Open Folder</span>
-          </button>
-          <button class="btn btn-secondary btn-sm" id="clear-all-btn" title="Clear All Downloads">
-            <i data-lucide="trash-2"></i>
-            <span>Clear All</span>
-          </button>
-          <div id="user-header-area">
-            <button class="user-pill-btn" id="user-profile-btn" title="Click to view License & Registration">
-              <i data-lucide="monitor" class="user-pc-icon"></i>
-              <span class="user-name" id="header-pc-name">SRIMAN</span>
-              <span class="user-plan-badge pro" id="header-plan-badge">
-                <svg class="badge-star" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0.5L9.6 6.4L15.5 8L9.6 9.6L8 15.5L6.4 9.6L0.5 8L6.4 6.4L8 0.5Z"/></svg>
-                <span>Pro</span>
-              </span>
-            </button>
-          </div>
-          <!-- M3 TopAppBar Settings Icon (48dp Touch Target) -->
-          <button class="m3-icon-btn" id="m3-settings-topbar-btn" title="Settings">
-            <i data-lucide="settings"></i>
-          </button>
         </div>
       </header>
 
@@ -150,8 +121,8 @@
         </div>
       </div>
 
-      <!-- Quick Dashboard Stats Bar -->
-      <section class="stats-grid">
+      <!-- Quick Dashboard Stats Bar (Hidden for clean minimal topside) -->
+      <section class="stats-grid" style="display: none;">
         <div class="stat-card">
           <div class="stat-icon-wrapper speed">
             <i data-lucide="zap"></i>
@@ -199,7 +170,7 @@
           <div class="input-icon">
             <i data-lucide="link-2"></i>
           </div>
-          <input type="text" id="url-input" name="eggdl_download_url_field" placeholder="Paste any video link (YouTube, Instagram, TikTok...) or direct URL..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+          <input type="text" id="url-input" name="eggdl_download_url_field" placeholder="Paste any video or file URL to download..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
           <button class="btn btn-secondary btn-icon-only" id="clear-input-btn" title="Clear input" style="display: none;">
             <i data-lucide="x"></i>
           </button>
@@ -208,7 +179,7 @@
           </button>
         </div>
         <button class="btn-download-action" id="inspect-btn">
-          <i data-lucide="arrow-down-circle"></i>
+          <i data-lucide="download"></i>
           <span>Download</span>
         </button>
       </section>
@@ -229,12 +200,22 @@
       <!-- Downloads History Table Section -->
       <section class="history-section" id="history-section">
         <div class="section-header">
-          <h2 id="section-title">All Downloads</h2>
-          <div class="filter-controls">
+          <div class="section-header-left">
+            <h2 id="section-title">All Downloads</h2>
             <form class="search-box" role="search" onsubmit="return false;" autocomplete="off">
-              <i data-lucide="search"></i>
+              <i data-lucide="search" class="search-icon"></i>
               <input type="search" id="search-history" name="eggdl_filter_search" placeholder="Search downloads..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly');" onblur="if(!this.value) this.setAttribute('readonly', 'readonly');">
             </form>
+          </div>
+          <div class="history-actions">
+            <button class="btn btn-secondary btn-sm" id="open-folder-btn" title="Open Download Folder">
+              <i data-lucide="folder"></i>
+              <span>Open Folder</span>
+            </button>
+            <button class="btn btn-secondary btn-sm" id="clear-all-btn" title="Clear All Downloads">
+              <i data-lucide="trash-2"></i>
+              <span>Clear All</span>
+            </button>
           </div>
         </div>
 
@@ -246,9 +227,9 @@
                 <th class="th-file">File / Name</th>
                 <th class="th-size" style="width: 85px;">Size</th>
                 <th class="th-progress" style="width: 140px;">Progress</th>
-                <th class="th-status" style="width: 125px; padding: 10px 10px;">Status</th>
+                <th class="th-status" style="width: 115px; padding: 10px 10px; text-align: left;">Status</th>
                 <th class="th-date" style="width: 130px; padding: 10px 12px;">Date</th>
-                <th class="th-actions" style="width: 190px; text-align: right; padding-right: 18px; padding-left: 8px;">Actions</th>
+                <th class="th-actions" style="width: 130px; text-align: right; padding-right: 18px; padding-left: 8px;">Actions</th>
               </tr>
             </thead>
             <tbody id="downloads-tbody">
@@ -327,200 +308,212 @@
     </div>
   </div>
 
-  <!-- Settings Modal -->
-  <div class="modal-backdrop" id="settings-modal" style="display: none;">
-    <div class="modal-card modal-sm">
-      <div class="modal-header">
-        <div class="modal-title">
-          <i data-lucide="settings"></i>
-          <span>EggDL Settings</span>
+  <!-- Settings & Preferences Modal -->
+  <div class="modal-backdrop" id="settings-modal" style="display: none; z-index: 10000;">
+    <div class="modal-card" style="max-width: 620px; width: 92%; max-height: 90vh; display: flex; flex-direction: column;">
+      <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--border-default);">
+        <div class="modal-title" style="display: flex; align-items: center; gap: 8px; font-size: 1.05rem; font-weight: 700; color: var(--text-main);">
+          <i data-lucide="settings" style="color: #38BDF8; width: 18px; height: 18px;"></i>
+          <span>Settings &amp; Preferences</span>
         </div>
-        <button class="modal-close" id="close-settings-btn">
+        <button class="modal-close" id="close-settings-btn" title="Close Settings">
           <i data-lucide="x"></i>
         </button>
       </div>
 
-      <div class="modal-body">
-        <div class="form-group">
-          <label for="setting-dl-dir">Download Directory</label>
-          <div class="input-action-group">
-            <input type="text" id="setting-dl-dir" class="form-control" placeholder="C:\Users\...\Downloads\EggDL">
-            <button type="button" class="btn-browse-dir" id="browse-dl-dir-btn" title="Select Download Folder from File Explorer">
-              <i data-lucide="folder-open"></i>
-            </button>
-          </div>
-          <small class="form-hint">Files will be saved in this folder.</small>
-        </div>
-
-        <div class="form-group">
-          <label for="setting-segments">Parallel Connections (Multi-thread Acceleration)</label>
-          <select id="setting-segments" class="form-control">
-            <option value="1">1 (Single connection)</option>
-            <option value="4">4 Connections</option>
-            <option value="8">8 Connections</option>
-            <option value="16" selected>16 Connections (Recommended - Optimal Speed)</option>
-            <option value="24">24 Connections (High-Speed Turbo)</option>
-            <option value="32">32 Connections (Maximum Turbo)</option>
-          </select>
-          <small class="form-hint">Multi-segmented multipart downloading dramatically accelerates transfer speeds.</small>
-        </div>
-
-        <div class="form-group">
-          <label for="setting-max-active">Max Concurrent Downloads</label>
-          <select id="setting-max-active" class="form-control">
-            <option value="1">1 download at a time</option>
-            <option value="3" selected>3 downloads</option>
-            <option value="5">5 downloads</option>
-            <option value="10">10 downloads</option>
-          </select>
-        </div>
-
-
-
-        <!-- App Version & Updates Section -->
-        <div class="form-group" style="border-top: 1px solid var(--border-color); padding-top: 14px; margin-top: 14px;">
-          <label style="display: flex; justify-content: space-between; align-items: center;">
-            <span>App Version & Updates</span>
-            <span class="badge" style="font-size: 0.76rem; font-weight: 700; padding: 3px 10px; background: rgba(59, 130, 246, 0.18); color: #38BDF8; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.3);" id="settings-app-version">v2.1.9</span>
-          </label>
-          <div style="margin-top: 8px;">
-            <button type="button" class="btn btn-secondary btn-sm" id="btn-check-updates" style="width: 100%; justify-content: center;">
-              <i data-lucide="refresh-cw"></i> Check for Updates
-            </button>
-          </div>
-          <small class="form-hint" id="settings-update-status" style="margin-top: 8px; display: block; font-size: 0.8rem; color: #10B981; font-weight: 500;">✓ EggDL v2.1.9 is up to date</small>
-        </div>
-      </div>
-
-      <div class="modal-footer">
-        <button class="btn btn-secondary" id="cancel-settings-btn">Cancel</button>
-        <button class="btn btn-primary" id="save-settings-btn">Save Settings</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Advanced Settings Modal (Video Encoder & Performance Codecs) -->
-  <div class="modal-backdrop" id="advanced-settings-modal" style="display: none; z-index: 10000;">
-    <div class="modal-card" style="max-width: 580px;">
-      <div class="modal-header">
-        <div class="modal-title">
-          <i data-lucide="sliders" style="color: #38BDF8;"></i>
-          <span>Advanced Settings</span>
-        </div>
-        <button class="modal-close" id="close-advanced-settings-btn">
-          <i data-lucide="x"></i>
-        </button>
-      </div>
-
-      <div class="modal-body" style="padding: 20px 22px;">
+      <div class="modal-body" style="padding: 18px 22px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px;">
         
-        <!-- Video Encoder Module Card -->
-        <div class="card" style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px; padding: 18px 20px; margin-bottom: 16px;">
-          
-          <!-- Top Row: Title + Master Toggle Switch -->
-          <div style="display: flex; justify-content: space-between; align-items: center; gap: 14px;">
-            <div>
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-weight: 800; font-size: 1.02rem; color: var(--text-main);">Video Encoder</span>
-                <span style="font-size: 0.70rem; font-weight: 700; padding: 2px 7px; background: rgba(56, 189, 248, 0.15); color: #38BDF8; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.25);">Pro Transcoder</span>
-              </div>
-              <p style="font-size: 0.80rem; color: var(--text-muted); margin-top: 4px; margin-bottom: 0; line-height: 1.4;">
-                Transcode downloaded video streams into custom hardware-compatible video codecs.
-              </p>
+        <!-- Section 1: Device & Subscription -->
+        <div class="settings-card-box">
+          <div class="settings-box-header">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <i data-lucide="monitor" style="color: #38BDF8; width: 18px; height: 18px;"></i>
+              <span style="font-weight: 700; font-size: 0.92rem; color: var(--text-main);">Device &amp; Subscription</span>
             </div>
-            
-            <!-- Master Toggle Switch (Default OFF) -->
+          </div>
+          <div style="display: grid; gap: 8px; font-size: 0.84rem; color: var(--text-secondary); margin-top: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span>PC Name:</span>
+              <b style="color: var(--text-main); font-size: 0.90rem;" id="settings-pc-name-display">SRIMAN</b>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span>License Status:</span>
+              <span style="color: #10B981; font-weight: 600;" id="settings-license-status-display">Active (Lifetime)</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span>Device ID:</span>
+              <span class="font-mono text-dim" style="font-size: 0.76rem;" id="settings-device-id-display">EGG-777-SRIMAN</span>
+            </div>
+          </div>
+
+          <!-- Purchase / Upgrade License on Website Section -->
+          <div class="settings-purchase-box" style="margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-default); display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <div>
+              <div style="font-size: 0.82rem; font-weight: 600; color: var(--text-main);">Subscription &amp; Upgrades</div>
+              <div style="font-size: 0.74rem; color: var(--text-muted);">Purchase official license keys directly from our website.</div>
+            </div>
+            <a href="https://eggdl.com" target="_blank" id="btn-purchase-website" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 6px; text-decoration: none; font-weight: 600; padding: 6px 14px; border-radius: 6px;" title="Purchase License on Website">
+              <i data-lucide="external-link" style="width: 14px; height: 14px;"></i>
+              <span>Purchase License</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Section 2: Network & Download Settings -->
+        <div class="settings-card-box">
+          <div class="settings-box-header">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <i data-lucide="network" style="color: #38BDF8; width: 18px; height: 18px;"></i>
+              <span style="font-weight: 700; font-size: 0.92rem; color: var(--text-main);">Network &amp; Connections</span>
+            </div>
+          </div>
+          <div style="margin-top: 10px;">
+            <p style="font-size: 0.80rem; color: var(--text-muted); margin: 0 0 10px 0; line-height: 1.4;">
+              Configure parallel stream connections and concurrent active downloads for optimal transfer rates.
+            </p>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px;">
+              <div>
+                <label for="setting-segments" style="font-size: 0.76rem; font-weight: 700; color: var(--text-secondary); display: block; margin-bottom: 4px;">PARALLEL CONNECTIONS</label>
+                <select id="setting-segments" class="form-control" style="font-size: 0.82rem;">
+                  <option value="16">16 Connections</option>
+                  <option value="24">24 Connections</option>
+                  <option value="32" selected>32 Connections (Recommended)</option>
+                </select>
+              </div>
+              <div>
+                <label for="setting-max-active" style="font-size: 0.76rem; font-weight: 700; color: var(--text-secondary); display: block; margin-bottom: 4px;">CONCURRENT DOWNLOADS</label>
+                <select id="setting-max-active" class="form-control" style="font-size: 0.82rem;">
+                  <option value="3">3 downloads</option>
+                  <option value="5" selected>5 downloads</option>
+                  <option value="10">10 downloads</option>
+                  <option value="20">20 downloads</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 3: Interface Theme -->
+        <div class="settings-card-box">
+          <div class="settings-box-header">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <i data-lucide="palette" style="color: #EC4899; width: 18px; height: 18px;"></i>
+              <span style="font-weight: 700; font-size: 0.92rem; color: var(--text-main);">Appearance Theme</span>
+            </div>
+          </div>
+          <div style="margin-top: 10px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;">
+            <button type="button" class="theme-swatch-card" data-theme-val="dark" title="Pure Dark Theme" onclick="UI.applyTheme('dark');">
+              <div class="swatch-preview" style="background: #0F0F0F; border: 1px solid #3EA6FF;"></div>
+              <span>Pure Dark</span>
+            </button>
+            <button type="button" class="theme-swatch-card" data-theme-val="midnight" title="Midnight Navy Theme" onclick="UI.applyTheme('midnight');">
+              <div class="swatch-preview" style="background: #0A0F1D; border: 1px solid #38BDF8;"></div>
+              <span>Midnight</span>
+            </button>
+            <button type="button" class="theme-swatch-card" data-theme-val="mint" title="Emerald Mint Theme" onclick="UI.applyTheme('mint');">
+              <div class="swatch-preview" style="background: #0A1612; border: 1px solid #10B981;"></div>
+              <span>Emerald</span>
+            </button>
+            <button type="button" class="theme-swatch-card" data-theme-val="frost" title="Frost Modern Theme" onclick="UI.applyTheme('frost');">
+              <div class="swatch-preview" style="background: #111827; border: 1px solid #60A5FA;"></div>
+              <span>Frost</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Section 4: Download Directory -->
+        <div class="settings-card-box">
+          <div class="settings-box-header">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <i data-lucide="folder" style="color: #38BDF8; width: 18px; height: 18px;"></i>
+              <span style="font-weight: 700; font-size: 0.92rem; color: var(--text-main);">Download Directory</span>
+            </div>
+          </div>
+          <div style="margin-top: 10px;">
+            <div class="input-action-group">
+              <input type="text" id="setting-dl-dir" class="form-control" placeholder="C:\Users\...\Downloads\EggDL">
+              <button type="button" class="btn-browse-dir" id="browse-dl-dir-btn" title="Select Download Folder from File Explorer" style="display: inline-flex; align-items: center; gap: 8px;">
+                <i data-lucide="folder" style="width: 15px; height: 15px; flex-shrink: 0;"></i> <span style="line-height: 1;">Browse</span>
+              </button>
+            </div>
+            <small class="form-hint" id="settings-disk-hint">Files are saved automatically in this folder.</small>
+          </div>
+        </div>
+
+        <!-- Section 5: Video Encoding & Codecs (Merged from Advanced Settings) -->
+        <div class="settings-card-box" id="settings-advanced-box">
+          <div class="settings-box-header">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <i data-lucide="sliders" style="color: #A78BFA; width: 18px; height: 18px;"></i>
+              <span style="font-weight: 700; font-size: 0.92rem; color: var(--text-main);">Video Encoding &amp; Codecs</span>
+            </div>
             <label class="switch-toggle" style="cursor: pointer;" title="Toggle Video Transcoding">
               <input type="checkbox" id="toggle-video-encoder">
               <span class="slider-round"></span>
             </label>
           </div>
+          <p style="font-size: 0.80rem; color: var(--text-muted); margin: 4px 0 10px 0; line-height: 1.4;">
+            Optionally transcode downloaded video streams into a specific hardware-compatible format.
+          </p>
 
-          <!-- Codec Selection Options (Visible only when toggle is ON) -->
-          <div id="advanced-encoder-options" style="display: none; margin-top: 18px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 16px;">
-            <label style="font-size: 0.78rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 10px;">
-              Target Video Codec
-            </label>
-            
-            <div style="display: grid; gap: 10px;">
-              <!-- Option 1: H.264 (AVC) -->
-              <label class="codec-option-card" id="card-codec-h264" style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 10px; cursor: pointer; transition: all 0.2s ease;">
-                <input type="radio" name="video_codec_selection" value="h264" checked style="margin-top: 3px; accent-color: #3B82F6;">
-                <div style="flex: 1;">
-                  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
-                    <span style="font-weight: 700; font-size: 0.90rem; color: #F8FAFC;">H.264 (AVC)</span>
-                    <span style="font-size: 0.70rem; font-weight: 700; padding: 2px 8px; background: rgba(16, 185, 129, 0.15); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 4px;">
-                      ⭐ Best for Editors • Premiere Pro Supported
-                    </span>
-                  </div>
-                  <p style="font-size: 0.76rem; color: #94A3B8; margin-top: 4px; margin-bottom: 0; line-height: 1.4;">
-                    Supported natively by Adobe Premiere Pro, After Effects, DaVinci Resolve, Final Cut &amp; older Smart TVs.
-                  </p>
+          <div id="advanced-encoder-options" style="display: none; margin-top: 10px; border-top: 1px solid var(--border-subtle); padding-top: 12px;">
+            <label style="font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); display: block; margin-bottom: 8px;">TARGET VIDEO CODEC</label>
+            <div style="display: grid; gap: 8px;">
+              <label class="codec-option-card" id="card-codec-h264" style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--bg-surface-hover); border: 1px solid var(--border-default); border-radius: 8px; cursor: pointer;">
+                <input type="radio" name="video_codec_selection" value="h264" checked style="accent-color: #38BDF8;">
+                <div>
+                  <div style="font-weight: 600; font-size: 0.86rem; color: var(--text-main);">H.264 (AVC) <span style="font-size: 0.70rem; color: #10B981; font-weight: 500; margin-left: 6px;">Recommended • Maximum Compatibility</span></div>
+                  <div style="font-size: 0.74rem; color: var(--text-muted);">Compatible with standard media players, video editors, and Smart TVs.</div>
                 </div>
               </label>
-
-              <!-- Option 2: H.265 (HEVC) -->
-              <label class="codec-option-card" id="card-codec-h265" style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: rgba(15, 23, 42, 0.4); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px; cursor: pointer; transition: all 0.2s ease;">
-                <input type="radio" name="video_codec_selection" value="h265" style="margin-top: 3px; accent-color: #3B82F6;">
-                <div style="flex: 1;">
-                  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
-                    <span style="font-weight: 700; font-size: 0.90rem; color: #F8FAFC;">H.265 (HEVC)</span>
-                    <span style="font-size: 0.70rem; font-weight: 700; padding: 2px 8px; background: rgba(139, 92, 246, 0.15); color: #A78BFA; border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 4px;">
-                      ⚡ High Efficiency • 50% Smaller Size
-                    </span>
-                  </div>
-                  <p style="font-size: 0.76rem; color: #94A3B8; margin-top: 4px; margin-bottom: 0; line-height: 1.4;">
-                    Ultra-efficient compression designed for 4K/8K media playback and minimal disk storage.
-                  </p>
+              <label class="codec-option-card" id="card-codec-h265" style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--bg-surface-hover); border: 1px solid var(--border-default); border-radius: 8px; cursor: pointer;">
+                <input type="radio" name="video_codec_selection" value="h265" style="accent-color: #38BDF8;">
+                <div>
+                  <div style="font-weight: 600; font-size: 0.86rem; color: var(--text-main);">H.265 (HEVC) <span style="font-size: 0.70rem; color: #A78BFA; font-weight: 500; margin-left: 6px;">High Efficiency</span></div>
+                  <div style="font-size: 0.74rem; color: var(--text-muted);">Smaller file sizes with high visual fidelity.</div>
                 </div>
               </label>
-
-              <!-- Option 3: AV1 -->
-              <label class="codec-option-card" id="card-codec-av1" style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: rgba(15, 23, 42, 0.4); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px; cursor: pointer; transition: all 0.2s ease;">
-                <input type="radio" name="video_codec_selection" value="av1" style="margin-top: 3px; accent-color: #3B82F6;">
-                <div style="flex: 1;">
-                  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
-                    <span style="font-weight: 700; font-size: 0.90rem; color: #F8FAFC;">AV1 (AOMedia Video 1)</span>
-                    <span style="font-size: 0.70rem; font-weight: 700; padding: 2px 8px; background: rgba(245, 158, 11, 0.15); color: #FBBF24; border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 4px;">
-                      🚀 Next-Gen Open Standard
-                    </span>
-                  </div>
-                  <p style="font-size: 0.76rem; color: #94A3B8; margin-top: 4px; margin-bottom: 0; line-height: 1.4;">
-                    State-of-the-art open royalty-free video codec with superior high dynamic range quality.
-                  </p>
+              <label class="codec-option-card" id="card-codec-av1" style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--bg-surface-hover); border: 1px solid var(--border-default); border-radius: 8px; cursor: pointer;">
+                <input type="radio" name="video_codec_selection" value="av1" style="accent-color: #38BDF8;">
+                <div>
+                  <div style="font-weight: 600; font-size: 0.86rem; color: var(--text-main);">AV1 (AOMedia Video 1) <span style="font-size: 0.70rem; color: #F59E0B; font-weight: 500; margin-left: 6px;">Next-Gen Format</span></div>
+                  <div style="font-size: 0.74rem; color: var(--text-muted);">Modern open standard optimized for high resolution video.</div>
                 </div>
               </label>
             </div>
-
-            <!-- Dynamic Red Caution Disclaimer Banner -->
-            <div id="advanced-encoder-caution" style="display: none; margin-top: 14px; padding: 12px 14px; background: rgba(239, 68, 68, 0.10); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 10px; align-items: flex-start; gap: 10px;">
-              <i data-lucide="alert-triangle" style="width: 20px; height: 20px; color: #EF4444; flex-shrink: 0; margin-top: 1px;"></i>
-              <div style="font-size: 0.78rem; color: #FCA5A5; line-height: 1.45;">
-                <strong style="color: #EF4444; display: block; margin-bottom: 2px;">⚠️ Caution: Video Transcoding Active</strong>
-                Conversion time directly depends on your computer hardware performance. It may take some time during download finalization, kindly wait while downloading.
-              </div>
-            </div>
-
           </div>
-
         </div>
 
-        <!-- Default Instant Download Speed Explanation Card -->
-        <div style="background: rgba(16, 185, 129, 0.06); border: 1px solid rgba(16, 185, 129, 0.18); border-radius: 10px; padding: 12px 14px; display: flex; align-items: center; gap: 10px;">
-          <i data-lucide="zap" style="width: 18px; height: 18px; color: #10B981; flex-shrink: 0;"></i>
-          <span style="font-size: 0.78rem; color: #CBD5E1; line-height: 1.4;">
-            When Video Encoder is <strong>OFF (Default)</strong>, files download directly in native source format with <strong>zero transcoding lag</strong> and instant 100% completion.
-          </span>
+        <!-- Section 6: Maintenance & Updates -->
+        <div class="settings-card-box">
+          <div class="settings-box-header">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <i data-lucide="wrench" style="color: #10B981; width: 18px; height: 18px;"></i>
+              <span style="font-weight: 700; font-size: 0.92rem; color: var(--text-main);">System, Cache &amp; Updates</span>
+            </div>
+          </div>
+          <div style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;">
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-clean-cache-settings" style="flex: 1; justify-content: center;" onclick="App.clearCache();">
+              <i data-lucide="trash-2" style="width: 15px; height: 15px;"></i> <span>Clear Temp Chunks &amp; Cache</span>
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-check-updates" style="flex: 1; justify-content: center;">
+              <i data-lucide="refresh-cw" style="width: 15px; height: 15px;"></i> <span>Check for Updates</span>
+            </button>
+          </div>
+          <small class="form-hint" id="settings-update-status" style="margin-top: 8px; display: block; font-size: 0.8rem; color: #10B981; font-weight: 500;">✓ EggDL v2.1.9 is up to date</small>
         </div>
 
       </div>
 
-      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px; padding: 14px 22px; border-top: 1px solid rgba(255, 255, 255, 0.08);">
-        <button class="btn btn-secondary" id="cancel-advanced-settings-btn">Close</button>
-        <button class="btn btn-primary btn-glow" id="save-advanced-settings-btn">Save Preferences</button>
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; align-items: center; padding: 14px 22px; border-top: 1px solid var(--border-default);">
+        <button class="btn btn-primary btn-glow" id="save-settings-btn">
+          <i data-lucide="check"></i> <span>Save &amp; Apply</span>
+        </button>
       </div>
     </div>
   </div>
+
+
 
   <!-- In-App Auto-Update Modal -->
   <div class="modal-backdrop" id="update-modal" style="display: none; z-index: 10001;">
@@ -529,12 +522,12 @@
       <!-- View 1: Update Details -->
       <div id="update-modal-details-view">
         <div style="width: 56px; height: 56px; border-radius: 50%; background: rgba(59, 130, 246, 0.12); color: #3B82F6; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px auto;">
-          <i data-lucide="sparkles" style="width: 28px; height: 28px;"></i>
+          <i data-lucide="refresh-cw" style="width: 28px; height: 28px;"></i>
         </div>
-        <h3 style="font-size: 1.2rem; font-weight: 800; color: var(--text-main); margin-bottom: 6px;">New Update Available!</h3>
+        <h3 style="font-size: 1.2rem; font-weight: 800; color: var(--text-main); margin-bottom: 6px;">New Update Available</h3>
         <div class="badge" style="display: inline-block; margin-bottom: 12px; font-size: 0.82rem; font-weight: 700; padding: 4px 12px; background: rgba(16, 185, 129, 0.15); color: #10B981; border-radius: 20px;" id="update-modal-version">v2.1.9 Available</div>
         <div id="update-modal-notes" style="font-size: 0.84rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 20px; background: var(--bg-tertiary); padding: 12px 14px; border-radius: 8px; text-align: left; max-height: 140px; overflow-y: auto;">
-          ⚡ Ultra-Fast Native MP4 Engine<br>🚀 Zero 99% Lag &amp; Instant Single-File Downloads
+          Performance and stability improvements<br>Optimized parallel downloads and stream handling
         </div>
         <div style="display: flex; gap: 10px; justify-content: center;">
           <button class="btn btn-secondary" id="update-modal-later-btn" style="flex: 1; padding: 10px 14px;">Later</button>
@@ -647,9 +640,9 @@
 
           <!-- Navigation Tabs -->
           <div class="format-tabs" style="margin-bottom: 16px;">
-            <button class="format-tab-btn active" id="admin-tab-devices-btn">💻 Connected PCs & Kill-Switch</button>
-            <button class="format-tab-btn" id="admin-tab-keys-btn">🔑 Key Generator</button>
-            <button class="format-tab-btn" id="admin-tab-releases-btn">🚀 Push App Update</button>
+            <button class="format-tab-btn active" id="admin-tab-devices-btn">Connected PCs</button>
+            <button class="format-tab-btn" id="admin-tab-keys-btn">Key Generator</button>
+            <button class="format-tab-btn" id="admin-tab-releases-btn">Push App Update</button>
           </div>
 
           <!-- Tab 1: Connected Devices & Remote Kill Switch -->
@@ -707,7 +700,7 @@
             </div>
             <div class="form-group">
               <label>Release Notes / What's New</label>
-              <textarea id="admin-release-notes" class="form-control" rows="3" placeholder="What changed in this update...">⚡ Strict 3 Downloads/Day for Trial&#10;🔒 Expired Trial Product Key Lockout&#10;🚀 Starter Plan: 4K Max &amp; 2 Simultaneous Active Downloads&#10;👑 Cloud Product Key Activation &amp; Real-Time Sync&#10;🎬 4K/8K stream download optimizations</textarea>
+              <textarea id="admin-release-notes" class="form-control" rows="3" placeholder="What changed in this update...">Performance and stability improvements&#10;Enhanced stream resolution handling&#10;Optimized parallel downloads</textarea>
             </div>
             <div class="form-group">
               <label>Download Setup URL</label>
@@ -728,30 +721,6 @@
     </div>
   </div>
 
-  <!-- Built-in In-App Media Player Modal -->
-  <div class="modal-backdrop" id="player-modal" style="display: none;">
-    <div class="modal-card modal-lg">
-      <div class="modal-header">
-        <div class="modal-title">
-          <i data-lucide="play-circle"></i>
-          <span id="player-title">Media Player</span>
-        </div>
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <button class="btn btn-secondary btn-sm" id="player-external-btn" title="Open in System Player">
-            <i data-lucide="external-link"></i>
-            <span>System Player</span>
-          </button>
-          <button class="modal-close" id="close-player-btn" onclick="UI.closePlayerModal()">
-            <i data-lucide="x"></i>
-          </button>
-        </div>
-      </div>
-
-      <div class="modal-body" style="padding: 0; background: #000; display: flex; align-items: center; justify-content: center; min-height: 380px;">
-        <video id="player-video-element" controls autoplay style="width: 100%; max-height: 70vh; outline: none;"></video>
-      </div>
-    </div>
-  </div>
 
   <!-- Account / Licensing Modal -->
   <div class="modal-backdrop" id="account-modal" style="display: none; z-index: 10000;" onclick="if(event.target === this) UI.closeAccountModal()">
@@ -794,132 +763,7 @@
           </div>
           <div id="license-feedback-msg" class="license-feedback" style="display: none;"></div>
           <div class="demo-keys-hint">
-            <span>💡 <b>Example Key Format:</b> <code>EGGDL-PRO-XXXX-SAMPLE-KEY0</code></span>
-          </div>
-        </div>
-
-        <!-- Subscription Plans Grid -->
-        <div class="plans-section">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h4 class="plans-title">Choose Your Subscription Plan</h4>
-            <span style="font-size: 0.74rem; color: #10B981; font-weight: 600;"><i data-lucide="zap"></i> Instant Auto-Activation via UPI / Card</span>
-          </div>
-          <div class="plans-grid">
-            <!-- 1 Month: Starter -->
-            <div class="plan-card" data-plan="1month">
-              <div class="plan-card-header">
-                <div class="plan-name">Starter</div>
-                <div class="plan-badge">30 Days</div>
-              </div>
-              <div class="plan-price-main">
-                <span class="currency">₹</span><span class="amount">99</span>
-                <span class="period">/ 30 Days</span>
-              </div>
-              <div class="plan-effective-rate">Effective: ₹99/mo</div>
-              <ul class="plan-features">
-                <li><i data-lucide="check"></i> 16 Turbo Threads</li>
-                <li><i data-lucide="check"></i> Up to 4K Ultra HD Support</li>
-                <li><i data-lucide="check"></i> 2 Simultaneous Downloads</li>
-                <li><i data-lucide="check"></i> Standard Download Engine</li>
-              </ul>
-              <button class="btn btn-primary btn-sm btn-plan-buy" data-plan="1month">
-                <i data-lucide="credit-card"></i> Pay ₹99
-              </button>
-            </div>
-
-            <!-- 3 Months: Pro -->
-            <div class="plan-card" data-plan="3month">
-              <div class="plan-card-header">
-                <div class="plan-name">Pro</div>
-                <div class="plan-badge">90 Days</div>
-              </div>
-              <div class="plan-price-main">
-                <span class="currency">₹</span><span class="amount">249</span>
-                <span class="period">/ 90 Days</span>
-              </div>
-              <div class="plan-effective-rate">Effective: ₹83/mo • Save 16%</div>
-              <ul class="plan-features">
-                <li><i data-lucide="check"></i> All 1 Month Features +</li>
-                <li><i data-lucide="check"></i> 24 Turbo Threads</li>
-                <li><i data-lucide="check"></i> Full 8K Ultra HD Support</li>
-                <li><i data-lucide="check"></i> 5 Simultaneous Downloads</li>
-                <li><i data-lucide="check"></i> Priority Acceleration Engine</li>
-              </ul>
-              <button class="btn btn-primary btn-sm btn-plan-buy" data-plan="3month">
-                <i data-lucide="credit-card"></i> Pay ₹249
-              </button>
-            </div>
-
-            <!-- 6 Months: Elite -->
-            <div class="plan-card" data-plan="6month">
-              <div class="plan-card-header">
-                <div class="plan-name">Elite</div>
-                <div class="plan-badge">180 Days</div>
-              </div>
-              <div class="plan-price-main">
-                <span class="currency">₹</span><span class="amount">449</span>
-                <span class="period">/ 180 Days</span>
-              </div>
-              <div class="plan-effective-rate">Effective: ₹74.83/mo • Save 24%</div>
-              <ul class="plan-features">
-                <li><i data-lucide="check"></i> All 3 Months Features +</li>
-                <li><i data-lucide="check"></i> 32 Turbo Threads</li>
-                <li><i data-lucide="check"></i> 10 Simultaneous Downloads</li>
-                <li><i data-lucide="check"></i> Smart Media Sniffer & Link Grabber</li>
-                <li><i data-lucide="check"></i> Auto-Resume Broken Downloads</li>
-              </ul>
-              <button class="btn btn-primary btn-sm btn-plan-buy" data-plan="6month">
-                <i data-lucide="credit-card"></i> Pay ₹449
-              </button>
-            </div>
-
-            <!-- 1 Year: Ultra Elite -->
-            <div class="plan-card" data-plan="1year">
-              <div class="plan-featured-tag" style="background: #3B82F6;">POPULAR</div>
-              <div class="plan-card-header">
-                <div class="plan-name">Ultra Elite</div>
-                <div class="plan-badge">365 Days</div>
-              </div>
-              <div class="plan-price-main">
-                <span class="currency">₹</span><span class="amount">699</span>
-                <span class="period">/ 365 Days</span>
-              </div>
-              <div class="plan-effective-rate">Effective: ₹58.25/mo • Save 41%</div>
-              <ul class="plan-features">
-                <li><i data-lucide="check"></i> All 6 Months Features +</li>
-                <li><i data-lucide="check"></i> 48 Max Turbo Threads</li>
-                <li><i data-lucide="check"></i> 20 Simultaneous Downloads</li>
-                <li><i data-lucide="check"></i> VIP Dedicated Pipeline Speeds</li>
-                <li><i data-lucide="check"></i> Automatic Subtitle & Audio Track Extractor</li>
-              </ul>
-              <button class="btn btn-primary btn-sm btn-plan-buy" data-plan="1year">
-                <i data-lucide="credit-card"></i> Pay ₹699
-              </button>
-            </div>
-
-            <!-- Lifetime: Ultimate Pass -->
-            <div class="plan-card featured" data-plan="lifetime">
-              <div class="plan-featured-tag">BEST VALUE</div>
-              <div class="plan-card-header">
-                <div class="plan-name">Ultimate Pass</div>
-                <div class="plan-badge lifetime">Permanent</div>
-              </div>
-              <div class="plan-price-main">
-                <span class="currency">₹</span><span class="amount">1,499</span>
-                <span class="period">One-time</span>
-              </div>
-              <div class="plan-effective-rate">Pay Once, Own Forever</div>
-              <ul class="plan-features">
-                <li><i data-lucide="check"></i> Unlimited Everything</li>
-                <li><i data-lucide="check"></i> Infinite Concurrent Downloads</li>
-                <li><i data-lucide="check"></i> 8K / 4K / HDR Original Quality</li>
-                <li><i data-lucide="check"></i> Direct Priority Bandwidth Route</li>
-                <li><i data-lucide="check"></i> All Future Updates & VIP Features Included</li>
-              </ul>
-              <button class="btn btn-primary btn-sm btn-glow btn-plan-buy" data-plan="lifetime">
-                <i data-lucide="crown"></i> Pay ₹1,499
-              </button>
-            </div>
+            <span><b>Example Key Format:</b> <code>EGGDL-PRO-XXXX-SAMPLE-KEY0</code></span>
           </div>
         </div>
       </div>
@@ -930,8 +774,8 @@
     </div>
   </div>
 
-  <!-- Payment Checkout Modal (UPI & Cards) -->
-  <div class="modal-backdrop" id="payment-modal" style="display: none;">
+  <!-- Payment Checkout Modal (Disabled) -->
+  <div class="modal-backdrop" id="payment-modal" style="display: none !important;">
     <div class="modal-card modal-md">
       <div class="modal-header">
         <div class="modal-title">
@@ -1131,23 +975,39 @@
     </div>
   </div>
 
-  <!-- Custom Native Confirmation Modal (Zero ugly 127.0.0.1 browser alert dialogs) -->
+  <!-- Custom Native Confirmation Modal (Clean Desktop Dialog) -->
   <div class="modal-backdrop" id="confirm-modal" style="display: none; z-index: 10000;">
-    <div class="modal-card modal-sm" style="max-width: 420px; text-align: center; padding: 26px 24px;">
-      <div id="confirm-modal-icon" style="width: 52px; height: 52px; border-radius: 50%; background: rgba(239, 68, 68, 0.12); color: #EF4444; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto; font-size: 1.4rem;">
-        <i data-lucide="alert-triangle"></i>
+    <div class="modal-card" style="max-width: 440px; width: 92%; padding: 0; overflow: hidden; border-radius: 8px; border: 1px solid var(--border-default); background: var(--bg-surface); box-shadow: 0 16px 36px rgba(0,0,0,0.45);">
+      
+      <!-- Dialog Header -->
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border-default);">
+        <div style="display: flex; align-items: center; gap: 9px;">
+          <div id="confirm-modal-icon" style="color: #EF4444; display: flex; align-items: center;">
+            <i data-lucide="trash-2" style="width: 17px; height: 17px;"></i>
+          </div>
+          <h3 id="confirm-modal-title" style="font-size: 0.98rem; font-weight: 600; color: var(--text-main); margin: 0;">Clear All Downloads</h3>
+        </div>
+        <button type="button" class="modal-close" id="confirm-modal-close-x" title="Close" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; padding: 2px; border-radius: 4px;">
+          <i data-lucide="x" style="width: 15px; height: 15px;"></i>
+        </button>
       </div>
-      <h3 id="confirm-modal-title" style="font-size: 1.15rem; font-weight: 700; color: var(--text-main); margin-bottom: 8px;">Confirm Action</h3>
-      <p id="confirm-modal-desc" style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 22px;">Are you sure you want to proceed?</p>
-      <div style="display: flex; gap: 12px; justify-content: center;">
-        <button class="btn btn-secondary" style="flex: 1; padding: 10px 16px;" id="confirm-modal-cancel-btn">Cancel</button>
-        <button class="btn btn-danger btn-glow" style="flex: 1; padding: 10px 16px;" id="confirm-modal-ok-btn">Confirm</button>
+
+      <!-- Dialog Body -->
+      <div style="padding: 16px 18px;">
+        <p id="confirm-modal-desc" style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; margin: 0;">Are you sure you want to clear all download history? Your downloaded files on disk will not be deleted.</p>
       </div>
+
+      <!-- Dialog Footer -->
+      <div style="display: flex; justify-content: flex-end; align-items: center; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--border-default); background: var(--bg-surface-elevated);">
+        <button type="button" class="btn btn-secondary btn-sm" id="confirm-modal-cancel-btn" style="padding: 6px 14px; font-weight: 500; font-size: 0.83rem; border-radius: 5px;">Cancel</button>
+        <button type="button" class="btn btn-danger btn-sm" id="confirm-modal-ok-btn" style="padding: 6px 16px; font-weight: 500; font-size: 0.83rem; border-radius: 5px; box-shadow: none;">Clear All</button>
+      </div>
+
     </div>
   </div>
 
-  <!-- Dedicated Trial Expired Lockout Modal (Native App Theme) -->
-  <div class="modal-backdrop" id="trial-expired-lockout-modal" style="display: none; z-index: 10005;" onclick="if(event.target === this) this.style.display = 'none'">
+  <!-- Dedicated Trial Expired Lockout Modal (Disabled) -->
+  <div class="modal-backdrop" id="trial-expired-lockout-modal" style="display: none !important; z-index: 10005;" onclick="if(event.target === this) this.style.display = 'none'">
     <div class="modal-card modal-sm" style="max-width: 440px;">
       <div class="modal-header">
         <div class="modal-title" style="display: flex; align-items: center; gap: 8px;">
@@ -1178,8 +1038,8 @@
     </div>
   </div>
 
-  <!-- Plan Feature Upgrade / Daily Limit Modal (Native App Theme) -->
-  <div class="modal-backdrop" id="upgrade-prompt-modal" style="display: none; z-index: 10006;" onclick="if(event.target === this) this.style.display = 'none'">
+  <!-- Plan Feature Upgrade / Daily Limit Modal (Disabled) -->
+  <div class="modal-backdrop" id="upgrade-prompt-modal" style="display: none !important; z-index: 10006;" onclick="if(event.target === this) this.style.display = 'none'">
     <div class="modal-card modal-sm" style="max-width: 440px;">
       <div class="modal-header">
         <div class="modal-title" style="display: flex; align-items: center; gap: 8px;">
@@ -1232,7 +1092,7 @@
   <script src="/static/audio/notification_base64.js?v=65.0"></script>
   <script src="/static/js/firebase_licensing.js?v=65.0"></script>
   <script src="/static/js/api.js?v=65.0"></script>
-  <script src="/static/js/ui.js?v=66.0"></script>
-  <script src="/static/js/app.js?v=66.0"></script>
+  <script src="/static/js/ui.js?v=72.0"></script>
+  <script src="/static/js/app.js?v=72.0"></script>
 </body>
 </html>
